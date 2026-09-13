@@ -1,0 +1,65 @@
+name: Build & Release APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Bisa trigger manual dari GitHub
+
+jobs:
+  build:
+    name: Build Flutter APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=v$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: "MengFin ${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## 📱 MengFin Android APK
+            
+            ### ✅ Fitur
+            - Dashboard keuangan real-time
+            - Input transaksi (online & offline)
+            - Anggaran bulanan
+            - Goals / tabungan
+            - AI Financial Advisor
+            - Sync otomatis saat online
+            
+            ### 📥 Cara Install
+            1. Download file `MengFin.apk` di bawah
+            2. Buka di HP → izinkan "Install dari sumber tidak dikenal"
+            3. Install dan buka app
+            
+            > Server: Railway Cloud (24/7) + MongoDB Atlas
+          files: build/app/outputs/flutter-apk/app-release.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
