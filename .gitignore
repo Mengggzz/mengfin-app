@@ -46,3 +46,12 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Gradle caches - JANGAN di-commit (filename terlalu panjang di Windows)
+.gradle_fresh/
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+**/.gradle/
+**/build/
