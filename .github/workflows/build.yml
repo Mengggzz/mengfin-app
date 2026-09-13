@@ -3,10 +3,7 @@ name: Build & Release APK
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:  # Bisa trigger manual dari GitHub
-
-env:
-  FLUTTER_VERSION: '3.22.3'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -17,18 +14,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Flutter
+      - name: Setup Flutter (stable)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
+
+      - name: Flutter version info
+        run: flutter --version
 
       - name: Get dependencies
         run: flutter pub get
@@ -36,11 +35,11 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release --no-tree-shake-icons
 
-      - name: Get version
+      - name: Get version tag
         id: version
         run: echo "VERSION=v$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
+      - name: Upload APK to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
@@ -51,17 +50,16 @@ jobs:
             ### ✅ Fitur
             - Dashboard keuangan real-time
             - Input transaksi (online & offline)
-            - Anggaran bulanan
-            - Goals / tabungan
-            - AI Financial Advisor
+            - Anggaran bulanan & Goals / tabungan
+            - AI Financial Advisor (Gemini)
             - Sync otomatis saat online
             
             ### 📥 Cara Install
-            1. Download file `MengFin.apk` di bawah
+            1. Download **app-release.apk** di bawah
             2. Buka di HP → izinkan "Install dari sumber tidak dikenal"
             3. Install dan buka app
             
-            > Server: Railway Cloud (24/7) + MongoDB Atlas
+            > 🌐 Server: Railway Cloud 24/7 + MongoDB Atlas
           files: build/app/outputs/flutter-apk/app-release.apk
           make_latest: true
         env:
