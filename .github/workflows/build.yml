@@ -28,72 +28,36 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Flutter version info
-        run: flutter --version
-
       - name: Get dependencies
         run: flutter pub get
 
-      # ── Decode keystore dari GitHub Secret ─────────────────────────────────
-      # Jika KEYSTORE_BASE64 secret tidak ada, gunakan debug keystore biasa
+      # Decode release keystore dari GitHub Secret (jika ada)
       - name: Setup signing keystore
         run: |
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "Using release keystore from secret"
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
-            cat > android/key.properties <<EOF
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          storeFile=keystore.jks
-          EOF
+            printf 'storePassword=${{ secrets.KEYSTORE_PASSWORD }}\nkeyPassword=${{ secrets.KEY_PASSWORD }}\nkeyAlias=${{ secrets.KEY_ALIAS }}\nstoreFile=keystore.jks\n' > android/key.properties
             echo "KEYSTORE_READY=true" >> $GITHUB_ENV
           else
-            echo "No keystore secret found, using debug keystore"
             echo "KEYSTORE_READY=false" >> $GITHUB_ENV
           fi
-
-      - name: Print SHA-1 fingerprint (for Google Console)
-        run: |
-          echo "========================================"
-          echo "📋 SHA-1 Fingerprint untuk Google Cloud Console:"
-          echo "========================================"
-          keytool -list -v \
-            -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey \
-            -storepass android \
-            -keypass android 2>/dev/null | grep "SHA1:" || echo "Debug keystore not found"
-          echo "========================================"
 
       - name: Build release APK
         run: flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
-      - name: Print SHA-1 fingerprint (untuk Google Cloud Console)
+      - name: Print SHA-1 dari APK (untuk verifikasi)
         run: |
           echo "========================================"
-          echo "SHA-1 dari debug keystore (daftarkan di Google Console):"
-          echo "========================================"
-          # Debug keystore dibuat Flutter saat pertama build
-          KEYSTORE="$HOME/.android/debug.keystore"
-          if [ -f "$KEYSTORE" ]; then
-            keytool -list -v \
-              -keystore "$KEYSTORE" \
-              -alias androiddebugkey \
-              -storepass android \
-              -keypass android 2>/dev/null \
-              | grep -E "SHA1:|SHA256:"
+          if [ "$KEYSTORE_READY" = "true" ]; then
+            echo "Signed dengan: RELEASE keystore"
           else
-            echo "Keystore tidak ditemukan di $KEYSTORE"
-            find $HOME -name "*.keystore" 2>/dev/null | head -5
+            echo "Signed dengan: DEBUG keystore"
           fi
-          echo "========================================"
-          echo ""
-          echo "SHA-1 dari APK yang dihasilkan:"
-          echo "========================================"
           keytool -printcert \
             -jarfile build/app/outputs/flutter-apk/app-release.apk \
             2>/dev/null | grep -E "SHA1:|SHA256:" \
-            || echo "Tidak bisa baca cert dari APK"
+            || echo "Tidak bisa baca cert"
           echo "========================================"
 
       - name: Get version tag
