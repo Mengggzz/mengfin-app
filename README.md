@@ -1,4 +1,4 @@
-# MengFin Flutter App
+# MengFin App
 
 Aplikasi keuangan personal berbasis Flutter yang terhubung ke backend Node.js.
 
