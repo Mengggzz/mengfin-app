@@ -6,6 +6,10 @@ import 'constants/app_colors.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/transaksi_screen.dart';
+import 'screens/kazz_screen.dart';
+import 'screens/laporan_screen.dart';
+import 'screens/more_screen.dart';
+import 'screens/transaction_input_screen.dart';
 import 'screens/anggaran_screen.dart';
 import 'screens/goals_screen.dart';
 import 'screens/ai_screen.dart';
@@ -21,6 +25,8 @@ void main() async {
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: AppColors.bgCard,
+    systemNavigationBarIconBrightness: Brightness.light,
   ));
 
   // Init services — sqflite tidak support web, skip di web
@@ -56,8 +62,8 @@ class MengFinApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: const ColorScheme.dark(
           primary: AppColors.primary,
+          secondary: AppColors.accent,
           surface: AppColors.bgCard,
-          background: AppColors.bg,
         ),
         scaffoldBackgroundColor: AppColors.bg,
         appBarTheme: const AppBarTheme(
@@ -71,6 +77,8 @@ class MengFinApp extends StatelessWidget {
           displayColor: AppColors.textPrimary,
         ),
         useMaterial3: true,
+        splashColor: AppColors.primary.withOpacity(0.1),
+        highlightColor: AppColors.primary.withOpacity(0.05),
       ),
       initialRoute: AuthService.instance.isLoggedIn ? '/home' : '/login',
       routes: {
@@ -94,19 +102,17 @@ class _MainNavState extends State<MainNav> {
   int _pendingCount = 0;
 
   static const _screens = [
-    DashboardScreen(),
-    TransaksiScreen(),
-    AnggaranScreen(),
-    GoalsScreen(),
-    AiScreen(),
+    DashboardScreen(),   // 0 — Home
+    KazzScreen(),        // 1 — Kazz (Wallets/Budget)
+    TransaksiScreen(),   // 2 — Transaksi (History/View)
+    MoreScreen(),        // 3 — More (Settings, AI, Goals)
   ];
 
   static const _tabs = [
-    (icon: Icons.dashboard_outlined,      activeIcon: Icons.dashboard,      label: 'Beranda'),
-    (icon: Icons.receipt_long_outlined,   activeIcon: Icons.receipt_long,   label: 'Transaksi'),
-    (icon: Icons.wallet_outlined,         activeIcon: Icons.wallet,         label: 'Anggaran'),
-    (icon: Icons.flag_outlined,           activeIcon: Icons.flag,           label: 'Goals'),
-    (icon: Icons.auto_awesome_outlined,   activeIcon: Icons.auto_awesome,   label: 'AI'),
+    (icon: Icons.home_outlined,           activeIcon: Icons.home,           label: 'Home'),
+    (icon: Icons.folder_outlined,         activeIcon: Icons.folder,         label: 'Kazz'),
+    (icon: Icons.search,                  activeIcon: Icons.search,         label: 'View'),
+    (icon: Icons.more_horiz,              activeIcon: Icons.more_horiz,     label: 'Lainnya'),
   ];
 
   @override
@@ -148,6 +154,17 @@ class _MainNavState extends State<MainNav> {
     if (mounted) setState(() => _pendingCount = count);
   }
 
+  void _openTransactionInput() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TransactionInputScreen()),
+    );
+    // Refresh dashboard if transaction was saved
+    if (result == true) {
+      setState(() {}); // triggers rebuild
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -158,6 +175,19 @@ class _MainNavState extends State<MainNav> {
           child: IndexedStack(index: _idx, children: _screens),
         ),
       ]),
+      // ── FAB for Quick Add Transaction ──────────────────────────
+      floatingActionButton: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        child: FloatingActionButton(
+          onPressed: _openTransactionInput,
+          backgroundColor: AppColors.primary,
+          elevation: 6,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: const Icon(Icons.add, color: Colors.white, size: 28),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // ── Bottom Navigation Bar ──────────────────────────────────
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.bgCard,
@@ -165,44 +195,55 @@ class _MainNavState extends State<MainNav> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(_tabs.length, (i) {
-                final tab = _tabs[i];
-                final isActive = _idx == i;
-                return GestureDetector(
-                  onTap: () => setState(() => _idx = i),
-                  behavior: HitTestBehavior.opaque,
-                  child: SizedBox(
-                    width: 64,
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 40, height: 40,
-                        decoration: isActive ? BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ) : null,
-                        child: Icon(
-                          isActive ? tab.activeIcon : tab.icon,
-                          color: isActive ? AppColors.primary : AppColors.textMuted,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(tab.label, style: TextStyle(
-                        fontSize: 10,
-                        color: isActive ? AppColors.primary : AppColors.textMuted,
-                        fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
-                      )),
-                    ]),
-                  ),
-                );
-              }),
+              children: [
+                // Left tabs
+                _navItem(0),
+                _navItem(1),
+                // Center space for FAB
+                const SizedBox(width: 56),
+                // Right tabs
+                _navItem(2),
+                _navItem(3),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _navItem(int i) {
+    final tab = _tabs[i];
+    final isActive = _idx == i;
+    return GestureDetector(
+      onTap: () => setState(() => _idx = i),
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 64,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 40, height: 40,
+            decoration: isActive ? BoxDecoration(
+              color: AppColors.primary.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+            ) : null,
+            child: Icon(
+              isActive ? tab.activeIcon : tab.icon,
+              color: isActive ? AppColors.primary : AppColors.textMuted,
+              size: 22,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(tab.label, style: TextStyle(
+            fontSize: 10,
+            color: isActive ? AppColors.primary : AppColors.textMuted,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
+          )),
+        ]),
       ),
     );
   }
@@ -217,17 +258,17 @@ class _MainNavState extends State<MainNav> {
     IconData icon;
 
     if (!_isOnline) {
-      bgColor = const Color(0xFFEF4444);
+      bgColor = AppColors.danger;
       icon = Icons.wifi_off_rounded;
       text = _pendingCount > 0
           ? '📴 Mode Offline · $_pendingCount data menunggu sync'
           : '📴 Mode Offline · Data tersimpan lokal';
     } else if (_showSyncBanner) {
-      bgColor = const Color(0xFF10B981);
+      bgColor = AppColors.success;
       icon = Icons.sync_rounded;
       text = '✅ Kembali Online · Menyinkronkan data...';
     } else {
-      bgColor = const Color(0xFFF59E0B);
+      bgColor = AppColors.warning;
       icon = Icons.cloud_upload_outlined;
       text = '⏳ $_pendingCount data belum tersinkron';
     }
