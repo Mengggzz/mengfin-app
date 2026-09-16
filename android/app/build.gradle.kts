@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Baca key.properties jika ada (dari GitHub Secrets saat CI/CD, atau setup lokal)
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasKeystore = keystorePropertiesFile.exists()
+val keystoreProperties = Properties().apply {
+    if (hasKeystore) load(keystorePropertiesFile.inputStream())
 }
 
 android {
@@ -18,17 +27,32 @@ android {
         jvmTarget = "17"
     }
 
+    signingConfigs {
+        if (hasKeystore) {
+            create("release") {
+                keyAlias     = keystoreProperties["keyAlias"]     as String
+                keyPassword  = keystoreProperties["keyPassword"]  as String
+                storeFile    = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.example.mengfin"
         minSdk = 21
         targetSdk = 36
-        versionCode = 3
-        versionName = "3.0.0"
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            // Pakai release keystore jika ada (CI/CD), fallback ke debug jika tidak
+            signingConfig = if (hasKeystore)
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false
         }

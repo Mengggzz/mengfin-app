@@ -68,14 +68,32 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
-      - name: Get SHA-1 of built APK signing cert
+      - name: Print SHA-1 fingerprint (untuk Google Cloud Console)
         run: |
           echo "========================================"
-          echo "📋 SHA-1 dari APK yang di-build:"
+          echo "SHA-1 dari debug keystore (daftarkan di Google Console):"
+          echo "========================================"
+          # Debug keystore dibuat Flutter saat pertama build
+          KEYSTORE="$HOME/.android/debug.keystore"
+          if [ -f "$KEYSTORE" ]; then
+            keytool -list -v \
+              -keystore "$KEYSTORE" \
+              -alias androiddebugkey \
+              -storepass android \
+              -keypass android 2>/dev/null \
+              | grep -E "SHA1:|SHA256:"
+          else
+            echo "Keystore tidak ditemukan di $KEYSTORE"
+            find $HOME -name "*.keystore" 2>/dev/null | head -5
+          fi
+          echo "========================================"
+          echo ""
+          echo "SHA-1 dari APK yang dihasilkan:"
           echo "========================================"
           keytool -printcert \
             -jarfile build/app/outputs/flutter-apk/app-release.apk \
-            2>/dev/null | grep "SHA1:" || echo "Could not read APK cert"
+            2>/dev/null | grep -E "SHA1:|SHA256:" \
+            || echo "Tidak bisa baca cert dari APK"
           echo "========================================"
 
       - name: Get version tag
