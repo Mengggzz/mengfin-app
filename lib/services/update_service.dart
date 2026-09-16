@@ -61,9 +61,9 @@ class UpdateService {
   UpdateService._();
   static final UpdateService instance = UpdateService._();
 
-  // ─── GANTI dengan owner/repo GitHub kamu ───────────────────────────────────
-  static const String _githubOwner = 'MengFin-App'; // Ganti dengan username GitHub kamu
-  static const String _githubRepo  = 'mengfin';     // Ganti dengan nama repo kamu
+  // ─── GitHub repo untuk cek release terbaru ────────────────────────────────
+  static const String _githubOwner = 'Mengggzz';
+  static const String _githubRepo  = 'mengfin-app';
   // ───────────────────────────────────────────────────────────────────────────
 
   static const String _apiUrl =
