@@ -34,8 +34,49 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # ── Decode keystore dari GitHub Secret ─────────────────────────────────
+      # Jika KEYSTORE_BASE64 secret tidak ada, gunakan debug keystore biasa
+      - name: Setup signing keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Using release keystore from secret"
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+            cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=keystore.jks
+          EOF
+            echo "KEYSTORE_READY=true" >> $GITHUB_ENV
+          else
+            echo "No keystore secret found, using debug keystore"
+            echo "KEYSTORE_READY=false" >> $GITHUB_ENV
+          fi
+
+      - name: Print SHA-1 fingerprint (for Google Console)
+        run: |
+          echo "========================================"
+          echo "📋 SHA-1 Fingerprint untuk Google Cloud Console:"
+          echo "========================================"
+          keytool -list -v \
+            -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey \
+            -storepass android \
+            -keypass android 2>/dev/null | grep "SHA1:" || echo "Debug keystore not found"
+          echo "========================================"
+
       - name: Build release APK
         run: flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
+
+      - name: Get SHA-1 of built APK signing cert
+        run: |
+          echo "========================================"
+          echo "📋 SHA-1 dari APK yang di-build:"
+          echo "========================================"
+          keytool -printcert \
+            -jarfile build/app/outputs/flutter-apk/app-release.apk \
+            2>/dev/null | grep "SHA1:" || echo "Could not read APK cert"
+          echo "========================================"
 
       - name: Get version tag
         id: version

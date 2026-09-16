@@ -58,9 +58,34 @@ class _LoginScreenState extends State<LoginScreen>
           setState(() { _loading = false; _error = 'Login dibatalkan'; });
         }
       } catch (e) {
-        setState(() { _loading = false; _error = 'Error: $e'; });
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = _parseSignInError(e);
+        });
       }
     }
+  }
+
+  String _parseSignInError(dynamic e) {
+    final msg = e.toString();
+    // ApiException: 10 = DEVELOPER_ERROR (SHA-1 not registered)
+    if (msg.contains('ApiException: 10') || msg.contains('sign_in_failed')) {
+      return 'Konfigurasi Google Sign-In belum selesai.\nHubungi developer untuk menambahkan SHA-1.';
+    }
+    // ApiException: 7 = NETWORK_ERROR
+    if (msg.contains('ApiException: 7') || msg.contains('network_error')) {
+      return 'Tidak ada koneksi internet. Periksa jaringan kamu.';
+    }
+    // ApiException: 12501 = Sign-in cancelled
+    if (msg.contains('12501') || msg.contains('canceled')) {
+      return 'Login dibatalkan.';
+    }
+    // ApiException: 12500 = Sign-in failed
+    if (msg.contains('12500')) {
+      return 'Login gagal. Coba lagi beberapa saat.';
+    }
+    return 'Login gagal. Coba lagi.';
   }
 
   @override
