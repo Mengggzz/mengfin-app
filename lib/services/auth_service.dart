@@ -16,7 +16,10 @@ class AuthService {
   static const _userKey  = 'auth_user';
 
   final _googleSignIn = GoogleSignIn(
+    // Web: pakai clientId untuk OAuth popup/redirect
     clientId: kIsWeb ? kGoogleClientId : null,
+    // Android: serverClientId diperlukan agar idToken tersedia
+    serverClientId: kIsWeb ? null : kGoogleClientId,
     scopes: ['email', 'profile'],
   );
 
