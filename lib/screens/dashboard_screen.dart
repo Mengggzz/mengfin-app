@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/utils.dart';
@@ -16,12 +17,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<dynamic> _recentTx = [];
   bool _loading = true;
   bool _isOfflineData = false;
+  bool _error = false;
 
   @override
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = false; });
     try {
       final results = await Future.wait([
         ApiService.getDashboard(),
@@ -34,7 +36,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _isOfflineData = false;
       });
     } catch (e) {
-      // Fallback ke data lokal
+      // Di web, sqflite tidak tersedia — langsung tampilkan error state
+      if (kIsWeb) {
+        setState(() { _loading = false; _error = true; });
+        return;
+      }
+      // Fallback ke data lokal (mobile/desktop only)
       try {
         final bulan = currentBulan();
         final localStats = await LocalDb.getDashboardLocal(bulan);
@@ -64,17 +71,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _isOfflineData = true;
         });
       } catch (_) {
-        setState(() => _loading = false);
+        setState(() { _loading = false; _error = true; });
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: _loading || _data == null
+      body: _loading
         ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+        : _error || _data == null
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.wifi_off_rounded, color: AppColors.textMuted, size: 48),
+              const SizedBox(height: 16),
+              const Text('Gagal memuat data', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              const Text('Periksa koneksi internet', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Coba Lagi'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary, foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ]))
         : RefreshIndicator(
             color: AppColors.primary,
             backgroundColor: AppColors.bgCard,

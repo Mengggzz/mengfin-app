@@ -1,7 +1,7 @@
 name: mengfin
 description: MengFin - Personal Finance Tracker
 publish_to: 'none'
-version: 1.0.0+1
+version: 3.0.0+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -33,6 +33,14 @@ dependencies:
   sqflite: ^2.3.3
   connectivity_plus: ^6.0.3
   path: ^1.9.0
+
+  # Auth
+  google_sign_in: ^6.2.1
+  google_sign_in_web: ^0.12.4
+
+  # Update checker
+  package_info_plus: ^8.0.0
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:

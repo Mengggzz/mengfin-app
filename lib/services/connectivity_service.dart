@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 class ConnectivityService {
@@ -9,11 +10,13 @@ class ConnectivityService {
   final _controller = StreamController<bool>.broadcast();
 
   bool _isOnline = true;
-  bool get isOnline => _isOnline;
+  // Di web, selalu anggap online (browser punya akses internet langsung)
+  bool get isOnline => kIsWeb ? true : _isOnline;
 
   Stream<bool> get onStatusChange => _controller.stream;
 
   Future<void> init() async {
+    if (kIsWeb) return; // Web tidak perlu monitor connectivity
     final result = await _connectivity.checkConnectivity();
     _isOnline = _isConnected(result);
 

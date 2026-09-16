@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import '../constants/config.dart';
 import '../models/models.dart';
+import 'auth_service.dart';
 import 'local_db.dart';
 import 'connectivity_service.dart';
 import 'sync_service.dart';
@@ -11,34 +13,51 @@ class ApiService {
 
   static bool get _online => ConnectivityService.instance.isOnline;
 
+  static Map<String, String> get _authHeaders {
+    final token = AuthService.instance.token;
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
   // ── Low-level HTTP ─────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> _get(String path) async {
-    final res = await _client.get(Uri.parse('$kApiBaseUrl$path'));
+    final res = await _client.get(
+      Uri.parse('$kApiBaseUrl$path'),
+      headers: _authHeaders,
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
+    if (res.statusCode == 401) throw Exception('unauthorized');
     throw Exception('GET $path failed: ${res.statusCode}');
   }
 
   static Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
     final res = await _client.post(
       Uri.parse('$kApiBaseUrl$path'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _authHeaders,
       body: jsonEncode(body),
     );
     if (res.statusCode >= 200 && res.statusCode < 300) return jsonDecode(res.body);
+    if (res.statusCode == 401) throw Exception('unauthorized');
     throw Exception('POST $path failed: ${res.body}');
   }
 
   static Future<void> _put(String path, Map<String, dynamic> body) async {
     await _client.put(
       Uri.parse('$kApiBaseUrl$path'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _authHeaders,
       body: jsonEncode(body),
     );
   }
 
   static Future<void> _delete(String path) async {
-    await _client.delete(Uri.parse('$kApiBaseUrl$path'));
+    await _client.delete(
+      Uri.parse('$kApiBaseUrl$path'),
+      headers: _authHeaders,
+    );
   }
+
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
   static Future<DashboardData> getDashboard() async {
@@ -59,15 +78,18 @@ class ApiService {
     if (_online) {
       try {
         final txs = await getTransaksiFromServer(jenis: jenis, limit: limit);
-        // Update cache lokal
-        for (final tx in txs) {
-          await LocalDb.upsertTransaksi(tx, synced: true);
+        // Update cache lokal (mobile/desktop only)
+        if (!kIsWeb) {
+          for (final tx in txs) {
+            await LocalDb.upsertTransaksi(tx, synced: true);
+          }
         }
         return txs;
       } catch (_) {
-        // Fallback ke lokal
+        // Fallback ke lokal (mobile/desktop only)
       }
     }
+    if (kIsWeb) return [];
     return LocalDb.getTransaksi(jenis: jenis, limit: limit);
   }
 
@@ -82,9 +104,13 @@ class ApiService {
   }
 
   static Future<Transaksi> createTransaksi(Map<String, dynamic> body) async {
-    final localId = 'tx_${DateTime.now().millisecondsSinceEpoch}';
+    // Di web: langsung kirim ke server
+    if (kIsWeb) {
+      final result = await createTransaksiRaw(body);
+      return Transaksi.fromJson(result['data']);
+    }
 
-    // Selalu simpan lokal dulu
+    final localId = 'tx_${DateTime.now().millisecondsSinceEpoch}';
     await LocalDb.insertTransaksiLocal(body, localId);
 
     if (_online) {
@@ -93,18 +119,14 @@ class ApiService {
         final tx = Transaksi.fromJson(result['data']);
         await LocalDb.replaceTransaksiLocalToServer(localId, tx.id);
         return tx;
-      } catch (_) {
-        // Gagal online → queue
-      }
+      } catch (_) {}
     }
 
-    // Queue untuk sync nanti
     await LocalDb.enqueue(
       method: 'POST', path: '/transaksi',
       body: jsonEncode(body), localId: localId, tableName: 'transaksi',
     );
 
-    // Return dummy dengan id lokal
     return Transaksi(
       id: DateTime.now().millisecondsSinceEpoch * -1,
       localId: localId,
@@ -120,6 +142,10 @@ class ApiService {
       _post('/transaksi', body);
 
   static Future<void> deleteTransaksi(int id) async {
+    if (kIsWeb) {
+      if (id > 0) await deleteTransaksiRaw(id);
+      return;
+    }
     await LocalDb.deleteTransaksi(id);
     if (_online) {
       try {
@@ -151,12 +177,15 @@ class ApiService {
     if (_online) {
       try {
         final list = await getAnggaranFromServer(periode);
-        for (final a in list) {
-          await LocalDb.upsertAnggaran(a, synced: true);
+        if (!kIsWeb) {
+          for (final a in list) {
+            await LocalDb.upsertAnggaran(a, synced: true);
+          }
         }
         return list;
       } catch (_) {}
     }
+    if (kIsWeb) return [];
     return LocalDb.getAnggaran(periode);
   }
 
@@ -166,6 +195,10 @@ class ApiService {
   }
 
   static Future<void> createAnggaran(String kategori, double batas, String periode) async {
+    if (kIsWeb) {
+      await createAnggaranRaw(kategori, batas, periode);
+      return;
+    }
     final localId = 'ang_${DateTime.now().millisecondsSinceEpoch}';
     await LocalDb.insertAnggaranLocal(localId, kategori, batas, periode);
 
@@ -187,6 +220,7 @@ class ApiService {
       _post('/anggaran', {'kategori': kategori, 'batas': batas, 'periode': periode});
 
   static Future<void> updateAnggaran(int id, double batas) async {
+    if (kIsWeb) { await updateAnggaranRaw(id, batas); return; }
     await LocalDb.updateAnggaranBatas(id, batas);
     if (_online) {
       try {
@@ -204,6 +238,7 @@ class ApiService {
       _put('/anggaran/$id', {'batas': batas});
 
   static Future<void> deleteAnggaran(int id) async {
+    if (kIsWeb) { await deleteAnggaranRaw(id); return; }
     await LocalDb.deleteAnggaran(id);
     if (_online) {
       try {
@@ -226,12 +261,15 @@ class ApiService {
     if (_online) {
       try {
         final list = await getGoalsFromServer();
-        for (final g in list) {
-          await LocalDb.upsertGoal(g, synced: true);
+        if (!kIsWeb) {
+          for (final g in list) {
+            await LocalDb.upsertGoal(g, synced: true);
+          }
         }
         return list;
       } catch (_) {}
     }
+    if (kIsWeb) return [];
     return LocalDb.getGoals();
   }
 
@@ -241,6 +279,7 @@ class ApiService {
   }
 
   static Future<void> createGoal(Map<String, dynamic> body) async {
+    if (kIsWeb) { await createGoalRaw(body); return; }
     final localId = 'goal_${DateTime.now().millisecondsSinceEpoch}';
     await LocalDb.insertGoalLocal(localId, body);
 
@@ -260,6 +299,7 @@ class ApiService {
       _post('/goals', body);
 
   static Future<void> updateProgres(int id, double tambah) async {
+    if (kIsWeb) { await updateProgresRaw(id, tambah); return; }
     await LocalDb.updateGoalProgres(id, tambah);
     if (_online) {
       try {
@@ -277,6 +317,7 @@ class ApiService {
       _put('/goals/$id/progres', {'tambah': tambah});
 
   static Future<void> deleteGoal(int id) async {
+    if (kIsWeb) { await deleteGoalRaw(id); return; }
     await LocalDb.deleteGoal(id);
     if (_online) {
       try {

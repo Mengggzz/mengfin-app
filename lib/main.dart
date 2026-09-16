@@ -1,15 +1,20 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'constants/app_colors.dart';
+import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/transaksi_screen.dart';
 import 'screens/anggaran_screen.dart';
 import 'screens/goals_screen.dart';
 import 'screens/ai_screen.dart';
+import 'services/auth_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/sync_service.dart';
 import 'services/local_db.dart';
+import 'services/update_service.dart';
+import 'widgets/update_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,12 +23,22 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
-  // Init services
-  await LocalDb.db; // Buka DB lokal
+  // Init services — sqflite tidak support web, skip di web
+  if (!kIsWeb) {
+    await LocalDb.db; // Buka DB lokal (mobile/desktop only)
+  }
   await ConnectivityService.instance.init();
 
-  // Pull data awal jika online
-  if (ConnectivityService.instance.isOnline) {
+  // Load token dari storage (cek apakah sudah login)
+  await AuthService.instance.init();
+
+  // Init update service (baca versi app dari PackageInfo)
+  if (!kIsWeb) {
+    await UpdateService.instance.init();
+  }
+
+  // Di web langsung online, tidak perlu sync queue
+  if (!kIsWeb && ConnectivityService.instance.isOnline) {
     SyncService.instance.pullFromServer();
   }
 
@@ -57,10 +72,15 @@ class MengFinApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const MainNav(),
+      initialRoute: AuthService.instance.isLoggedIn ? '/home' : '/login',
+      routes: {
+        '/login': (_) => const LoginScreen(),
+        '/home':  (_) => const MainNav(),
+      },
     );
   }
 }
+
 
 class MainNav extends StatefulWidget {
   const MainNav({super.key});
@@ -97,8 +117,8 @@ class _MainNavState extends State<MainNav> {
 
     ConnectivityService.instance.onStatusChange.listen((online) async {
       setState(() => _isOnline = online);
-      if (online) {
-        // Auto sync saat online
+      if (online && !kIsWeb) {
+        // Auto sync saat online (mobile/desktop only)
         setState(() => _showSyncBanner = true);
         await SyncService.instance.syncToServer();
         await _updatePendingCount();
@@ -107,9 +127,23 @@ class _MainNavState extends State<MainNav> {
         if (mounted) setState(() => _showSyncBanner = false);
       }
     });
+
+    // Cek update setelah 2 detik (beri waktu UI render dulu)
+    if (!kIsWeb) {
+      Future.delayed(const Duration(seconds: 2), _checkForUpdate);
+    }
+  }
+
+  Future<void> _checkForUpdate() async {
+    if (!mounted) return;
+    final result = await UpdateService.instance.checkForUpdate();
+    if (mounted && result.hasUpdate) {
+      await UpdateDialog.show(context, result);
+    }
   }
 
   Future<void> _updatePendingCount() async {
+    if (kIsWeb) return;
     final count = await LocalDb.getPendingCount();
     if (mounted) setState(() => _pendingCount = count);
   }
