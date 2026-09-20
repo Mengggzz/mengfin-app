@@ -1,0 +1,32 @@
+# Logs & crash dumps
+hs_err_pid*.log
+replay_pid*.log
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Misc assets (test photos)
+*.jpg
+*.jpeg
+*.png
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Flutter
+flutter_app/build/
+flutter_app/.dart_tool/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/pubspec.lock
+
+# Env & secrets
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
