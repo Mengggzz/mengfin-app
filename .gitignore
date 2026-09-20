@@ -1,32 +1,59 @@
-# Logs & crash dumps
-hs_err_pid*.log
-replay_pid*.log
+# Miscellaneous
+*.class
 *.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
 
-# IDE
-.vscode/
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
 .idea/
 
-# Misc assets (test photos)
-*.jpg
-*.jpeg
-*.png
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
 
-# Node
-node_modules/
-npm-debug.log*
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
 
-# Flutter
-flutter_app/build/
-flutter_app/.dart_tool/
-flutter_app/.flutter-plugins
-flutter_app/.flutter-plugins-dependencies
-flutter_app/pubspec.lock
+# Symbolication related
+app.*.symbols
 
-# Env & secrets
-.env
-.env.local
+# Obfuscation related
+app.*.map.json
 
-# OS
-.DS_Store
-Thumbs.db
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# Gradle caches - JANGAN di-commit (filename terlalu panjang di Windows)
+.gradle_fresh/
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+**/.gradle/
+**/build/
+.vercel
+.env*
