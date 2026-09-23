@@ -1,5 +1,3 @@
-const { getDB } = require('../db');
-
 // Hitung financial health score (0-100)
 function hitungHealthScore(pemasukan, pengeluaran, saldoTotal, anggaranData) {
   let score = 0;

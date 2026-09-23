@@ -6,7 +6,9 @@ import '../services/api_service.dart';
 import '../widgets/widgets.dart';
 
 class TransactionInputScreen extends StatefulWidget {
-  const TransactionInputScreen({super.key});
+  final String? initialDeskripsi;
+
+  const TransactionInputScreen({super.key, this.initialDeskripsi});
   @override State<TransactionInputScreen> createState() => _TransactionInputScreenState();
 }
 
@@ -20,10 +22,17 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
   TransactionType? _tipe;
   bool _saving = false;
 
-  final _deskripsiCtrl = TextEditingController();
+  late final TextEditingController _deskripsiCtrl;
 
   // Recent descriptions for suggestions
   final _recentDescs = <String>['kopi', 'bensin', 'makan siang', 'grab', 'belanja'];
+
+  @override
+  void initState() {
+    super.initState();
+    _deskripsi = widget.initialDeskripsi ?? '';
+    _deskripsiCtrl = TextEditingController(text: _deskripsi);
+  }
 
   @override
   void dispose() {
@@ -79,6 +88,39 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
         'deskripsi': _deskripsi,
         'metode_pembayaran': 'tunai',
       });
+
+      if (_isExpense && mounted) {
+        // Smart Budgeting Check
+        final bulan = _tanggal.substring(0, 7);
+        final anggarans = await ApiService.getAnggaran(bulan);
+        try {
+          final anggaran = anggarans.firstWhere((a) => a.kategori == _kategori);
+          if (anggaran.terpakai > anggaran.batas) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Row(children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Perhatian: Anggaran $_kategori bulan ini telah melebihi batas!')),
+              ]),
+              backgroundColor: AppColors.danger,
+              duration: const Duration(seconds: 4),
+            ));
+          } else if (anggaran.terpakai >= anggaran.batas * 0.8) {
+             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Row(children: [
+                const Icon(Icons.info_outline, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Peringatan: Anggaran $_kategori hampir habis (sisa ${formatRupiah(anggaran.batas - anggaran.terpakai)}).')),
+              ]),
+              backgroundColor: AppColors.warning,
+              duration: const Duration(seconds: 4),
+            ));
+          }
+        } catch (_) {
+          // No budget set for this category, ignore
+        }
+      }
+
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {

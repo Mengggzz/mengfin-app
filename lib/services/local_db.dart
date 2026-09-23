@@ -130,12 +130,12 @@ class LocalDb {
     });
   }
 
-  static Future<void> deleteTransaksi(int id) async {
+  static Future<void> deleteTransaksi(dynamic id) async {
     final d = await db;
     await d.delete('transaksi', where: 'id = ?', whereArgs: [id]);
   }
 
-  static Future<void> replaceTransaksiLocalToServer(String localId, int serverId) async {
+  static Future<void> replaceTransaksiLocalToServer(String localId, dynamic serverId) async {
     final d = await db;
     await d.rawUpdate(
       'UPDATE transaksi SET id = ?, synced = 1 WHERE local_id = ?',
@@ -192,12 +192,12 @@ class LocalDb {
     });
   }
 
-  static Future<void> deleteAnggaran(int id) async {
+  static Future<void> deleteAnggaran(dynamic id) async {
     final d = await db;
     await d.delete('anggaran', where: 'id = ?', whereArgs: [id]);
   }
 
-  static Future<void> updateAnggaranBatas(int id, double batas) async {
+  static Future<void> updateAnggaranBatas(dynamic id, double batas) async {
     final d = await db;
     await d.rawUpdate('UPDATE anggaran SET batas = ?, synced = 0 WHERE id = ?', [batas, id]);
   }
@@ -252,12 +252,12 @@ class LocalDb {
     });
   }
 
-  static Future<void> deleteGoal(int id) async {
+  static Future<void> deleteGoal(dynamic id) async {
     final d = await db;
     await d.delete('goals', where: 'id = ?', whereArgs: [id]);
   }
 
-  static Future<void> updateGoalProgres(int id, double tambah) async {
+  static Future<void> updateGoalProgres(dynamic id, double tambah) async {
     final d = await db;
     await d.rawUpdate(
       'UPDATE goals SET terkumpul = terkumpul + ?, synced = 0 WHERE id = ?',

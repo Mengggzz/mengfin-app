@@ -72,13 +72,13 @@ class MengFinApp extends StatelessWidget {
           centerTitle: false,
           iconTheme: IconThemeData(color: AppColors.textPrimary),
         ),
-        textTheme: GoogleFonts.interTextTheme().apply(
+        textTheme: GoogleFonts.spaceGroteskTextTheme(ThemeData.dark().textTheme).apply(
           bodyColor: AppColors.textPrimary,
           displayColor: AppColors.textPrimary,
         ),
         useMaterial3: true,
-        splashColor: AppColors.primary.withOpacity(0.1),
-        highlightColor: AppColors.primary.withOpacity(0.05),
+        splashColor: AppColors.primary.withOpacity(0.2),
+        highlightColor: AppColors.primary.withOpacity(0.1),
       ),
       initialRoute: AuthService.instance.isLoggedIn ? '/home' : '/login',
       routes: {
@@ -178,11 +178,24 @@ class _MainNavState extends State<MainNav> {
       // ── FAB for Quick Add Transaction ──────────────────────────
       floatingActionButton: Container(
         margin: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.5),
+              blurRadius: 20,
+              spreadRadius: 2,
+            )
+          ],
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: FloatingActionButton(
           onPressed: _openTransactionInput,
-          backgroundColor: AppColors.primary,
-          elevation: 6,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: AppColors.primaryDark,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppColors.primary, width: 2),
+          ),
           child: const Icon(Icons.add, color: Colors.white, size: 28),
         ),
       ),
@@ -230,6 +243,13 @@ class _MainNavState extends State<MainNav> {
             decoration: isActive ? BoxDecoration(
               color: AppColors.primary.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.3),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                )
+              ],
             ) : null,
             child: Icon(
               isActive ? tab.activeIcon : tab.icon,

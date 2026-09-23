@@ -1,9 +1,7 @@
-// Base URL
-// Railway (Production - 24/7, laptop tidak perlu nyala):
-const String kApiBaseUrl = 'https://web-production-c21a6.up.railway.app/api';
-
-// Local development (uncomment jika develop lokal):
-// const String kApiBaseUrl = 'http://192.168.1.13:3000/api';
+// Local development:
+const String kApiBaseUrl = 'http://localhost:3000/api';
+// Production (uncomment untuk deploy):
+// const String kApiBaseUrl = 'https://web-production-c21a6.up.railway.app/api';
 
 // Google OAuth Client ID (dari Google Cloud Console)
 // Ganti dengan Client ID kamu setelah setup di console.cloud.google.com

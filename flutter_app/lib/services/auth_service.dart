@@ -37,6 +37,7 @@ class AuthService {
   Future<bool> init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(_tokenKey);
+    print('AuthService init() -> token: $_token');
     final userStr = prefs.getString(_userKey);
     if (userStr != null) {
       try { _user = jsonDecode(userStr); } catch (_) {}
@@ -46,6 +47,7 @@ class AuthService {
       // Cek apakah ada access token dari Google redirect callback
       final accessToken = webAuth.checkPendingToken();
       if (accessToken != null && accessToken.isNotEmpty) {
+        print('AuthService init() -> found web accessToken, processing...');
         webAuth.clearPendingToken();
         await _processWebAccessToken(accessToken);
       }

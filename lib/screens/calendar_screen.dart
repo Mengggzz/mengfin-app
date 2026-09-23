@@ -71,6 +71,37 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _load();
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // 5. Hapus Transaksi
+  // ══════════════════════════════════════════════════════════════
+  Future<void> _hapusTransaksi(dynamic tx) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgElevated,
+        title: const Text('Hapus Transaksi?', style: TextStyle(color: AppColors.textPrimary)),
+        content: const Text('Tindakan ini tidak dapat dibatalkan.', style: TextStyle(color: AppColors.textMuted)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Hapus', style: TextStyle(color: AppColors.expense))),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      if (tx.id != null) {
+        await ApiService.deleteTransaksi(tx.id);
+      }
+      _load(); // Refresh UI
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Gagal menghapus: $e'), backgroundColor: AppColors.expense,
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final daysInMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
@@ -174,7 +205,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
             child: Center(child: Text('Tidak ada transaksi pada hari ini',
               style: TextStyle(color: AppColors.textMuted, fontSize: 13))))
         else
-          ...selectedDayTx.map((tx) => TransaksiTile(tx: tx)),
+          ...selectedDayTx.map((tx) => TransaksiTile(
+            tx: tx,
+            onDelete: () => _hapusTransaksi(tx),
+          )),
         const SizedBox(height: 24),
       ]),
     );

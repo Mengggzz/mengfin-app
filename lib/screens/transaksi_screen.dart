@@ -7,6 +7,9 @@ import '../widgets/widgets.dart';
 import 'calendar_screen.dart';
 import 'laporan_screen.dart';
 
+import '../services/export_service.dart';
+import '../widgets/transaction_filter_dialog.dart';
+
 class TransaksiScreen extends StatefulWidget {
   const TransaksiScreen({super.key});
   @override State<TransaksiScreen> createState() => _TransaksiScreenState();
@@ -14,19 +17,110 @@ class TransaksiScreen extends StatefulWidget {
 
 class _TransaksiScreenState extends State<TransaksiScreen> {
   List<Transaksi> _list = [];
-  String _filter = 'semua';
+  List<Transaksi> _filteredList = [];
   bool _loading = true;
+  TransactionFilter _currentFilter = TransactionFilter();
+  final TextEditingController _searchController = TextEditingController();
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() { 
+    super.initState(); 
+    _load(); 
+    _searchController.addListener(_applySearch);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final data = await ApiService.getTransaksi(
-        jenis: _filter == 'semua' ? null : _filter, limit: 200);
-      setState(() { _list = data; _loading = false; });
+      // Load all for local filtering, or we could pass params to API
+      // For now, let's load a larger set and filter locally for speed
+      final data = await ApiService.getTransaksi(limit: 500);
+      _list = data;
+      _applyAllFilters();
+      setState(() => _loading = false);
     } catch (_) { setState(() => _loading = false); }
+  }
+
+  void _applyAllFilters() {
+    List<Transaksi> filtered = _list;
+
+    // Type Filter (Jenis)
+    if (_currentFilter.jenis != null) {
+      filtered = filtered.where((tx) => tx.jenis == _currentFilter.jenis).toList();
+    }
+
+    // Category Filter
+    if (_currentFilter.kategori != null) {
+      filtered = filtered.where((tx) => tx.kategori == _currentFilter.kategori).toList();
+    }
+
+    // Date Filter
+    if (_currentFilter.startDate != null && _currentFilter.endDate != null) {
+      filtered = filtered.where((tx) {
+        DateTime txDate = DateTime.parse(tx.tanggal);
+        return txDate.isAfter(_currentFilter.startDate!.subtract(const Duration(days: 1))) &&
+               txDate.isBefore(_currentFilter.endDate!.add(const Duration(days: 1)));
+      }).toList();
+    }
+
+    _filteredList = filtered;
+    _applySearch();
+  }
+
+  void _applySearch() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredList = _filteredList; // This logic needs careful state management
+        // Re-run apply filters to get base filtered list
+        List<Transaksi> base = _list;
+        if (_currentFilter.jenis != null) base = base.where((tx) => tx.jenis == _currentFilter.jenis).toList();
+        if (_currentFilter.kategori != null) base = base.where((tx) => tx.kategori == _currentFilter.kategori).toList();
+        if (_currentFilter.startDate != null && _currentFilter.endDate != null) {
+          base = base.where((tx) {
+            DateTime txDate = DateTime.parse(tx.tanggal);
+            return txDate.isAfter(_currentFilter.startDate!.subtract(const Duration(days: 1))) &&
+                   txDate.isBefore(_currentFilter.endDate!.add(const Duration(days: 1)));
+          }).toList();
+        }
+        _filteredList = base;
+      } else {
+        _filteredList = _filteredList.where((tx) => 
+          tx.deskripsi.toLowerCase().contains(query) || 
+          tx.kategori.toLowerCase().contains(query)
+        ).toList();
+      }
+    });
+  }
+
+  Future<void> _openFilter() async {
+    final result = await showModalBottomSheet<TransactionFilter>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => TransactionFilterDialog(currentFilter: _currentFilter),
+    );
+
+    if (result != null) {
+      setState(() {
+        _currentFilter = result;
+        _applyAllFilters();
+      });
+    }
+  }
+
+  Future<void> _export(String type) async {
+    if (type == 'csv') {
+      await ExportService.exportToCSV(_filteredList, context);
+    } else {
+      await ExportService.exportToPDF(_filteredList, context);
+    }
   }
 
   Future<void> _delete(int id) async {
@@ -204,35 +298,48 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
     child: Icon(icon, color: AppColors.textSecond, size: 18),
   );
 
-  Widget _filterBtn(String label, IconData icon, VoidCallback onTap) => GestureDetector(
+  Widget _filterBtn(String label, IconData icon, VoidCallback onTap, {bool active = false}) => GestureDetector(
     onTap: onTap,
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.15),
+        color: active ? AppColors.primary : AppColors.primary.withOpacity(0.15),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.primary.withOpacity(0.3)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: AppColors.primary),
+        Icon(icon, size: 14, color: active ? Colors.white : AppColors.primary),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(
-          color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
+        Text(label, style: TextStyle(
+          color: active ? Colors.white : AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
       ]),
     ),
   );
 
-  Widget _typeCircle(String type, IconData icon, Color color) => GestureDetector(
-    onTap: () { setState(() => _filter = type); _load(); },
-    child: Container(
-      width: 32, height: 32,
-      decoration: BoxDecoration(
-        color: _filter == type ? color : color.withOpacity(0.15),
-        shape: BoxShape.circle,
-        border: Border.all(color: color, width: 1.5),
+  Widget _typeCircle(String type, IconData icon, Color color) {
+    final currentType = _currentFilter.jenis ?? 'semua';
+    return GestureDetector(
+      onTap: () { 
+        setState(() {
+          _currentFilter = TransactionFilter(
+            startDate: _currentFilter.startDate,
+            endDate: _currentFilter.endDate,
+            jenis: type == 'semua' ? null : type,
+            kategori: _currentFilter.kategori,
+          );
+          _applyAllFilters();
+        });
+      },
+      child: Container(
+        width: 32, height: 32,
+        decoration: BoxDecoration(
+          color: currentType == type ? color : color.withOpacity(0.15),
+          shape: BoxShape.circle,
+          border: Border.all(color: color, width: 1.5),
+        ),
+        child: Icon(icon, size: 14,
+          color: currentType == type ? Colors.white : color),
       ),
-      child: Icon(icon, size: 14,
-        color: _filter == type ? Colors.white : color),
-    ),
-  );
+    );
+  }
 }

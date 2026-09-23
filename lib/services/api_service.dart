@@ -141,19 +141,19 @@ class ApiService {
   static Future<Map<String, dynamic>> createTransaksiRaw(Map<String, dynamic> body) =>
       _post('/transaksi', body);
 
-  static Future<void> deleteTransaksi(int id) async {
+  static Future<void> deleteTransaksi(dynamic id) async {
     if (kIsWeb) {
-      if (id > 0) await deleteTransaksiRaw(id);
+      if (id != null) await deleteTransaksiRaw(id);
       return;
     }
     await LocalDb.deleteTransaksi(id);
     if (_online) {
       try {
-        if (id > 0) await deleteTransaksiRaw(id);
+        if (id != null) await deleteTransaksiRaw(id);
         return;
       } catch (_) {}
     }
-    if (id > 0) {
+    if (id != null) {
       await LocalDb.enqueue(
         method: 'DELETE', path: '/transaksi/$id',
         body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
@@ -161,7 +161,7 @@ class ApiService {
     }
   }
 
-  static Future<void> deleteTransaksiRaw(int id) => _delete('/transaksi/$id');
+  static Future<void> deleteTransaksiRaw(dynamic id) => _delete('/transaksi/$id');
 
   // ── Akun ───────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> getAkun() async => _get('/akun');
@@ -219,7 +219,7 @@ class ApiService {
   static Future<void> createAnggaranRaw(String kategori, double batas, String periode) =>
       _post('/anggaran', {'kategori': kategori, 'batas': batas, 'periode': periode});
 
-  static Future<void> updateAnggaran(int id, double batas) async {
+  static Future<void> updateAnggaran(dynamic id, double batas) async {
     if (kIsWeb) { await updateAnggaranRaw(id, batas); return; }
     await LocalDb.updateAnggaranBatas(id, batas);
     if (_online) {
@@ -234,10 +234,10 @@ class ApiService {
     );
   }
 
-  static Future<void> updateAnggaranRaw(int id, double batas) =>
+  static Future<void> updateAnggaranRaw(dynamic id, double batas) =>
       _put('/anggaran/$id', {'batas': batas});
 
-  static Future<void> deleteAnggaran(int id) async {
+  static Future<void> deleteAnggaran(dynamic id) async {
     if (kIsWeb) { await deleteAnggaranRaw(id); return; }
     await LocalDb.deleteAnggaran(id);
     if (_online) {
@@ -246,7 +246,7 @@ class ApiService {
         return;
       } catch (_) {}
     }
-    if (id > 0) {
+    if (id != null) {
       await LocalDb.enqueue(
         method: 'DELETE', path: '/anggaran/$id',
         body: '{}', localId: 'del_ang_$id', tableName: 'anggaran',
@@ -254,7 +254,7 @@ class ApiService {
     }
   }
 
-  static Future<void> deleteAnggaranRaw(int id) => _delete('/anggaran/$id');
+  static Future<void> deleteAnggaranRaw(dynamic id) => _delete('/anggaran/$id');
 
   // ── Goals (offline-aware) ──────────────────────────────────────────────────
   static Future<List<Goal>> getGoals() async {
@@ -298,7 +298,7 @@ class ApiService {
   static Future<void> createGoalRaw(Map<String, dynamic> body) =>
       _post('/goals', body);
 
-  static Future<void> updateProgres(int id, double tambah) async {
+  static Future<void> updateProgres(dynamic id, double tambah) async {
     if (kIsWeb) { await updateProgresRaw(id, tambah); return; }
     await LocalDb.updateGoalProgres(id, tambah);
     if (_online) {
@@ -313,10 +313,10 @@ class ApiService {
     );
   }
 
-  static Future<void> updateProgresRaw(int id, double tambah) =>
+  static Future<void> updateProgresRaw(dynamic id, double tambah) =>
       _put('/goals/$id/progres', {'tambah': tambah});
 
-  static Future<void> deleteGoal(int id) async {
+  static Future<void> deleteGoal(dynamic id) async {
     if (kIsWeb) { await deleteGoalRaw(id); return; }
     await LocalDb.deleteGoal(id);
     if (_online) {
@@ -325,7 +325,7 @@ class ApiService {
         return;
       } catch (_) {}
     }
-    if (id > 0) {
+    if (id != null) {
       await LocalDb.enqueue(
         method: 'DELETE', path: '/goals/$id',
         body: '{}', localId: 'del_goal_$id', tableName: 'goals',
@@ -333,7 +333,7 @@ class ApiService {
     }
   }
 
-  static Future<void> deleteGoalRaw(int id) => _delete('/goals/$id');
+  static Future<void> deleteGoalRaw(dynamic id) => _delete('/goals/$id');
 
   // ── AI Chat ────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> chat(String pesan) async {

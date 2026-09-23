@@ -1,5 +1,5 @@
 class Akun {
-  final int id;
+  final dynamic id;
   final String nama;
   final String jenis;
   final double saldo;
@@ -10,14 +10,14 @@ class Akun {
         required this.saldo, required this.warna, required this.ikon});
 
   factory Akun.fromJson(Map<String, dynamic> j) => Akun(
-    id: j['id'], nama: j['nama'], jenis: j['jenis'],
+    id: j['id'] ?? j['_id'], nama: j['nama'], jenis: j['jenis'],
     saldo: (j['saldo'] as num).toDouble(),
     warna: j['warna'] ?? '#2563EB', ikon: j['ikon'] ?? 'bank',
   );
 }
 
 class Transaksi {
-  final int id;
+  final dynamic id;
   final String? localId;
   final String tanggal;
   final String jenis;
@@ -25,7 +25,7 @@ class Transaksi {
   final String kategori;
   final String deskripsi;
   final String metodePembayaran;
-  final int? akunId;
+  final dynamic akunId;
   final String? akunNama;
   final bool synced;
 
@@ -35,7 +35,7 @@ class Transaksi {
              this.akunId, this.akunNama, this.synced = true});
 
   factory Transaksi.fromJson(Map<String, dynamic> j) => Transaksi(
-    id: j['id'], tanggal: j['tanggal'], jenis: j['jenis'],
+    id: j['id'] ?? j['_id'], tanggal: j['tanggal'], jenis: j['jenis'],
     nominal: (j['nominal'] as num).toDouble(),
     kategori: j['kategori'], deskripsi: j['deskripsi'] ?? '',
     metodePembayaran: j['metode_pembayaran'] ?? 'tunai',
@@ -52,7 +52,7 @@ class Transaksi {
 }
 
 class Anggaran {
-  final int id;
+  final dynamic id;
   final String? localId;
   final String kategori;
   final double batas;
@@ -66,7 +66,7 @@ class Anggaran {
             required this.persentase, this.synced = true});
 
   factory Anggaran.fromJson(Map<String, dynamic> j) => Anggaran(
-    id: j['id'], kategori: j['kategori'],
+    id: j['id'] ?? j['_id'], kategori: j['kategori'],
     batas: (j['batas'] as num).toDouble(),
     periode: j['periode'],
     terpakai: (j['terpakai'] as num? ?? 0).toDouble(),
@@ -76,7 +76,7 @@ class Anggaran {
 }
 
 class Goal {
-  final int id;
+  final dynamic id;
   final String? localId;
   final String nama;
   final double target;
@@ -92,7 +92,7 @@ class Goal {
         required this.nabungPerBulan, required this.catatan, this.synced = true});
 
   factory Goal.fromJson(Map<String, dynamic> j) => Goal(
-    id: j['id'], nama: j['nama'],
+    id: j['id'] ?? j['_id'], nama: j['nama'],
     target: (j['target'] as num).toDouble(),
     terkumpul: (j['terkumpul'] as num? ?? 0).toDouble(),
     deadline: j['deadline'],
@@ -116,7 +116,7 @@ class HealthScore {
                required this.warna, required this.pesan});
 
   factory HealthScore.fromJson(Map<String, dynamic> j) => HealthScore(
-    score: j['score'], status: j['status'],
+    score: (j['score'] as num).toInt(), status: j['status'],
     warna: j['warna'], pesan: j['pesan'],
   );
 }

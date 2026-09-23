@@ -218,7 +218,7 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
                   const SizedBox(width: 10),
                   Text('${a.persentase.toStringAsFixed(0)}%',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                      color: a.persentase >= 90 ? AppColors.danger : a.persentase >= 70 ? AppColors.warning : AppColors.success)),
+                      color: a.persentase >= 100 ? AppColors.danger : a.persentase >= 80 ? AppColors.warning : AppColors.success)),
                 ]),
               ]),
             );

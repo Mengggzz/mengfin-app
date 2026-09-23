@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../constants/app_colors.dart';
 import '../constants/utils.dart';
+export 'voice_to_text_dialog.dart';
 
 // ─────────────────────────────────────────────────────────────
 // GlassCard
@@ -24,9 +25,16 @@ class GlassCard extends StatelessWidget {
     );
     final decoration = BoxDecoration(
       gradient: gradient,
-      color: gradient == null ? AppColors.bgCard : null,
+      color: gradient == null ? AppColors.bgCard.withOpacity(0.85) : null,
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: AppColors.glassBorder),
+      border: Border.all(color: AppColors.glassBorder, width: 1.5),
+      boxShadow: [
+        BoxShadow(
+          color: AppColors.primary.withOpacity(0.2),
+          blurRadius: 15,
+          offset: const Offset(0, 4),
+        ),
+      ],
     );
 
     if (onTap != null) {
@@ -86,8 +94,8 @@ class AppProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final clipped = value.clamp(0.0, 100.0);
     final barColor = color ??
-      (clipped >= 90 ? AppColors.danger
-       : clipped >= 70 ? AppColors.warning
+      (clipped >= 100 ? AppColors.danger
+       : clipped >= 80 ? AppColors.warning
        : AppColors.success);
 
     return ClipRRect(

@@ -22,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen>
 
     // Jika sudah login (token diproses di main() dari Google redirect),
     // langsung navigate ke home tanpa tampilkan login screen
+    print('LoginScreen initState() -> isLoggedIn: ${AuthService.instance.isLoggedIn}');
     if (AuthService.instance.isLoggedIn) {
       _redirecting = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
