@@ -625,7 +625,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Row(children: [
                     Expanded(child: CustomPaint(
                       size: const Size(double.infinity, 1),
-                      painter: _DashedLinePainter(color: AppColors.warning.withOpacity(0.55)),
+                      painter: _DashedLinePainter(AppColors.warning.withOpacity(0.55)),
                     )),
                     const SizedBox(width: 4),
                     Container(
@@ -1000,4 +1000,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
       Text(amount, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
     ],
   ]);
+}
+
+class _DashedLinePainter extends CustomPainter {
+  final Color color;
+  _DashedLinePainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    const dashWidth = 4.0;
+    const dashSpace = 4.0;
+    double startX = 0;
+    while (startX < size.width) {
+      canvas.drawLine(Offset(startX, 0), Offset(startX + dashWidth, 0), paint);
+      startX += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
