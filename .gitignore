@@ -57,3 +57,6 @@ android/app/build/
 **/build/
 .vercel
 .env*
+
+# Folder kerja sementara (skrip uji, pesan commit) — jangan di-commit
+/tmp/
