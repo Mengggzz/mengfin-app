@@ -55,7 +55,12 @@ class _LoginScreenState extends State<LoginScreen>
         if (ok) {
           Navigator.of(context).pushReplacementNamed('/home');
         } else {
-          setState(() { _loading = false; _error = 'Login dibatalkan'; });
+          // Bedakan antara user benar-benar membatalkan dan backend gagal —
+          // kalau backend yang gagal, tampilkan alasannya yang sebenarnya.
+          setState(() {
+            _loading = false;
+            _error = AuthService.instance.lastAuthError ?? 'Login dibatalkan';
+          });
         }
       } catch (e) {
         if (!mounted) return;

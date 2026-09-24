@@ -29,6 +29,11 @@ class AuthService {
   final _loginResult = StreamController<bool>.broadcast();
   Stream<bool> get onLoginResult => _loginResult.stream;
 
+  /// Pesan kegagalan terakhir dari pertukaran token ke backend.
+  /// Dipakai login_screen untuk menampilkan alasan yang sebenarnya,
+  /// supaya "Login dibatalkan" tidak lagi menyamarkan error backend.
+  String? lastAuthError;
+
   String? get token => _token;
   Map<String, dynamic>? get user => _user;
   bool get isLoggedIn => _token != null;
@@ -105,16 +110,25 @@ class AuthService {
   }
 
   Future<bool> _postToAuth(Map<String, dynamic> body) async {
+    lastAuthError = null;
     try {
       final res = await http.post(
         Uri.parse('$kApiBaseUrl/auth/google'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
-      );
+      ).timeout(const Duration(seconds: 20));
+
       if (res.statusCode != 200) {
+        String detail = 'HTTP ${res.statusCode}';
+        try {
+          final j = jsonDecode(res.body);
+          if (j is Map && j['error'] != null) detail = j['error'].toString();
+        } catch (_) {}
+        lastAuthError = 'Server menolak login ($detail).';
         print('Backend error ${res.statusCode}: ${res.body}');
         return false;
       }
+
       final data = jsonDecode(res.body);
       _token = data['token'] as String;
       _user  = data['user']  as Map<String, dynamic>;
@@ -124,6 +138,9 @@ class AuthService {
       await prefs.setString(_userKey,  jsonEncode(_user));
       return true;
     } catch (e) {
+      // Jaringan / timeout / server tidak terjangkau → beri tahu user
+      // dengan jelas, jangan sembunyikan sebagai "login dibatalkan".
+      lastAuthError = 'Tidak bisa menghubungi server.\nPeriksa koneksi internet kamu.';
       print('Auth post error: $e');
       return false;
     }
