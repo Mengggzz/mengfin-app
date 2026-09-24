@@ -15,6 +15,7 @@ import 'ai_screen.dart';
 import 'anggaran_screen.dart';
 import 'calendar_screen.dart';
 import 'laporan_screen.dart';
+import 'scan_screen.dart';
 import 'settings_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -34,9 +35,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _pengeluaranHariIni = 0;
   List<double> _last7DaysSpending = [];
   int _overBudgetDays = 0;
+  bool _budgetMinimized = false;
+  int _budgetViewMode = 0; // 0 = grafik bar, 1 = rincian harian
+  PageController? _insightPageCtrl;
+  int _insightPage = 0;
+  bool _hasUpdate = false; // penanda titik di ikon notifikasi
+
+  // Kategori breakdown (untuk swipe Saldo vs Pengeluaran)
+  List<Map<String, dynamic>> _kategoriBreakdown = [];
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+    _autoCheckUpdate();
+  }
+
+  /// Cek update saat app dibuka — hanya beri tahu, tidak memaksa.
+  /// Diam total kalau sudah versi terbaru.
+  Future<void> _autoCheckUpdate() async {
+    try {
+      final res = await ApiService.checkUpdate();
+      if (!mounted) return;
+      setState(() => _hasUpdate = res['has_update'] == true);
+      if (_hasUpdate) {
+        await UpdateFlow.run(context);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _insightPageCtrl?.dispose();
+    super.dispose();
+  }
 
   Future<void> _hapusTransaksi(dynamic tx) async {
     final confirm = await showDialog<bool>(
@@ -115,9 +147,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (savedBudget > 0 && daySpend > savedBudget) overDays++;
       }
 
+      // Hitung breakdown kategori pengeluaran (30 hari terakhir, untuk swipe)
+      final cutoff = now.subtract(const Duration(days: 30));
+      final katMap = <String, double>{};
+      for (final tx in allTx) {
+        if (tx.jenis != 'pengeluaran') continue;
+        try {
+          final txDateRaw = DateTime.parse(tx.tanggal).toLocal();
+          if (txDateRaw.isBefore(cutoff)) continue;
+          final k = (tx.kategori ?? 'Lainnya').toString();
+          katMap[k] = (katMap[k] ?? 0) + tx.nominal;
+        } catch (_) {}
+      }
+      final katList = katMap.entries
+          .map((e) => {'kategori': e.key, 'total': e.value})
+          .toList()
+        ..sort((a, b) => (b['total'] as double).compareTo(a['total'] as double));
+
       setState(() {
         _data = results[0] as DashboardData;
         _recentTx = allTx.take(10).toList();
+        _kategoriBreakdown = katList;
         _loading = false;
         _isOfflineData = false;
         _budgetHarian = savedBudget;
@@ -259,7 +309,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(width: 8),
             _headerIcon(Icons.bar_chart_rounded, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LaporanScreen()))),
             const SizedBox(width: 8),
-            _headerIcon(Icons.notifications_outlined, onTap: () => _handleDiscordUpdate()),
+            _notificationIcon(),
           ]),
         ]),
         const SizedBox(height: 16),
@@ -321,11 +371,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.mic,
               label: 'Voice Text',
               iconColor: AppColors.primary,
-              onTap: () {
-                showDialog(
+              onTap: () async {
+                final saved = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => const VoiceToTextDialog(),
                 );
+                if (saved == true && mounted) _load();
               },
             ),
             const SizedBox(width: 8),
@@ -340,7 +391,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.camera_alt,
               label: 'Scan Struk',
               iconColor: AppColors.expense,
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiScreen())),
+              onTap: () async {
+                final saved = await Navigator.push<bool>(
+                  context, MaterialPageRoute(builder: (_) => const ScanScreen()));
+                if (saved == true && mounted) _load();
+              },
             ),
             const SizedBox(width: 8),
             QuickActionButton(
@@ -367,80 +422,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: 16),
 
-        // ── Saldo vs Pengeluaran Chart ──────────────────────────
-        GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Saldo vs Pengeluaran', style: TextStyle(
-              color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w600)),
-            Row(children: [
-              Container(width: 6, height: 6, decoration: BoxDecoration(
-                color: AppColors.income, shape: BoxShape.circle)),
-              const SizedBox(width: 4),
-              Container(width: 6, height: 6, decoration: BoxDecoration(
-                color: AppColors.expense, shape: BoxShape.circle)),
-            ]),
-          ]),
-          const Text('7 hari', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
-          const SizedBox(height: 12),
-
-          Row(children: [
-            // Donut chart
-            SizedBox(
-              width: 90, height: 90,
-              child: Stack(alignment: Alignment.center, children: [
-                PieChart(PieChartData(
-                  sections: [
-                    PieChartSectionData(
-                      value: saldoPersen > 0 ? saldoPersen : 0.1,
-                      color: AppColors.income,
-                      radius: 12,
-                      showTitle: false,
-                    ),
-                    PieChartSectionData(
-                      value: pengeluaranPersen > 0 ? pengeluaranPersen : 0.1,
-                      color: AppColors.expense,
-                      radius: 12,
-                      showTitle: false,
-                    ),
-                  ],
-                  centerSpaceRadius: 28,
-                  sectionsSpace: 2,
-                  startDegreeOffset: -90,
-                )),
-                Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text('${saldoPersen.toStringAsFixed(0)}%',
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800)),
-                  const Text('Saldo', style: TextStyle(color: AppColors.textMuted, fontSize: 9)),
-                ]),
-              ]),
-            ),
-            const SizedBox(width: 20),
-            Expanded(child: Column(children: [
-              _chartLegend('Saldo', '${saldoPersen.toStringAsFixed(0)}%', '', AppColors.income),
-              const SizedBox(height: 6),
-              _chartLegend('Pengeluaran', '${pengeluaranPersen.toStringAsFixed(0)}%',
-                'Rp ${formatAmount(d.pengeluaranBulanIni)}', AppColors.expense),
-            ])),
-          ]),
-
-          // Warning if expense > saldo
-          if (d.pengeluaranBulanIni > d.saldoTotal.abs() && d.saldoTotal < 0) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(children: [
-                Text('Saldo minus ', style: TextStyle(
-                  color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.w700)),
-                Text('Pengeluaran melebihi total saldo', style: TextStyle(
-                  color: AppColors.warning, fontSize: 11)),
-              ]),
-            ),
-          ],
-        ])),
+        // ── Insight Carousel: Saldo vs Pengeluaran + Kategori (swipe) ──
+        _buildInsightCarousel(d, saldoPersen, pengeluaranPersen),
         const SizedBox(height: 12),
 
         // ── Budget Harian (2. diperbaiki fungsinya, 1. analytics digabung) ─
@@ -526,7 +509,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const dayNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 
     return GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Header — clean, tanpa duplikasi "Over Budget"
+      // Header + toggle minimize/maximize
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Row(children: [
           const Text('Budget Harian', style: TextStyle(
@@ -541,21 +524,72 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ]),
-        if (_budgetHarian > 0)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.bgElevated, borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        Row(children: [
+          if (_budgetHarian > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.bgElevated, borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+              ),
+              child: Text('Rp ${formatAmount(_budgetHarian)}/hari',
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
+            )
+          else
+            const Text('Belum diatur', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: () => setState(() => _budgetMinimized = !_budgetMinimized),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(color: AppColors.bgElevated, borderRadius: BorderRadius.circular(6)),
+              child: Icon(_budgetMinimized ? Icons.expand_more : Icons.expand_less,
+                size: 14, color: AppColors.textMuted),
             ),
-            child: Text('Rp ${formatAmount(_budgetHarian)}/hari',
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
-          )
-        else
-          const Text('Belum diatur', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          ),
+        ]),
       ]),
 
-      if (_budgetHarian > 0) ...[
+      // Minimized: ringkasan 1 baris
+      if (_budgetMinimized && _budgetHarian > 0) ...[
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 6,
+                backgroundColor: AppColors.bgElevated,
+                valueColor: AlwaysStoppedAnimation(
+                  progress >= 1.0 ? AppColors.chartOver :
+                  progress >= 0.7 ? AppColors.chartWarn : AppColors.chartSafe),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('Rp ${formatAmount(sisa.abs())} ${sisa >= 0 ? 'sisa' : 'over'}',
+            style: TextStyle(
+              color: sisa >= 0 ? AppColors.income : AppColors.expense,
+              fontSize: 11, fontWeight: FontWeight.w700)),
+        ]),
+      ],
+
+      // Mode tabs (Grafik | Rincian) — hanya saat expanded
+      if (!_budgetMinimized && _budgetHarian > 0) ...[
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: AppColors.bgElevated, borderRadius: BorderRadius.circular(8)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _budgetModeTab('Grafik', 0),
+            _budgetModeTab('Rincian', 1),
+          ]),
+        ),
+      ],
+
+      if (!_budgetMinimized && _budgetHarian > 0) ...[
         const SizedBox(height: 12),
         // Status sisa — lebih presisi, ada icon
         Container(
@@ -590,18 +624,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 minHeight: 7,
                 backgroundColor: AppColors.bgElevated,
                 valueColor: AlwaysStoppedAnimation(
-                  progress >= 1.0 ? AppColors.expense :
-                  progress >= 0.8 ? AppColors.warning : AppColors.primary),
+                  progress >= 1.0 ? AppColors.chartOver :
+                  progress >= 0.7 ? AppColors.chartWarn : AppColors.chartSafe),
               ),
             ),
           ),
           const SizedBox(width: 8),
           Text('${(progress * 100).toStringAsFixed(0)}%',
             style: TextStyle(
-              color: progress >= 1.0 ? AppColors.expense : progress >= 0.8 ? AppColors.warning : AppColors.textMuted,
+              color: progress >= 1.0 ? AppColors.chartOver
+                : progress >= 0.7 ? AppColors.chartWarn : AppColors.textMuted,
               fontSize: 11, fontWeight: FontWeight.w700)),
         ]),
         const SizedBox(height: 16),
+        if (_budgetViewMode == 0) ...[
         // Bar chart 7 hari — rapih + budget line + tooltip
         SizedBox(
           height: 128,
@@ -625,18 +661,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Row(children: [
                     Expanded(child: CustomPaint(
                       size: const Size(double.infinity, 1),
-                      painter: _DashedLinePainter(AppColors.warning.withOpacity(0.55)),
+                      painter: _DashedLinePainter(AppColors.accent.withOpacity(0.7)),
                     )),
                     const SizedBox(width: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.warning.withOpacity(0.14),
+                        gradient: const LinearGradient(colors: AppColors.gradientBudgetLine),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.warning.withOpacity(0.25)),
                       ),
                       child: Text('budget ${_compactLabel(_budgetHarian)}',
-                        style: const TextStyle(color: AppColors.warning, fontSize: 7, fontWeight: FontWeight.w700)),
+                        style: const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w800)),
                     ),
                   ]),
                 ),
@@ -653,19 +688,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   final barH = isClamped ? 90.0 : (maxChart > 0 ? (val / maxChart * 90).clamp(0.0, 90.0) : 0.0);
                   final showLabel = val > 0;
                   return Expanded(child: GestureDetector(
-                    onTap: val > 0 ? () {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('${dayNames[(day.weekday - 1) % 7]} ${day.day}: Rp ${formatAmount(val)}'),
-                        duration: const Duration(seconds: 1),
-                        behavior: SnackBarBehavior.floating,
-                      ));
-                    } : null,
+                    onTap: val > 0 ? () => _showDayDetail(day) : null,
                     child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
                       // dot over indicator
                       SizedBox(
                         height: 12,
                         child: isOver
-                          ? Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.expense, shape: BoxShape.circle))
+                          ? Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.chartOver, shape: BoxShape.circle))
                           : const SizedBox(),
                       ),
                       // value label — compact, tidak numpuk
@@ -674,7 +703,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: showLabel
                           ? Text(_compactLabel(val),
                               style: TextStyle(
-                                color: isOver ? AppColors.expense : AppColors.textMuted,
+                                color: isOver ? AppColors.chartOver : AppColors.textMuted,
                                 fontSize: 7.5, fontWeight: isToday ? FontWeight.w700 : FontWeight.w500))
                           : const SizedBox(),
                       ),
@@ -683,15 +712,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         width: 22,
                         height: barH < 3 && val > 0 ? 3 : barH,
                         decoration: BoxDecoration(
-                          color: val == 0
-                            ? AppColors.bgElevated
-                            : isOver ? AppColors.expense : AppColors.primary,
+                          gradient: val == 0 ? null : LinearGradient(
+                            colors: AppColors.barGradientFor(
+                              _budgetHarian > 0 ? val / _budgetHarian : 0),
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter),
+                          color: val == 0 ? AppColors.bgElevated : null,
                           borderRadius: BorderRadius.circular(6),
                           border: isToday
-                            ? Border.all(color: AppColors.textPrimary.withOpacity(0.35), width: 1)
+                            ? Border.all(color: AppColors.textPrimary.withOpacity(0.45), width: 1)
                             : null,
                           boxShadow: isToday && val > 0
-                            ? [BoxShadow(color: AppColors.primary.withOpacity(0.18), blurRadius: 6, offset: const Offset(0, 2))]
+                            ? [BoxShadow(color: AppColors.chartSafe.withOpacity(0.22), blurRadius: 6, offset: const Offset(0, 2))]
                             : null,
                         ),
                       ),
@@ -713,6 +745,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ]);
           }),
         ),
+        ], // end _budgetViewMode == 0
+        if (_budgetViewMode == 1) ...[
+          // Rincian harian — mobile friendly list 7 hari
+          ...List.generate(7, (i) {
+            final day = now.subtract(Duration(days: 6 - i));
+            final val = i < _last7DaysSpending.length ? _last7DaysSpending[i] : 0.0;
+            final isToday = day.year == todayKey.year && day.month == todayKey.month && day.day == todayKey.day;
+            final isOver = _budgetHarian > 0 && val > _budgetHarian;
+            final rowProgress = _budgetHarian > 0 ? (val / _budgetHarian).clamp(0.0, 1.0) : 0.0;
+            return GestureDetector(
+              onTap: () => _showDayDetail(day),
+              child: Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: isToday ? AppColors.primary.withOpacity(0.08) : AppColors.bgElevated.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isToday
+                  ? AppColors.primary.withOpacity(0.3)
+                  : AppColors.textMuted.withOpacity(0.08)),
+              ),
+              child: Row(children: [
+                Container(
+                  width: 34,
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  decoration: BoxDecoration(
+                    gradient: isToday ? const LinearGradient(colors: AppColors.gradientPrimary) : null,
+                    color: isToday ? null : AppColors.bgElevated,
+                    borderRadius: BorderRadius.circular(6)),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(dayNames[(day.weekday - 1) % 7],
+                      style: TextStyle(color: isToday ? Colors.white : AppColors.textMuted,
+                        fontSize: 9, fontWeight: FontWeight.w700)),
+                    Text('${day.day}',
+                      style: TextStyle(color: isToday ? Colors.white : AppColors.textPrimary,
+                        fontSize: 12, fontWeight: FontWeight.w800)),
+                  ]),
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Text(isToday ? 'Hari ini' : (isOver ? 'Over budget' : 'Dalam budget'),
+                      style: TextStyle(
+                        color: isOver ? AppColors.chartOver : AppColors.textSecond,
+                        fontSize: 10, fontWeight: FontWeight.w600)),
+                    Text('Rp ${formatAmount(val)}',
+                      style: TextStyle(
+                        color: isOver ? AppColors.chartOver : AppColors.textPrimary,
+                        fontSize: 11, fontWeight: FontWeight.w700)),
+                  ]),
+                  const SizedBox(height: 5),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: LinearProgressIndicator(
+                      value: rowProgress, minHeight: 4,
+                      backgroundColor: AppColors.bgElevated,
+                      valueColor: AlwaysStoppedAnimation(
+                        AppColors.barColorFor(
+                          _budgetHarian > 0 ? val / _budgetHarian : 0)),
+                    ),
+                  ),
+                ])),
+                const SizedBox(width: 6),
+                const Icon(Icons.chevron_right, size: 16, color: AppColors.textMuted),
+              ]),
+            ));
+          }),
+        ],
         const SizedBox(height: 12),
         Divider(height: 1, color: AppColors.textMuted.withOpacity(0.08)),
         const SizedBox(height: 10),
@@ -765,12 +865,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ]));
   }
 
+  Widget _budgetModeTab(String label, int mode) {
+    final active = _budgetViewMode == mode;
+    return GestureDetector(
+      onTap: () => setState(() => _budgetViewMode = mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(6)),
+        child: Text(label, style: TextStyle(
+          color: active ? Colors.white : AppColors.textMuted,
+          fontSize: 11, fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+
   Widget _budgetStat(String label, String value, {Color? valueColor}) => Column(children: [
     Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
     const SizedBox(height: 2),
     Text(value, style: TextStyle(
       color: valueColor ?? AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w600)),
   ]);
+
+  /// Buka kalender minimalis 7 hari terakhir + detail transaksi hari terpilih.
+  Future<void> _showDayDetail(DateTime day) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _DayDetailSheet(
+        initialDay: day,
+        last7: _last7DaysSpending,
+        budgetHarian: _budgetHarian,
+      ),
+    );
+    if (mounted) _load();
+  }
 
   // ══════════════════════════════════════════════════════════════
   // 2. Edit Budget Harian dialog
@@ -831,10 +962,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ══════════════════════════════════════════════════════════════
-  // 3. Notifikasi → Cek update dari Discord/GitHub + langsung update
+  // 3. Ikon notifikasi → beri tahu update terbaru dari GitHub
+  //    (terintegrasi repo; kalau sudah terbaru, bilang sudah terbaru,
+  //     dan tidak pernah memaksa user untuk update)
   // ══════════════════════════════════════════════════════════════
-  Future<void> _handleDiscordUpdate() async {
-    // Show loading dialog
+  Widget _notificationIcon() => GestureDetector(
+    onTap: _checkUpdateManual,
+    child: Stack(clipBehavior: Clip.none, children: [
+      Container(
+        width: 36, height: 36,
+        decoration: BoxDecoration(
+          color: AppColors.bgCard,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.glassBorder),
+        ),
+        child: const Icon(Icons.notifications_outlined,
+          color: AppColors.textSecond, size: 18),
+      ),
+      if (_hasUpdate)
+        Positioned(
+          right: -1, top: -1,
+          child: Container(
+            width: 10, height: 10,
+            decoration: BoxDecoration(
+              color: AppColors.expense,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.bg, width: 1.5),
+            ),
+          ),
+        ),
+    ]),
+  );
+
+  Future<void> _checkUpdateManual() async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -851,56 +1011,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
 
     try {
-      // Reset check supaya bisa cek ulang
       UpdateService.instance.resetCheck();
       final result = await UpdateService.instance.checkForUpdate();
-
       if (!mounted) return;
-      Navigator.pop(context); // Tutup loading
+      Navigator.pop(context); // tutup loading
+      if (!mounted) return;
+
+      setState(() => _hasUpdate = result.hasUpdate);
 
       if (result.hasUpdate && result.release != null) {
-        // Ada update → tampilkan UpdateDialog yang sudah ada
         await UpdateDialog.show(context, result);
       } else {
-        // Tidak ada update
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: AppColors.bgCard,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            content: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                width: 56, height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.income.withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check_circle, color: AppColors.income, size: 32),
-              ),
-              const SizedBox(height: 16),
-              const Text('Sudah Terbaru!', style: TextStyle(
-                color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
-              Text('MengFin v${result.currentVersion}', style: const TextStyle(
-                color: AppColors.textMuted, fontSize: 12)),
-              const SizedBox(height: 4),
-              const Text('Kamu sudah menggunakan versi terbaru',
-                style: TextStyle(color: AppColors.textSecond, fontSize: 13),
-                textAlign: TextAlign.center),
-            ]),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
+        await InfoDialog.show(
+          context,
+          unknownCurrent: result.unknownCurrent,
+          latestTag: result.latestTag,
+          currentTag: result.currentTag,
+          error: result.error,
         );
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // Tutup loading
+      Navigator.pop(context);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal cek update: $e'),
           backgroundColor: AppColors.expense),
@@ -988,6 +1121,175 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
   );
 
+  // ══════════════════════════════════════════════════════════════
+  // SWIPE CAROUSEL — Saldo vs Pengeluaran + Kategori pengeluaran
+  // ══════════════════════════════════════════════════════════════
+  Widget _buildInsightCarousel(DashboardData d, double saldoPersen, double pengeluaranPersen) {
+    final kat = _kategoriBreakdown.take(4).toList();
+    final pageCount = 1 + (kat.isEmpty ? 1 : kat.length);
+    if (_insightPage >= pageCount) _insightPage = pageCount - 1;
+    _insightPageCtrl ??= PageController();
+
+    return GlassCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header + dots indicator
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text(
+            _insightPage == 0 ? 'Saldo vs Pengeluaran' : 'Kategori Pengeluaran',
+            style: const TextStyle(color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+          _carouselDots(pageCount),
+        ]),
+        Text(_insightPage == 0 ? 'Bulan ini' : '30 hari terakhir',
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 150,
+          child: PageView(
+            controller: _insightPageCtrl,
+            onPageChanged: (i) => setState(() => _insightPage = i),
+            children: [
+              _saldoPage(d, saldoPersen, pengeluaranPersen),
+              if (kat.isEmpty)
+                _emptyKategoriPage()
+              else
+                ...kat.map((k) => _kategoriPage(k, d)),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _carouselDots(int count) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: List.generate(count, (i) {
+      final active = i == _insightPage;
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        margin: const EdgeInsets.only(left: 4),
+        height: 6,
+        width: active ? 16 : 6,
+        decoration: BoxDecoration(
+          color: active ? AppColors.primary : AppColors.textMuted.withOpacity(0.35),
+          borderRadius: BorderRadius.circular(99),
+        ),
+      );
+    }),
+  );
+
+  // Page 0 — donut saldo vs pengeluaran
+  Widget _saldoPage(DashboardData d, double saldoPersen, double pengeluaranPersen) {
+    return Row(children: [
+      SizedBox(
+        width: 100, height: 100,
+        child: Stack(alignment: Alignment.center, children: [
+          PieChart(PieChartData(
+            sections: [
+              PieChartSectionData(
+                value: saldoPersen > 0 ? saldoPersen : 0.1,
+                color: AppColors.income, radius: 13, showTitle: false),
+              PieChartSectionData(
+                value: pengeluaranPersen > 0 ? pengeluaranPersen : 0.1,
+                color: AppColors.expense, radius: 13, showTitle: false),
+            ],
+            centerSpaceRadius: 31, sectionsSpace: 2, startDegreeOffset: -90,
+          )),
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('${saldoPersen.toStringAsFixed(0)}%',
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w800)),
+            const Text('Saldo', style: TextStyle(color: AppColors.textMuted, fontSize: 9)),
+          ]),
+        ]),
+      ),
+      const SizedBox(width: 20),
+      Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        _chartLegend('Saldo', '${saldoPersen.toStringAsFixed(0)}%', '', AppColors.income),
+        const SizedBox(height: 8),
+        _chartLegend('Pengeluaran', '${pengeluaranPersen.toStringAsFixed(0)}%',
+          'Rp ${formatAmount(d.pengeluaranBulanIni)}', AppColors.expense),
+        if (d.pengeluaranBulanIni > d.saldoTotal.abs() && d.saldoTotal < 0) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8)),
+            child: const Row(children: [
+              Icon(Icons.warning_amber_rounded, size: 12, color: AppColors.warning),
+              SizedBox(width: 5),
+              Expanded(child: Text('Pengeluaran melebihi saldo',
+                style: TextStyle(color: AppColors.warning, fontSize: 10, fontWeight: FontWeight.w600))),
+            ]),
+          ),
+        ],
+      ])),
+    ]);
+  }
+
+  // Page kategori — donut % share + insight strip
+  Widget _kategoriPage(Map<String, dynamic> k, DashboardData d) {
+    final total = _kategoriBreakdown.fold(0.0, (s, e) => s + (e['total'] as double));
+    final val = k['total'] as double;
+    final pct = total > 0 ? (val / total * 100) : 0.0;
+    final info = getKategoriInfo(k['kategori'] as String);
+    final color = Color(info.color);
+    final topName = _kategoriBreakdown.isNotEmpty ? _kategoriBreakdown.first['kategori'] as String : '-';
+    final topPct = total > 0
+        ? ((_kategoriBreakdown.first['total'] as double) / total * 100) : 0.0;
+
+    return Row(children: [
+      SizedBox(
+        width: 100, height: 100,
+        child: Stack(alignment: Alignment.center, children: [
+          PieChart(PieChartData(
+            sections: [
+              PieChartSectionData(value: pct > 0 ? pct : 0.1, color: color, radius: 13, showTitle: false),
+              PieChartSectionData(
+                value: (100 - pct) > 0 ? (100 - pct) : 0.1,
+                color: AppColors.bgElevated, radius: 13, showTitle: false),
+            ],
+            centerSpaceRadius: 31, sectionsSpace: 2, startDegreeOffset: -90,
+          )),
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('${pct.toStringAsFixed(0)}%',
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w800)),
+            Text(info.icon, style: const TextStyle(fontSize: 11)),
+          ]),
+        ]),
+      ),
+      const SizedBox(width: 20),
+      Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text(info.icon, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Expanded(child: Text(k['kategori'] as String,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
+            maxLines: 1, overflow: TextOverflow.ellipsis)),
+        ]),
+        const SizedBox(height: 6),
+        Text('Rp ${formatAmount(val)}',
+          style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.income.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(8)),
+          child: Text('$topName (${topPct.toStringAsFixed(0)}%) mendominasi pengeluaran',
+            style: const TextStyle(color: AppColors.income, fontSize: 9.5, fontWeight: FontWeight.w600),
+            maxLines: 2),
+        ),
+      ])),
+    ]);
+  }
+
+  Widget _emptyKategoriPage() => const Center(child: Text(
+    'Belum ada data kategori',
+    style: TextStyle(color: AppColors.textMuted, fontSize: 12)));
+
   Widget _chartLegend(String label, String persen, String amount, Color color) => Row(children: [
     Container(width: 8, height: 8, decoration: BoxDecoration(
       color: color, borderRadius: BorderRadius.circular(2))),
@@ -1024,4 +1326,304 @@ class _DashedLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Kalender 7 hari terakhir — minimalis, tapi detail transaksi per hari
+// ══════════════════════════════════════════════════════════════════════════
+class _DayDetailSheet extends StatefulWidget {
+  final DateTime initialDay;
+  final List<double> last7;
+  final double budgetHarian;
+
+  const _DayDetailSheet({
+    required this.initialDay,
+    required this.last7,
+    required this.budgetHarian,
+  });
+
+  @override
+  State<_DayDetailSheet> createState() => _DayDetailSheetState();
+}
+
+class _DayDetailSheetState extends State<_DayDetailSheet> {
+  late DateTime _selected;
+  List<dynamic> _txs = [];
+  bool _loading = true;
+  bool _error = false;
+
+  static const _dayNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = DateTime(widget.initialDay.year, widget.initialDay.month, widget.initialDay.day);
+    _load();
+  }
+
+  /// 7 tanggal terakhir, index 0 = 6 hari lalu (sama dengan _last7DaysSpending).
+  List<DateTime> get _days {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return List.generate(7, (i) => today.subtract(Duration(days: 6 - i)));
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = false; });
+    try {
+      final txs = await ApiService.getTransaksi(limit: 500);
+      if (!mounted) return;
+      setState(() { _txs = txs; _loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = true; });
+    }
+  }
+
+  String get _key =>
+      '${_selected.year}-${_selected.month.toString().padLeft(2, '0')}-${_selected.day.toString().padLeft(2, '0')}';
+
+  List<dynamic> get _dayTx => _txs.where((tx) {
+    final t = (tx.tanggal ?? '').toString();
+    return t.startsWith(_key);
+  }).toList();
+
+  double get _daySpend => _dayTx
+      .where((t) => t.jenis == 'pengeluaran')
+      .fold(0.0, (s, t) => s + (t.nominal as num).toDouble());
+
+  double get _dayIncome => _dayTx
+      .where((t) => t.jenis == 'pemasukan')
+      .fold(0.0, (s, t) => s + (t.nominal as num).toDouble());
+
+  double _spendFor(DateTime d) {
+    final idx = _days.indexWhere((x) =>
+      x.year == d.year && x.month == d.month && x.day == d.day);
+    if (idx < 0 || idx >= widget.last7.length) return 0;
+    return widget.last7[idx];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxH = MediaQuery.of(context).size.height * 0.82;
+    return Container(
+      constraints: BoxConstraints(maxHeight: maxH),
+      decoration: const BoxDecoration(
+        color: AppColors.bg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // Handle
+        Container(
+          width: 40, height: 4, margin: const EdgeInsets.only(top: 12, bottom: 14),
+          decoration: BoxDecoration(
+            color: AppColors.textMuted.withOpacity(0.35),
+            borderRadius: BorderRadius.circular(2)),
+        ),
+
+        // Judul
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(children: [
+            const Icon(Icons.calendar_month_rounded, size: 16, color: AppColors.primary),
+            const SizedBox(width: 8),
+            const Text('7 Hari Terakhir', style: TextStyle(
+              color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: const Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 14),
+
+        // Strip kalender 7 hari
+        SizedBox(
+          height: 76,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _days.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final d = _days[i];
+              final spend = _spendFor(d);
+              final isSel = d.year == _selected.year &&
+                  d.month == _selected.month && d.day == _selected.day;
+              final isToday = i == 6;
+              final ratio = widget.budgetHarian > 0 ? spend / widget.budgetHarian : 0.0;
+              final barColor = AppColors.barColorFor(ratio);
+
+              return GestureDetector(
+                onTap: () => setState(() => _selected = d),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 54,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: isSel
+                      ? const LinearGradient(colors: AppColors.gradientPrimary,
+                          begin: Alignment.topCenter, end: Alignment.bottomCenter)
+                      : null,
+                    color: isSel ? null : AppColors.bgCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isSel ? AppColors.primary
+                        : (isToday ? AppColors.primary.withOpacity(0.4) : AppColors.glassBorder),
+                      width: isSel ? 1.4 : 1),
+                  ),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(_dayNames[(d.weekday - 1) % 7], style: TextStyle(
+                      color: isSel ? Colors.white70 : AppColors.textMuted,
+                      fontSize: 9.5, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 3),
+                    Text('${d.day}', style: TextStyle(
+                      color: isSel ? Colors.white : AppColors.textPrimary,
+                      fontSize: 16, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    // indikator pengeluaran
+                    Container(
+                      width: 26, height: 3,
+                      decoration: BoxDecoration(
+                        color: spend > 0
+                          ? (isSel ? Colors.white : barColor)
+                          : AppColors.textMuted.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ]),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Ringkasan hari terpilih
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.glassBorder)),
+          child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(formatTanggal(_key), style: const TextStyle(
+                color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              Text('${_dayTx.length} transaksi', style: const TextStyle(
+                color: AppColors.textMuted, fontSize: 11)),
+            ])),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('-Rp ${formatAmount(_daySpend)}', style: const TextStyle(
+                color: AppColors.expense, fontSize: 13, fontWeight: FontWeight.w700)),
+              if (_dayIncome > 0) ...[
+                const SizedBox(height: 3),
+                Text('+Rp ${formatAmount(_dayIncome)}', style: const TextStyle(
+                  color: AppColors.income, fontSize: 12, fontWeight: FontWeight.w600)),
+              ],
+            ]),
+          ]),
+        ),
+
+        // Status budget harian untuk hari itu
+        if (widget.budgetHarian > 0) ...[
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(children: [
+              Expanded(child: ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: LinearProgressIndicator(
+                  value: (_daySpend / widget.budgetHarian).clamp(0.0, 1.0),
+                  minHeight: 5,
+                  backgroundColor: AppColors.bgElevated,
+                  valueColor: AlwaysStoppedAnimation(
+                    AppColors.barColorFor(_daySpend / widget.budgetHarian)),
+                ),
+              )),
+              const SizedBox(width: 8),
+              Text(
+                _daySpend > widget.budgetHarian
+                  ? 'Over Rp ${formatAmount(_daySpend - widget.budgetHarian)}'
+                  : 'Sisa Rp ${formatAmount(widget.budgetHarian - _daySpend)}',
+                style: TextStyle(
+                  color: _daySpend > widget.budgetHarian ? AppColors.chartOver : AppColors.textMuted,
+                  fontSize: 10.5, fontWeight: FontWeight.w700)),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 12),
+
+        // Daftar transaksi
+        Flexible(child: _loading
+          ? const Center(child: Padding(
+              padding: EdgeInsets.all(30),
+              child: CircularProgressIndicator(color: AppColors.primary)))
+          : _error
+            ? const Center(child: Padding(
+                padding: EdgeInsets.all(30),
+                child: Text('Gagal memuat transaksi',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12))))
+            : _dayTx.isEmpty
+              ? const Center(child: Padding(
+                  padding: EdgeInsets.all(30),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.receipt_long_outlined, color: AppColors.textHint, size: 32),
+                    SizedBox(height: 10),
+                    Text('Tidak ada transaksi pada hari ini',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
+                  ])))
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  children: _dayTx.map((tx) {
+                    final kat = getKategoriInfo(tx.kategori);
+                    final isIncome = tx.jenis == 'pemasukan';
+                    final waktu = (tx.tanggal ?? '').toString().length > 10
+                      ? formatTime(tx.tanggal.toString()) : '';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgCard,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.glassBorder)),
+                      child: Row(children: [
+                        Container(
+                          width: 38, height: 38,
+                          decoration: BoxDecoration(
+                            color: Color(kat.color).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(11)),
+                          child: Center(child: Text(kat.icon,
+                            style: const TextStyle(fontSize: 17)))),
+                        const SizedBox(width: 11),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(
+                            (tx.deskripsi ?? '').toString().isEmpty
+                              ? tx.kategori.toString() : tx.deskripsi.toString(),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: AppColors.textPrimary,
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${tx.kategori}'
+                            '${waktu.isNotEmpty ? ' · $waktu' : ''}'
+                            '${(tx.metodePembayaran ?? '').toString().isNotEmpty ? ' · ${tx.metodePembayaran}' : ''}',
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
+                        ])),
+                        const SizedBox(width: 8),
+                        Text('${isIncome ? '+' : '-'}Rp ${formatAmount((tx.nominal as num).toDouble())}',
+                          style: TextStyle(
+                            color: isIncome ? AppColors.income : AppColors.expense,
+                            fontSize: 12.5, fontWeight: FontWeight.w700)),
+                      ]),
+                    );
+                  }).toList(),
+                ),
+        ),
+      ]),
+    );
+  }
 }

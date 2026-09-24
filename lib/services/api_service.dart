@@ -344,6 +344,35 @@ class ApiService {
     await _post('/ai/konfirmasi-transaksi', body);
   }
 
+  // ── Scan struk ─────────────────────────────────────────────────────────────
+  /// Kirim gambar struk (base64) ke backend, dapat data transaksi terstruktur.
+  static Future<Map<String, dynamic>> scanStruk(
+    String imageBase64, String mimeType,
+  ) async {
+    final res = await _post('/scan', {
+      'imageBase64': imageBase64,
+      'mimeType': mimeType,
+    });
+    return Map<String, dynamic>.from(res['data'] as Map);
+  }
+
+  // ── Laporan: narasi AI ─────────────────────────────────────────────────────
+  static Future<Map<String, dynamic>> getNarasiLaporan(String bulan) async {
+    final res = await _get('/laporan/narasi?bulan=$bulan');
+    return Map<String, dynamic>.from(res['data'] as Map);
+  }
+
+  // ── Update checker (via backend, terintegrasi GitHub) ──────────────────────
+  static Future<Map<String, dynamic>> checkUpdate() async {
+    if (kIsWeb) return {'has_update': false, 'unknown_current': true};
+    final res = await _client.get(
+      Uri.parse('$kApiBaseUrl/update/check?current=$kAppBuildTag'),
+      headers: {'Accept': 'application/json'},
+    ).timeout(const Duration(seconds: 12));
+    if (res.statusCode != 200) throw Exception('update check failed: ${res.statusCode}');
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   // ── Trigger sync ───────────────────────────────────────────────────────────
   static Future<void> triggerSync() => SyncService.instance.syncToServer();
 }

@@ -43,12 +43,17 @@ jobs:
             echo "KEYSTORE_READY=false" >> $GITHUB_ENV
           fi
 
+      - name: Get version tag
+        id: version
+        run: echo "VERSION=v$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
+
       - name: Build release APK
-        run: flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
+        run: flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --dart-define=APP_BUILD_TAG=${{ steps.version.outputs.VERSION }}
 
       - name: Print SHA-1 dari APK (untuk verifikasi)
         run: |
           echo "========================================"
+          echo "Build tag tertanam: ${{ steps.version.outputs.VERSION }}"
           if [ "$KEYSTORE_READY" = "true" ]; then
             echo "Signed dengan: RELEASE keystore"
           else
@@ -59,10 +64,6 @@ jobs:
             2>/dev/null | grep -E "SHA1:|SHA256:" \
             || echo "Tidak bisa baca cert"
           echo "========================================"
-
-      - name: Get version tag
-        id: version
-        run: echo "VERSION=v$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
 
       - name: Upload APK to Release
         uses: softprops/action-gh-release@v2
@@ -83,7 +84,8 @@ jobs:
             1. Download **app-release.apk** di bawah
             2. Buka di HP → izinkan "Install dari sumber tidak dikenal"
             3. Install dan buka app
-            
+
+            > 🔔 Buka ikon notifikasi di beranda untuk cek update terbaru.
             > 🌐 Server: Railway Cloud 24/7 + MongoDB Atlas
           files: build/app/outputs/flutter-apk/app-release.apk
           make_latest: true

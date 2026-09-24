@@ -1,59 +1,62 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
-import 'package:package_info_plus/package_info_plus.dart';
+import '../constants/config.dart';
 
 /// Informasi tentang release terbaru dari GitHub
 class ReleaseInfo {
-  final String tagName;        // e.g. "v20260916-1430"
-  final String releaseName;    // e.g. "MengFin v20260916-1430"
-  final String body;           // Changelog / release notes
-  final String apkDownloadUrl; // URL langsung ke APK
-  final String htmlUrl;        // URL halaman release di GitHub
+  final String tag;        // e.g. "v20260923-1210"
+  final String name;       // e.g. "MengFin v20260923-1210"
+  final String body;       // Changelog / release notes
+  final String apkUrl;     // URL langsung ke APK (asset release)
+  final String htmlUrl;    // URL halaman release di GitHub
   final DateTime publishedAt;
 
   const ReleaseInfo({
-    required this.tagName,
-    required this.releaseName,
+    required this.tag,
+    required this.name,
     required this.body,
-    required this.apkDownloadUrl,
+    required this.apkUrl,
     required this.htmlUrl,
     required this.publishedAt,
   });
 
-  factory ReleaseInfo.fromJson(Map<String, dynamic> json) {
-    // Cari asset APK dari daftar assets
-    String apkUrl = '';
-    final assets = json['assets'] as List<dynamic>? ?? [];
-    for (final asset in assets) {
-      final name = asset['name'] as String? ?? '';
-      if (name.endsWith('.apk')) {
-        apkUrl = asset['browser_download_url'] as String? ?? '';
-        break;
-      }
-    }
+  factory ReleaseInfo.fromJson(Map<String, dynamic> json) => ReleaseInfo(
+        tag: json['tag'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        body: json['body'] as String? ?? '',
+        apkUrl: json['apk_url'] as String? ?? '',
+        htmlUrl: json['html_url'] as String? ?? '',
+        publishedAt: DateTime.tryParse(json['published_at'] as String? ?? '') ?? DateTime.now(),
+      );
 
-    return ReleaseInfo(
-      tagName: json['tag_name'] as String? ?? '',
-      releaseName: json['name'] as String? ?? '',
-      body: json['body'] as String? ?? '',
-      apkDownloadUrl: apkUrl,
-      htmlUrl: json['html_url'] as String? ?? '',
-      publishedAt: DateTime.tryParse(json['published_at'] as String? ?? '') ?? DateTime.now(),
-    );
+  /// Label versi yang enak dibaca: v20260923-1210 → 23 Sep 2026 · 12:10
+  String get readableVersion {
+    final m = RegExp(r'^v?(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})$').firstMatch(tag);
+    if (m == null) return tag;
+    const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+                    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    final mm = int.parse(m.group(2)!);
+    return '${int.parse(m.group(3)!)} ${months[mm]} ${m.group(1)} · ${m.group(4)}:${m.group(5)}';
   }
 }
 
 /// Hasil pengecekan update
 class UpdateCheckResult {
   final bool hasUpdate;
+  final String currentTag;   // build tag yang terinstall
+  final String? latestTag;   // build tag terbaru di GitHub
   final ReleaseInfo? release;
-  final String currentVersion;
+  final bool unknownCurrent; // build tag app tidak diketahui (build lokal)
+  final String? error;
 
   const UpdateCheckResult({
     required this.hasUpdate,
-    required this.currentVersion,
+    required this.currentTag,
+    this.latestTag,
     this.release,
+    this.unknownCurrent = false,
+    this.error,
   });
 }
 
@@ -61,105 +64,71 @@ class UpdateService {
   UpdateService._();
   static final UpdateService instance = UpdateService._();
 
-  // ─── GitHub repo untuk cek release terbaru ────────────────────────────────
-  static const String _githubOwner = 'Mengggzz';
-  static const String _githubRepo  = 'mengfin-app';
-  // ───────────────────────────────────────────────────────────────────────────
-
-  static const String _apiUrl =
-      'https://api.github.com/repos/$_githubOwner/$_githubRepo/releases/latest';
-
-  String _currentVersion = '3.0.0';
-  int _currentBuildNumber = 3;
+  /// Build tag yang tertanam di aplikasi ini (di-set saat build).
+  final String _currentTag = kAppBuildTag;
   bool _hasChecked = false;
 
-  /// Inisialisasi — baca versi app yang terinstall
-  Future<void> init() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      _currentVersion = info.version;        // e.g. "3.0.0"
-      _currentBuildNumber = int.tryParse(info.buildNumber) ?? 3;
-    } catch (_) {
-      // Fallback ke hardcoded jika gagal
-      _currentVersion = '3.0.0';
-      _currentBuildNumber = 3;
-    }
-  }
+  String get currentTag => _currentTag;
+  String get currentVersion => _currentTag;
 
-  String get currentVersion => _currentVersion;
-  int get currentBuildNumber => _currentBuildNumber;
+  /// Kompatibilitas dengan pemanggilan lama di main.dart.
+  /// Build tag di-inject saat compile lewat
+  /// `--dart-define=APP_BUILD_TAG=vYYYYMMDD-HHMM`, jadi tidak ada yang
+  /// perlu dibaca dari PackageInfo.
+  Future<void> init() async {}
 
-  /// Cek update dari GitHub Releases
-  /// Hanya berjalan di Android/non-web
+  /// Cek update lewat backend (backend yang query GitHub, jadi tidak kena
+  /// rate-limit client dan tidak perlu token di app).
   Future<UpdateCheckResult> checkForUpdate() async {
+    // Di web, aplikasi selalu menyajikan versi terbaru dari server —
+    // konsep "update APK" tidak berlaku.
     if (kIsWeb) {
-      return UpdateCheckResult(hasUpdate: false, currentVersion: _currentVersion);
+      return UpdateCheckResult(
+        hasUpdate: false, currentTag: _currentTag, unknownCurrent: true);
     }
 
-    // Jangan spam cek per session (max sekali per sesi app)
     if (_hasChecked) {
-      return UpdateCheckResult(hasUpdate: false, currentVersion: _currentVersion);
+      return UpdateCheckResult(hasUpdate: false, currentTag: _currentTag);
     }
     _hasChecked = true;
 
     try {
-      final response = await http
-          .get(Uri.parse(_apiUrl), headers: {'Accept': 'application/vnd.github.v3+json'})
-          .timeout(const Duration(seconds: 8));
+      final uri = Uri.parse('$kApiBaseUrl/update/check?current=$_currentTag');
+      final res = await http
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode != 200) {
-        return UpdateCheckResult(hasUpdate: false, currentVersion: _currentVersion);
+      if (res.statusCode != 200) {
+        return UpdateCheckResult(
+          hasUpdate: false, currentTag: _currentTag,
+          error: 'Server membalas ${res.statusCode}');
       }
 
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      final release = ReleaseInfo.fromJson(json);
+      final j = jsonDecode(res.body) as Map<String, dynamic>;
+      final hasUpdate = j['has_update'] == true;
+      final unknownCurrent = j['unknown_current'] == true;
+      final latestTag = j['latest_version'] as String?;
 
-      // Bandingkan build number dari tag (format: vYYYYMMDD-HHMM = selalu lebih baru dari versionCode)
-      // Strategi: jika tag ada di release dan APK tersedia → ada update
-      // Kita pakai tanggal publish vs buildNumber sebagai proxy
-      final hasUpdate = release.apkDownloadUrl.isNotEmpty && _isNewerRelease(release);
+      ReleaseInfo? release;
+      if (hasUpdate && j['release'] is Map) {
+        release = ReleaseInfo.fromJson(Map<String, dynamic>.from(j['release'] as Map));
+      }
 
       return UpdateCheckResult(
         hasUpdate: hasUpdate,
-        currentVersion: _currentVersion,
-        release: hasUpdate ? release : null,
+        currentTag: (j['current_version'] as String?) ?? _currentTag,
+        latestTag: latestTag,
+        release: release,
+        unknownCurrent: unknownCurrent,
+        error: j['error'] as String?,
       );
-    } catch (_) {
-      // Tidak ada internet / error → diam saja
-      return UpdateCheckResult(hasUpdate: false, currentVersion: _currentVersion);
+    } catch (e) {
+      // Tidak ada internet / error → jangan ganggu user
+      return UpdateCheckResult(
+        hasUpdate: false, currentTag: _currentTag, error: e.toString());
     }
   }
 
-  /// Cek apakah release dari GitHub lebih baru dari yang terinstall.
-  /// Menggunakan tanggal publikasi release vs versionCode (build number).
-  /// 
-  /// versionCode=3 → build ke-3
-  /// GitHub release baru selalu dibuat dengan tag timestamp baru
-  /// → jika release lebih baru dari install date, ada update
-  bool _isNewerRelease(ReleaseInfo release) {
-    // Coba parse build number dari tag jika formatnya vYYYYMMDD-HHMM
-    // atau bandingkan dengan hard-coded versionCode
-    // Strategi sederhana: cek apakah tag berbeda dari versi yang kita kenal
-    final tag = release.tagName; // e.g. "v20260916-1430"
-    
-    // Jika tag mengandung format timestamp (panjang > 10 karakter setelah 'v')
-    // → ini adalah build baru dari GitHub Actions, selalu lebih baru
-    if (tag.startsWith('v') && tag.length > 10) {
-      // Parse tanggal dari tag: vYYYYMMDD-HHMM
-      final datePart = tag.substring(1, 9); // "20260916"
-      final buildDate = int.tryParse(datePart) ?? 0;
-      // Bandingkan dengan install date (approximasi dari build number)
-      // Build 3 diasumsikan dibuat sebelum tanggal hari ini
-      // Jika buildDate > 20260916 (tanggal sekarang) → release lebih baru
-      final today = int.parse(
-        DateTime.now().toIso8601String().replaceAll('-', '').substring(0, 8)
-      );
-      return buildDate >= today; // Lebih baru atau sama hari ini tapi jam berbeda
-    }
-
-    return false;
-  }
-
-  /// Reset pengecekan (untuk testing)
+  /// Reset pengecekan (supaya tombol notifikasi bisa cek ulang)
   void resetCheck() => _hasChecked = false;
 }

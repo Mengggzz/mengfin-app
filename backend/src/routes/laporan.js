@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Transaksi, Akun, Anggaran } = require('../models');
 const { hitungHealthScore, prediksiSaldoAman } = require('../services/finance');
-const { generateInsight } = require('../services/gemini');
+const { generateInsight, generateNarasiLaporan } = require('../services/gemini');
 const { calculateRingHudStatus } = require('../services/ring_hud');
 const { authMiddleware } = require('../middleware/auth');
 
@@ -143,6 +143,85 @@ router.get('/insight', async (req, res) => {
 
     const insight = await generateInsight({ pemasukan, pengeluaran, topKategori, bulan: bulanIni });
     res.json({ data: insight });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Narasi AI dari laporan periode tertentu (?bulan=YYYY-MM)
+router.get('/narasi', async (req, res) => {
+  try {
+    const uid = req.user.id;
+    const bulan = /^\d{4}-\d{2}$/.test(req.query.bulan || '')
+      ? req.query.bulan
+      : new Date().toISOString().slice(0, 7);
+
+    const prev = new Date(Number(bulan.slice(0, 4)), Number(bulan.slice(5, 7)) - 2, 1);
+    const bulanLalu = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+
+    const [txIni, txLalu] = await Promise.all([
+      Transaksi.find({ user_id: uid, tanggal: { $regex: `^${bulan}` } }),
+      Transaksi.find({ user_id: uid, tanggal: { $regex: `^${bulanLalu}` } }),
+    ]);
+
+    if (txIni.length === 0) {
+      return res.json({
+        data: {
+          narasi: `Belum ada transaksi tercatat di periode ${bulan}. Catat transaksi dulu supaya saya bisa membuat analisis yang berguna.`,
+          kosong: true,
+        },
+      });
+    }
+
+    const sum = (txs, jenis) =>
+      txs.filter(t => t.jenis === jenis).reduce((s, t) => s + t.nominal, 0);
+
+    const pemasukan = sum(txIni, 'pemasukan');
+    const pengeluaran = sum(txIni, 'pengeluaran');
+
+    const katMap = {};
+    txIni.filter(t => t.jenis === 'pengeluaran').forEach(t => {
+      katMap[t.kategori] = (katMap[t.kategori] || 0) + t.nominal;
+    });
+    const kategori = Object.entries(katMap)
+      .sort((a, b) => b[1] - a[1])
+      .map(([nama, total]) => ({
+        nama,
+        total,
+        persen: pengeluaran > 0 ? Math.round((total / pengeluaran) * 100) : 0,
+      }));
+
+    // Rata-rata harian & hari paling boros
+    const hariMap = {};
+    txIni.filter(t => t.jenis === 'pengeluaran').forEach(t => {
+      hariMap[t.tanggal] = (hariMap[t.tanggal] || 0) + t.nominal;
+    });
+    const hariArr = Object.entries(hariMap).sort((a, b) => b[1] - a[1]);
+    const hariBoros = hariArr[0] ? { tanggal: hariArr[0][0], total: hariArr[0][1] } : null;
+    const jumlahHariAktif = hariArr.length;
+
+    const data = {
+      periode: bulan,
+      pemasukan,
+      pengeluaran,
+      saldoBersih: pemasukan - pengeluaran,
+      jumlahTransaksi: txIni.length,
+      rataPengeluaranHarian: jumlahHariAktif > 0
+        ? Math.round(pengeluaran / jumlahHariAktif) : 0,
+      hariPalingBoros: hariBoros,
+      kategoriPengeluaran: kategori.slice(0, 6),
+      pembandingBulanLalu: {
+        bulan: bulanLalu,
+        pemasukan: sum(txLalu, 'pemasukan'),
+        pengeluaran: sum(txLalu, 'pengeluaran'),
+      },
+    };
+
+    const narasi = await generateNarasiLaporan(data);
+    if (!narasi) {
+      return res.status(502).json({ error: 'Gagal membuat narasi, coba lagi sebentar lagi.' });
+    }
+    res.json({ data: { narasi, kosong: false } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

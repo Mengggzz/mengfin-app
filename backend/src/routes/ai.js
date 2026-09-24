@@ -91,8 +91,18 @@ router.post('/konfirmasi-transaksi', async (req, res) => {
 });
 
 function cekApakahTransaksi(teks) {
-  const kata = ['beli', 'bayar', 'makan', 'jajan', 'transfer', 'kirim', 'isi', 'top up', 'belanja', 'gajian', 'gaji', 'dapat', 'terima', 'bonus', 'masuk'];
-  return kata.some(k => teks.toLowerCase().includes(k));
+  const t = (teks || '').toLowerCase();
+  // Kata kunci transaksi — word boundary, supaya "kondisi" tidak cocok "isi"
+  const kata = ['beli', 'bayar', 'makan', 'minum', 'jajan', 'kopi', 'transfer', 'kirim',
+    'isi', 'top up', 'topup', 'belanja', 'gajian', 'gaji', 'dapat', 'terima', 'bonus',
+    'masuk', 'keluar', 'habis', 'pesan', 'order', 'parkir', 'bensin', 'tarik', 'setor',
+    'bayarin', 'cicip', 'sewa', 'tagihan', 'listrik', 'pulsa'];
+  const hasKeyword = kata.some(k => new RegExp(`\\b${k}\\b`).test(t));
+  // Nominal: digit (5 ribu, 30.500) atau angka terbilang (lima ribu, dua juta)
+  const hasNumber = /\d/.test(t) ||
+    /\b(ribu|juta|jt|rb|k)\b/.test(t) ||
+    /\b(satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh)\b/.test(t);
+  return hasKeyword && hasNumber;
 }
 
 module.exports = router;

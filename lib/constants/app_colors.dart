@@ -71,4 +71,37 @@ class AppColors {
   static const Color typeNeed    = Color(0xFF00E5FF);
   static const Color typeWant    = Color(0xFFFFD600);
   static const Color typeSaving  = Color(0xFF00E676);
+
+  // ── Analytics Chart Palette (variatif & presisi) ───────────────
+  // Status bar berdasarkan % pemakaian budget: aman → hampir → lewat
+  static const Color chartSafe   = Color(0xFF00E5FF); // 0–70%
+  static const Color chartWarn   = Color(0xFFFFB020); // 70–100%
+  static const Color chartOver   = Color(0xFFFF2D55); // >100%
+
+  static const List<Color> gradientChartSafe = [Color(0xFF22D3EE), Color(0xFF0EA5B7)];
+  static const List<Color> gradientChartWarn = [Color(0xFFFFC53D), Color(0xFFFF8A00)];
+  static const List<Color> gradientChartOver = [Color(0xFFFF5C7A), Color(0xFFE11D48)];
+
+  // Garis & area budget harian
+  static const List<Color> gradientBudgetLine = [Color(0xFFB388FF), Color(0xFF7C4DFF)];
+
+  // Gradien tambahan untuk aksen modern
+  static const List<Color> gradientSunset = [Color(0xFFFF9A3C), Color(0xFFFF5C7A)];
+  static const List<Color> gradientOcean  = [Color(0xFF22D3EE), Color(0xFF3B82F6)];
+  static const List<Color> gradientMint   = [Color(0xFF34D399), Color(0xFF0EA5B7)];
+  static const List<Color> gradientViolet = [Color(0xFFA78BFA), Color(0xFF7C3AED)];
+
+  /// Warna gradien bar sesuai rasio pemakaian budget (0..∞).
+  static List<Color> barGradientFor(double ratio) {
+    if (ratio > 1.0) return gradientChartOver;
+    if (ratio >= 0.7) return gradientChartWarn;
+    return gradientChartSafe;
+  }
+
+  /// Warna solid bar sesuai rasio pemakaian budget.
+  static Color barColorFor(double ratio) {
+    if (ratio > 1.0) return chartOver;
+    if (ratio >= 0.7) return chartWarn;
+    return chartSafe;
+  }
 }
