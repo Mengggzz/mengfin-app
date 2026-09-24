@@ -654,29 +654,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Container(height: 1, color: AppColors.textMuted.withOpacity(0.06)),
                 const SizedBox(height: 18), // ruang label hari
               ])),
-              // garis budget dashed
+              // garis budget dashed (tanpa label — label pindah ke strip atas
+              // supaya tidak pernah menutupi bar hari ini di kolom kanan)
               if (_budgetHarian > 0)
                 Positioned(
                   left: 0, right: 0, bottom: 18 + budgetH,
-                  child: Row(children: [
-                    Expanded(child: CustomPaint(
-                      size: const Size(double.infinity, 1),
-                      painter: _DashedLinePainter(AppColors.accent.withOpacity(0.7)),
-                    )),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: AppColors.gradientBudgetLine),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text('budget ${_compactLabel(_budgetHarian)}',
-                        style: const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w800)),
+                  child: CustomPaint(
+                    size: const Size(double.infinity, 1),
+                    painter: _DashedLinePainter(AppColors.accent.withOpacity(0.7)),
+                  ),
+                ),
+              // Keterangan garis budget — strip di atas grafik, selalu bebas
+              // dari bar karena tinggi bar dibatasi di bawah strip ini.
+              if (_budgetHarian > 0)
+                Positioned(
+                  top: 0, right: 0,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    CustomPaint(
+                      size: const Size(14, 1),
+                      painter: _DashedLinePainter(AppColors.accent),
                     ),
+                    const SizedBox(width: 4),
+                    Text('budget ${_compactLabel(_budgetHarian)}',
+                      style: const TextStyle(
+                        color: AppColors.accent, fontSize: 8.5,
+                        fontWeight: FontWeight.w700)),
                   ]),
                 ),
-              // bars
-              Row(
+              // bars — diberi jarak atas supaya tidak menyentuh strip label
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: List.generate(7, (i) {
                   final day = now.subtract(Duration(days: 6 - i));
@@ -741,6 +749,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ]),
                   ));
                 }),
+              ),
               ),
             ]);
           }),

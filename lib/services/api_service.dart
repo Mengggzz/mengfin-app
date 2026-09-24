@@ -128,7 +128,7 @@ class ApiService {
     );
 
     return Transaksi(
-      id: DateTime.now().millisecondsSinceEpoch * -1,
+      id: localId,
       localId: localId,
       tanggal: body['tanggal'] ?? '', jenis: body['jenis'] ?? '',
       nominal: (body['nominal'] as num? ?? 0).toDouble(),

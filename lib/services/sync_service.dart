@@ -2,8 +2,17 @@ import 'dart:convert';
 import 'api_service.dart';
 import 'local_db.dart';
 
+/// Hasil satu kali sinkronisasi.
+class SyncResult {
+  final int terkirim;
+  final int gagal;
+  final bool adaGagal;
+
+  const SyncResult({this.terkirim = 0, this.gagal = 0, this.adaGagal = false});
+}
+
 class SyncService {
-  SyncService._();
+  SyncService._(); 
   static final SyncService instance = SyncService._();
 
   bool _syncing = false;
@@ -38,10 +47,18 @@ class SyncService {
     }
   }
 
-  /// Kirim semua item dari sync_queue ke server
-  Future<void> syncToServer() async {
-    if (_syncing) return;
+  /// Kirim semua item dari sync_queue ke server.
+  ///
+  /// PENTING: id server sekarang String (ObjectId MongoDB), bukan int.
+  /// Sebelumnya kode memakai `int.tryParse` sehingga id ObjectId selalu
+  /// gagal di-parse → operasi UPDATE/DELETE diam-diam tidak pernah
+  /// terkirim, padahal item tetap dihapus dari antrean.
+  Future<SyncResult> syncToServer() async {
+    if (_syncing) return const SyncResult();
     _syncing = true;
+
+    var terkirim = 0;
+    var gagal = 0;
 
     try {
       final queue = await LocalDb.getQueue();
@@ -50,51 +67,63 @@ class SyncService {
         final method = item['method'] as String;
         final path = item['path'] as String;
         final bodyStr = item['body'] as String? ?? '{}';
-        final localId = item['local_id'] as String;
+        final localId = item['local_id'] as String? ?? '';
         final tableName = item['table_name'] as String;
+
+        // Ambil id server dari segmen terakhir path (String/ObjectId).
+        final pathId = path.split('/').last.split('?').first;
+        final hasPathId = pathId.isNotEmpty && pathId != path;
 
         try {
           final body = jsonDecode(bodyStr) as Map<String, dynamic>;
 
           if (method == 'POST' && tableName == 'transaksi') {
             final result = await ApiService.createTransaksiRaw(body);
-            final serverId = result['data']?['id'] as int?;
-            if (serverId != null) {
+            final serverId = result['data']?['id']?.toString();
+            if (serverId != null && serverId.isNotEmpty) {
               await LocalDb.replaceTransaksiLocalToServer(localId, serverId);
             }
           } else if (method == 'DELETE' && tableName == 'transaksi') {
-            final txId = int.tryParse(path.split('/').last) ?? 0;
-            if (txId > 0) await ApiService.deleteTransaksiRaw(txId);
+            if (hasPathId) await ApiService.deleteTransaksiRaw(pathId);
           } else if (method == 'POST' && tableName == 'anggaran') {
-            await ApiService.createAnggaranRaw(body['kategori'], body['batas'], body['periode']);
+            await ApiService.createAnggaranRaw(
+                body['kategori'], (body['batas'] as num).toDouble(), body['periode']);
           } else if (method == 'PUT' && tableName == 'anggaran') {
-            final angId = int.tryParse(path.split('/').last) ?? 0;
-            if (angId > 0) await ApiService.updateAnggaranRaw(angId, body['batas']);
+            if (hasPathId) {
+              await ApiService.updateAnggaranRaw(pathId, (body['batas'] as num).toDouble());
+            }
           } else if (method == 'DELETE' && tableName == 'anggaran') {
-            final angId = int.tryParse(path.split('/').last) ?? 0;
-            if (angId > 0) await ApiService.deleteAnggaranRaw(angId);
+            if (hasPathId) await ApiService.deleteAnggaranRaw(pathId);
           } else if (method == 'POST' && tableName == 'goals') {
             await ApiService.createGoalRaw(body);
           } else if (method == 'PUT' && tableName == 'goals') {
-            final goalId = int.tryParse(path.split('/').last.split('?').first) ?? 0;
-            if (goalId > 0) await ApiService.updateProgresRaw(goalId, body['tambah']);
+            if (hasPathId) {
+              await ApiService.updateProgresRaw(pathId, (body['tambah'] as num).toDouble());
+            }
           } else if (method == 'DELETE' && tableName == 'goals') {
-            final goalId = int.tryParse(path.split('/').last) ?? 0;
-            if (goalId > 0) await ApiService.deleteGoalRaw(goalId);
+            if (hasPathId) await ApiService.deleteGoalRaw(pathId);
+          } else if (method == 'DONE') {
+            // penanda lokal saja — tidak ada yang perlu dikirim
           }
 
-          // Hapus dari queue setelah berhasil
+          // Hapus dari antrean HANYA setelah operasi benar-benar berhasil.
           await LocalDb.removeFromQueue(id);
+          terkirim++;
         } catch (_) {
-          // Gagal sync item ini, coba lagi nanti
+          // Item ini gagal — pertahankan di antrean supaya dicoba lagi nanti.
+          gagal++;
+          // Hentikan pengiriman berikutnya agar urutan operasi tetap terjaga
+          // (mis. POST harus sukses sebelum PUT/DELETE item yang sama).
           break;
         }
       }
 
       // Setelah sync berhasil, pull data terbaru
-      await pullFromServer();
+      if (gagal == 0) await pullFromServer();
     } finally {
       _syncing = false;
     }
+
+    return SyncResult(terkirim: terkirim, gagal: gagal, adaGagal: gagal > 0);
   }
 }

@@ -14,62 +14,107 @@ class LocalDb {
     final path = join(await getDatabasesPath(), 'mengfin.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, _) async {
+        await _createSchema(db);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        // v1 menyimpan `id` sebagai INTEGER (era backend SQLite).
+        // Backend sekarang MongoDB, id-nya String (ObjectId), sehingga id
+        // server tidak bisa disimpan di kolom INTEGER → data dari server
+        // gagal masuk cache dan penandaan "synced" kacau.
+        //
+        // Migrasi v1 → v2: bangun ulang tabel dengan id TEXT, lalu SALIN
+        // semua baris (id lama dikonversi ke TEXT). Data lokal tidak
+        // dibuang supaya transaksi yang belum terkirim (synced = 0) dan
+        // antrean sync_queue tetap utuh.
+        for (final t in ['transaksi', 'anggaran', 'goals']) {
+          await db.execute('ALTER TABLE $t RENAME TO ${t}_v1');
+        }
+        await _createSchema(db);
         await db.execute('''
-          CREATE TABLE transaksi (
-            id INTEGER PRIMARY KEY,
-            local_id TEXT UNIQUE,
-            tanggal TEXT,
-            jenis TEXT,
-            nominal REAL,
-            kategori TEXT,
-            deskripsi TEXT,
-            metode_pembayaran TEXT,
-            akun_id INTEGER,
-            akun_nama TEXT,
-            synced INTEGER DEFAULT 1
-          )
+          INSERT INTO transaksi (id, local_id, tanggal, jenis, nominal, kategori,
+            deskripsi, metode_pembayaran, akun_id, akun_nama, synced)
+          SELECT CAST(id AS TEXT), local_id, tanggal, jenis, nominal, kategori,
+            deskripsi, metode_pembayaran, CAST(akun_id AS TEXT), akun_nama, synced
+          FROM transaksi_v1
         ''');
         await db.execute('''
-          CREATE TABLE anggaran (
-            id INTEGER PRIMARY KEY,
-            local_id TEXT UNIQUE,
-            kategori TEXT,
-            batas REAL,
-            periode TEXT,
-            terpakai REAL DEFAULT 0,
-            persentase REAL DEFAULT 0,
-            synced INTEGER DEFAULT 1
-          )
+          INSERT INTO anggaran (id, local_id, kategori, batas, periode,
+            terpakai, persentase, synced)
+          SELECT CAST(id AS TEXT), local_id, kategori, batas, periode,
+            terpakai, persentase, synced
+          FROM anggaran_v1
         ''');
         await db.execute('''
-          CREATE TABLE goals (
-            id INTEGER PRIMARY KEY,
-            local_id TEXT UNIQUE,
-            nama TEXT,
-            target REAL,
-            terkumpul REAL DEFAULT 0,
-            deadline TEXT,
-            prioritas TEXT DEFAULT 'sedang',
-            nabung_per_bulan REAL DEFAULT 0,
-            catatan TEXT DEFAULT '',
-            synced INTEGER DEFAULT 1
-          )
+          INSERT INTO goals (id, local_id, nama, target, terkumpul, deadline,
+            prioritas, nabung_per_bulan, catatan, synced)
+          SELECT CAST(id AS TEXT), local_id, nama, target, terkumpul, deadline,
+            prioritas, nabung_per_bulan, catatan, synced
+          FROM goals_v1
         ''');
-        await db.execute('''
-          CREATE TABLE sync_queue (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            method TEXT,
-            path TEXT,
-            body TEXT,
-            local_id TEXT,
-            table_name TEXT,
-            created_at TEXT
-          )
-        ''');
+        for (final t in ['transaksi', 'anggaran', 'goals']) {
+          await db.execute('DROP TABLE ${t}_v1');
+        }
       },
     );
+  }
+
+  static Future<void> _createSchema(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS transaksi (
+        id TEXT PRIMARY KEY,
+        local_id TEXT UNIQUE,
+        tanggal TEXT,
+        jenis TEXT,
+        nominal REAL,
+        kategori TEXT,
+        deskripsi TEXT,
+        metode_pembayaran TEXT,
+        akun_id TEXT,
+        akun_nama TEXT,
+        synced INTEGER DEFAULT 1
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS anggaran (
+        id TEXT PRIMARY KEY,
+        local_id TEXT UNIQUE,
+        kategori TEXT,
+        batas REAL,
+        periode TEXT,
+        terpakai REAL DEFAULT 0,
+        persentase REAL DEFAULT 0,
+        synced INTEGER DEFAULT 1
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS goals (
+        id TEXT PRIMARY KEY,
+        local_id TEXT UNIQUE,
+        nama TEXT,
+        target REAL,
+        terkumpul REAL DEFAULT 0,
+        deadline TEXT,
+        prioritas TEXT DEFAULT 'sedang',
+        nabung_per_bulan REAL DEFAULT 0,
+        catatan TEXT DEFAULT '',
+        synced INTEGER DEFAULT 1
+      )
+    ''');
+    // sync_queue.id tetap INTEGER AUTOINCREMENT — itu nomor antrean lokal,
+    // bukan id server, jadi tidak terpengaruh migrasi ke MongoDB.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sync_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        method TEXT,
+        path TEXT,
+        body TEXT,
+        local_id TEXT,
+        table_name TEXT,
+        created_at TEXT
+      )
+    ''');
   }
 
   // ── Transaksi ──────────────────────────────────────────────────────────────
@@ -82,14 +127,14 @@ class LocalDb {
       args,
     );
     return rows.map((r) => Transaksi(
-      id: r['id'] as int,
+      id: r['id']?.toString() ?? '',
       tanggal: r['tanggal'] as String,
       jenis: r['jenis'] as String,
       nominal: r['nominal'] as double,
       kategori: r['kategori'] as String,
       deskripsi: (r['deskripsi'] as String?) ?? '',
       metodePembayaran: (r['metode_pembayaran'] as String?) ?? 'tunai',
-      akunId: r['akun_id'] as int?,
+      akunId: r['akun_id']?.toString(),
       akunNama: r['akun_nama'] as String?,
       synced: (r['synced'] as int? ?? 1) == 1,
     )).toList();
@@ -114,9 +159,9 @@ class LocalDb {
 
   static Future<void> insertTransaksiLocal(Map<String, dynamic> data, String localId) async {
     final d = await db;
-    final id = DateTime.now().millisecondsSinceEpoch * -1; // negative = local only
+    // id lokal = localId (String), konsisten dengan id server (ObjectId).
     await d.insert('transaksi', {
-      'id': id,
+      'id': localId,
       'local_id': localId,
       'tanggal': data['tanggal'],
       'jenis': data['jenis'],
@@ -153,7 +198,7 @@ class LocalDb {
     final d = await db;
     final rows = await d.query('anggaran', where: 'periode = ?', whereArgs: [periode]);
     return rows.map((r) => Anggaran(
-      id: r['id'] as int,
+      id: r['id']?.toString() ?? '',
       kategori: r['kategori'] as String,
       batas: r['batas'] as double,
       periode: r['periode'] as String,
@@ -179,9 +224,8 @@ class LocalDb {
 
   static Future<void> insertAnggaranLocal(String localId, String kategori, double batas, String periode) async {
     final d = await db;
-    final id = DateTime.now().millisecondsSinceEpoch * -1;
     await d.insert('anggaran', {
-      'id': id,
+      'id': localId,
       'local_id': localId,
       'kategori': kategori,
       'batas': batas,
@@ -207,7 +251,7 @@ class LocalDb {
     final d = await db;
     final rows = await d.query('goals', orderBy: 'id DESC');
     return rows.map((r) => Goal(
-      id: r['id'] as int,
+      id: r['id']?.toString() ?? '',
       nama: r['nama'] as String,
       target: (r['target'] as num).toDouble(),
       terkumpul: (r['terkumpul'] as num? ?? 0).toDouble(),
@@ -237,9 +281,8 @@ class LocalDb {
 
   static Future<void> insertGoalLocal(String localId, Map<String, dynamic> data) async {
     final d = await db;
-    final id = DateTime.now().millisecondsSinceEpoch * -1;
     await d.insert('goals', {
-      'id': id,
+      'id': localId,
       'local_id': localId,
       'nama': data['nama'],
       'target': data['target'],
