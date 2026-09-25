@@ -1032,8 +1032,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
 
     try {
-      UpdateService.instance.resetCheck();
-      final result = await UpdateService.instance.checkForUpdate();
+      // `force` supaya tombol ini selalu benar-benar menanyakan GitHub,
+      // bukan memakai hasil pengecekan otomatis saat app dibuka.
+      final result =
+          await UpdateService.instance.checkForUpdate(force: true);
       if (!mounted) return;
       Navigator.pop(context); // tutup loading
       if (!mounted) return;

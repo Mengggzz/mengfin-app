@@ -45,15 +45,52 @@ void main() {
     bus.transaksi.removeListener(lt);
   });
 
-  test('perbandingan tag rilis: yang lebih baru terdeteksi', () {
-    // Diuji lewat perilaku publik: tag lama vs baru pada endpoint GitHub,
-    // jadi cukup pastikan pola tag CI vYYYYMMDD-HHMM urut secara leksikografis.
-    const lama = 'v20260925-1115';
-    const baru = 'v20260925-1118';
-    expect(baru.compareTo(lama) > 0, isTrue);
-    expect(UpdateService.apkUrlFor(baru),
-        'https://github.com/Mengggzz/mengfin-app/releases/download/v20260925-1118/app-release.apk');
+  test('perbandingan tag rilis memakai urutan versi, bukan teks', () {
+    const tagAwal = 'v20260924-2021';
+
+    // Tag yang lebih baru (tanggal & jam lebih besar) harus terdeteksi.
+    expect(UpdateService.tagLebihBaru('v20260925-0559', tagAwal), isTrue);
+    expect(UpdateService.tagLebihBaru('v20260925-0001', tagAwal), isTrue);
+
+    // Tag lama / sama tidak dianggap update.
+    expect(UpdateService.tagLebihBaru(tagAwal, tagAwal), isFalse);
+    expect(UpdateService.tagLebihBaru('v20260923-2359', tagAwal), isFalse);
+    expect(UpdateService.tagLebihBaru('v20260932-9999', tagAwal), isTrue,
+        reason: 'perbandingan numerik, bukan teks');
+
+    // Tag yang tidak mengikuti pola tidak pernah dianggap lebih baru.
+    expect(UpdateService.tagLebihBaru('nightly', tagAwal), isFalse);
+    expect(UpdateService.tagLebihBaru('', tagAwal), isFalse);
+
+    // Build lokal (tag kosong) → tag apa pun dianggap update.
+    expect(UpdateService.tagLebihBaru(tagAwal, ''), isTrue);
+  });
+
+  test('URL rilis mengikuti pola asset workflow CI', () {
+    const tag = 'v20260925-0559';
+    expect(UpdateService.apkUrlFor(tag),
+        'https://github.com/Mengggzz/mengfin-app/releases/download/v20260925-0559/app-release.apk');
     expect(UpdateService.releasesPage,
         'https://github.com/Mengggzz/mengfin-app/releases');
+  });
+
+  test('ReleaseInfo membangun URL APK dari respons GitHub', () {
+    final r = ReleaseInfo.fromGithub({
+      'tag_name': 'v20260925-0559',
+      'name': 'MengFin v20260925-0559',
+      'body': 'catatan rilis',
+      'html_url': 'https://github.com/Mengggzz/mengfin-app/releases/tag/v20260925-0559',
+      'published_at': '2026-09-25T06:05:18Z',
+      'assets': [
+        {'name': 'checksums.txt', 'browser_download_url': 'https://x/checksums.txt'},
+        {'name': 'app-release.apk', 'browser_download_url': 'https://x/app-release.apk'},
+      ],
+    });
+
+    expect(r.apkUrl, 'https://x/app-release.apk',
+        reason: 'harus memilih asset .apk, bukan file lain');
+    expect(r.tag, 'v20260925-0559');
+    expect(r.readableVersion, '25 Sep 2026 · 05:59',
+        reason: 'label versi yang dibaca user');
   });
 }

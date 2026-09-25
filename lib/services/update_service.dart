@@ -173,7 +173,7 @@ class UpdateService {
       hasUpdate: hasUpdate,
       currentTag: _currentTag,
       latestTag: tag,
-      release: hasUpdate ? release : release,
+      release: release,
       unknownCurrent: _tagKosong,
       source: 'github',
     );
@@ -230,6 +230,8 @@ class UpdateService {
 
   /// Bandingkan tag format vYYYYMMDD-HHMM. Tag tanpa pola dianggap tidak
   /// lebih baru.
+  static bool tagLebihBaru(String kandidat, String sekarang) => _lebihBaru(kandidat, sekarang);
+
   static bool _lebihBaru(String kandidat, String sekarang) {
     int? num(String s) {
       final m = RegExp(r'^v?(\d{8})-(\d{4})$').firstMatch(s.trim());

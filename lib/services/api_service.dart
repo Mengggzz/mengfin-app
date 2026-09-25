@@ -5,7 +5,6 @@ import '../constants/config.dart';
 import '../models/models.dart';
 import 'app_events.dart';
 import 'auth_service.dart';
-import 'update_service.dart';
 import 'local_db.dart';
 import 'connectivity_service.dart';
 import 'sync_service.dart';
@@ -428,21 +427,6 @@ class ApiService {
   }
 
   // ── Update checker (via backend, terintegrasi GitHub) ──────────────────────
-  /// Cek update. Dulu fungsi ini memanggil backend `/update/check`, tapi
-  /// server produksi masih versi lama dan membalas 404 sehingga notifikasi
-  /// update selalu gagal senyap. Sekarang sumber utamanya GitHub Releases.
-  static Future<Map<String, dynamic>> checkUpdate({bool force = false}) async {
-    final r = await UpdateService.instance.checkForUpdate(force: force);
-    return {
-      'has_update': r.hasUpdate,
-      'current_version': r.currentTag,
-      'latest_version': r.latestTag,
-      'unknown_current': r.unknownCurrent,
-      'error': r.error,
-      'source': r.source,
-    };
-  }
-
   // ── Trigger sync ───────────────────────────────────────────────────────────
   static Future<void> triggerSync() => SyncService.instance.syncToServer();
 }
