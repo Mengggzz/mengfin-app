@@ -45,11 +45,17 @@ class ApiService {
   }
 
   static Future<void> _put(String path, Map<String, dynamic> body) async {
-    await _client.put(
+    final res = await _client.put(
       Uri.parse('$kApiBaseUrl$path'),
       headers: _authHeaders,
       body: jsonEncode(body),
     );
+    // Sebelumnya status respons diabaikan, jadi permintaan yang ditolak
+    // server tetap dianggap berhasil dan perubahan tidak pernah masuk
+    // antrean sinkronisasi. Sekarang kegagalan dilempar ke pemanggil.
+    if (res.statusCode >= 200 && res.statusCode < 300) return;
+    if (res.statusCode == 401) throw Exception('unauthorized');
+    throw Exception('PUT $path failed: ${res.statusCode} ${res.body}');
   }
 
   static Future<void> _delete(String path) async {
@@ -202,6 +208,85 @@ class ApiService {
 
   // ── Akun ───────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> getAkun() async => _get('/akun');
+
+  /// Simpan Kazz (akun) baru. Dipakai layar Tambah Kazz.
+  static Future<void> createAkun({
+    required String nama,
+    required String jenis,
+    double saldo = 0,
+    String warna = '#2563EB',
+  }) async {
+    final body = {
+      'nama': nama,
+      'jenis': jenis,
+      'saldo': saldo,
+      'warna': warna,
+      'ikon': jenis,
+    };
+
+    if (_online) {
+      try {
+        await _post('/akun', body);
+      } catch (e) {
+        // Jangan diamkan kegagalan: layar perlu tahu supaya tidak
+        // menampilkan "berhasil" padahal data tidak tersimpan.
+        if (!kIsWeb) {
+          await LocalDb.enqueue(
+            method: 'POST', path: '/akun',
+            body: jsonEncode(body), localId: 'akun_${DateTime.now().millisecondsSinceEpoch}',
+            tableName: 'akun',
+          );
+        } else {
+          rethrow;
+        }
+      }
+    } else if (kIsWeb) {
+      throw Exception('Tidak ada koneksi ke server.');
+    } else {
+      await LocalDb.enqueue(
+        method: 'POST', path: '/akun',
+        body: jsonEncode(body), localId: 'akun_${DateTime.now().millisecondsSinceEpoch}',
+        tableName: 'akun',
+      );
+    }
+
+    AppEvents.instance.akunBerubah();
+  }
+
+  /// Ubah saldo sebuah Kazz/akun.
+  static Future<void> updateAkunSaldo(dynamic id, double saldo) async {
+    if (_online) {
+      try {
+        await _put('/akun/$id', {'saldo': saldo});
+        AppEvents.instance.akunBerubah();
+        return;
+      } catch (_) {}
+    }
+    if (kIsWeb) throw Exception('Tidak ada koneksi ke server.');
+    await LocalDb.enqueue(
+      method: 'PUT', path: '/akun/$id',
+      body: jsonEncode({'saldo': saldo}), localId: 'upd_akun_$id',
+      tableName: 'akun',
+    );
+    AppEvents.instance.akunBerubah();
+  }
+
+  static Future<void> deleteAkun(dynamic id) async {
+    if (_online) {
+      try {
+        await _delete('/akun/$id');
+        AppEvents.instance.akunBerubah();
+        return;
+      } catch (_) {}
+    }
+    if (!kIsWeb && id != null) {
+      await LocalDb.enqueue(
+        method: 'DELETE', path: '/akun/$id',
+        body: '{}', localId: 'del_akun_$id', tableName: 'akun',
+      );
+    }
+    AppEvents.instance.akunBerubah();
+  }
 
   static Future<List<Akun>> getAkunList() async {
     if (!_online) return [];

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../constants/app_colors.dart';
+import 'kazz_illustrations.dart';
 import '../constants/utils.dart';
 export 'voice_to_text_dialog.dart';
 
@@ -326,16 +327,24 @@ class SegmentedTab extends StatelessWidget {
 class KazzWalletCard extends StatelessWidget {
   final String name;
   final double balance;
-  final String icon;
+
+  /// Tipe Kazz: cashflow / tabungan / kredit / aset. Menentukan ilustrasi.
+  final String jenis;
+
+  /// Warna label saldo. Kalau null: merah untuk saldo minus, abu untuk plus.
+  final Color? balanceColor;
   final VoidCallback? onTap;
+  final VoidCallback? onMenuTap;
   final bool isSelected;
 
   const KazzWalletCard({
     super.key,
     required this.name,
     required this.balance,
-    this.icon = '💰',
+    this.jenis = 'cashflow',
+    this.balanceColor,
     this.onTap,
+    this.onMenuTap,
     this.isSelected = false,
   });
 
@@ -355,24 +364,27 @@ class KazzWalletCard extends StatelessWidget {
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.bgElevated,
-                borderRadius: BorderRadius.circular(10),
+            KazzIllustration.forJenis(jenis, size: 40),
+            // Area sentuh dibesarkan supaya tidak salah tekan kartunya.
+            GestureDetector(
+              onTap: onMenuTap,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8, bottom: 8),
+                child: Icon(Icons.more_vert, color: AppColors.textMuted, size: 18),
               ),
-              child: Center(child: Text(icon, style: const TextStyle(fontSize: 18))),
             ),
-             Icon(Icons.more_vert, color: AppColors.textMuted, size: 18),
           ]),
           const SizedBox(height: 12),
-          Text(name, style:  TextStyle(
-            color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
+          Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(
             '${balance < 0 ? '-' : ''}Rp ${formatAmount(balance.abs())}',
             style: TextStyle(
-              color: balance < 0 ? AppColors.expense : AppColors.textSecond,
+              color: balanceColor ??
+                  (balance < 0 ? AppColors.expense : AppColors.textSecond),
               fontSize: 13, fontWeight: FontWeight.w500),
           ),
         ]),
@@ -386,7 +398,18 @@ class KazzWalletCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 class AddKazzCard extends StatelessWidget {
   final VoidCallback? onTap;
-  const AddKazzCard({super.key, this.onTap});
+
+  /// Di dalam grid dipakai dengan tinggi mengikuti kartu dompet, jadi
+  /// isinya benar-benar di tengah dan tidak perlu padding tinggi.
+  final bool compact;
+  final double? height;
+
+  const AddKazzCard({
+    super.key,
+    this.onTap,
+    this.compact = false,
+    this.height,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -394,14 +417,30 @@ class AddKazzCard extends StatelessWidget {
       onTap: onTap,
       child: CustomPaint(
         painter: _DashedBorderPainter(),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 28),
-          child:  Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.add_circle_outline, color: AppColors.textMuted, size: 36),
-            SizedBox(height: 8),
-            Text('Tambah Kazz', style: TextStyle(
-              color: AppColors.textMuted, fontSize: 14, fontWeight: FontWeight.w600)),
-          ]),
+        child: SizedBox(
+          height: height,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: compact ? 12 : 28),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.bgElevated,
+                  border: Border.all(color: AppColors.glassBorder),
+                ),
+                child: Icon(Icons.add_rounded,
+                    color: AppColors.textPrimary, size: 24),
+              ),
+              const SizedBox(height: 10),
+              Text('Tambah Kazz',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  )),
+            ]),
+          ),
         ),
       ),
     );
@@ -409,10 +448,15 @@ class AddKazzCard extends StatelessWidget {
 }
 
 class _DashedBorderPainter extends CustomPainter {
+  final Color? color;
+
+  /// Dipakai kotak "Tambah Kazz" & panel Saldo.
+  const _DashedBorderPainter({this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppColors.textMuted.withOpacity(0.4)
+      ..color = color ?? AppColors.textMuted.withOpacity(0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
@@ -440,7 +484,31 @@ class _DashedBorderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+/// Kotak berisi satu baris dengan garis putus-putus di sekelilingnya.
+/// Dipakai panel "Saldo" di menu Kazz.
+class DashedBox extends StatelessWidget {
+  final Widget child;
+  final Color? color;
+  final EdgeInsetsGeometry padding;
+  final double radius;
+
+  const DashedBox({
+    super.key,
+    required this.child,
+    this.color,
+    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    this.radius = 14,
+  });
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+        painter: _DashedBorderPainter(color: color ?? AppColors.dashLine),
+        child: Padding(padding: padding, child: child),
+      );
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -3,7 +3,11 @@ import '../constants/app_colors.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
+import '../services/app_events.dart';
+import '../services/kazz_filter.dart';
+import '../widgets/kazz_illustrations.dart';
 import '../widgets/widgets.dart';
+import 'tambah_kazz_screen.dart';
 
 class KazzScreen extends StatefulWidget {
   const KazzScreen({super.key});
@@ -18,8 +22,29 @@ class _KazzScreenState extends State<KazzScreen> {
   String _budgetFilter = 'Semua'; // Semua / Aktif
   bool _loading = true;
 
+  // ── Filter & urutan dompet (menu Kazz → tab Dompet) ─────────────
+  KazzFilter _walletFilter = KazzFilter.semua;
+  KazzSort _sortMode = KazzSort.nameAZ;
+
+  /// Saldo disembunyikan (ikon kunci di panel Saldo). Tap untuk lihat.
+  bool _saldoTersembunyi = true;
+
+  /// Titik acuan posisi menu urutkan.
+  final GlobalKey _sortKey = GlobalKey();
+
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+    // Kazz baru dari layar Tambah Kazz langsung tampil tanpa refresh manual.
+    AppEvents.instance.akun.addListener(_load);
+  }
+
+  @override
+  void dispose() {
+    AppEvents.instance.akun.removeListener(_load);
+    super.dispose();
+  }
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -28,17 +53,23 @@ class _KazzScreenState extends State<KazzScreen> {
         ApiService.getAkunList(),
         ApiService.getAnggaran(_budgetPeriode),
       ]);
+      if (!mounted) return;
       setState(() {
         _wallets = results[0] as List<Akun>;
         _budgets = results[1] as List<Anggaran>;
         _loading = false;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() => _loading = false);
     }
   }
 
   double get _totalSaldo => _wallets.fold(0.0, (s, a) => s + a.saldo);
+
+  /// Dompet setelah difilter lalu diurutkan sesuai pilihan di menu sort.
+  List<Akun> get _walletsTampil =>
+      filterDanUrutkanKazz(_wallets, _walletFilter, _sortMode);
 
   void _showAddBudgetModal({Anggaran? edit}) {
     String kategori = edit?.kategori ?? 'Makan & Minum';
@@ -169,42 +200,62 @@ class _KazzScreenState extends State<KazzScreen> {
 
   // ─── Dompet (Wallets) Tab ──────────────────────────────────
   Widget _buildDompetTab() {
+    final wallets = _walletsTampil;
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Saldo header
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.glassBorder),
-        ),
+      // ── Panel Saldo (garis putus-putus) ──────────────────────────
+      DashedBox(
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Row(children: [
              Text('Saldo', style: TextStyle(
-              color: AppColors.textSecond, fontSize: 14, fontWeight: FontWeight.w600)),
+              color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
             const SizedBox(width: 6),
-            Icon(Icons.lock_outline, size: 14, color: AppColors.textMuted),
+            GestureDetector(
+              onTap: () => setState(() => _saldoTersembunyi = !_saldoTersembunyi),
+              child: Icon(
+                _saldoTersembunyi ? Icons.lock_outline : Icons.lock_open_outlined,
+                size: 14, color: AppColors.textMuted),
+            ),
           ]),
-          Text('Rp ${formatAmount(_totalSaldo)}',
-            style:  TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+          Text(
+            _saldoTersembunyi
+                ? '••••••'
+                : '${_totalSaldo < 0 ? '-' : ''}Rp ${formatAmount(_totalSaldo.abs())}',
+            style: TextStyle(
+              color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
         ]),
       ),
-      const SizedBox(height: 12),
+      const SizedBox(height: 14),
 
-      // Filter chips
+      // ── Filter chips + tombol urutkan ────────────────────────────
       Row(children: [
-        _filterChip('Semua', true),
+        _filterChip('Semua', _walletFilter == KazzFilter.semua,
+          icon: Icons.check_circle,
+          onTap: () => setState(() => _walletFilter = KazzFilter.semua)),
         const SizedBox(width: 8),
-        _filterChip('Cashflow', false),
+        _filterChip('Cashflow', _walletFilter == KazzFilter.cashflow,
+          onTap: () => setState(() => _walletFilter = KazzFilter.cashflow)),
+        const SizedBox(width: 8),
+        _filterChip('Arsip', _walletFilter == KazzFilter.arsip,
+          icon: Icons.inventory_2_outlined,
+          onTap: () => setState(() => _walletFilter = KazzFilter.arsip)),
         const Spacer(),
-        Icon(Icons.tune, size: 18, color: AppColors.textMuted),
+        _sortButton(),
       ]),
       const SizedBox(height: 16),
 
-      // Wallet cards grid
+      // ── Daftar dompet ────────────────────────────────────────────
       if (_wallets.isEmpty)
-         Center(child: Padding(padding: EdgeInsets.only(top: 40),
-          child: Text('Belum ada dompet', style: TextStyle(color: AppColors.textMuted))))
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          child: Center(child: Text(
+            _walletFilter == KazzFilter.semua
+                ? 'Belum ada Kazz. Tambahkan yang pertama di bawah.'
+                : 'Tidak ada Kazz untuk filter ini.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+          )),
+        )
       else
         GridView.count(
           crossAxisCount: 2,
@@ -212,41 +263,290 @@ class _KazzScreenState extends State<KazzScreen> {
           physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 1.3,
-          children: _wallets.map((w) => KazzWalletCard(
-            name: w.nama,
-            balance: w.saldo,
-            icon: w.ikon == 'cash' ? '💵' : '💰',
-          )).toList(),
+          childAspectRatio: 1.15,
+          children: wallets.map(_buildWalletCard).toList(),
         ),
       const SizedBox(height: 12),
 
-      // Add wallet card
-      AddKazzCard(onTap: () {
-        // TODO: Navigate to add wallet screen
-      }),
+      // ── Kartu Tambah Kazz ────────────────────────────────────────
+      AddKazzCard(
+        compact: true,
+        onTap: () => _bukaTambahKazz(),
+      ),
       const SizedBox(height: 24),
     ]);
   }
 
-  Widget _filterChip(String label, bool active) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-    decoration: BoxDecoration(
-      color: active ? AppColors.primary.withOpacity(0.15) : AppColors.bgCard,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: active ? AppColors.primary : AppColors.glassBorder),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      if (active) ...[
-        Container(width: 6, height: 6, decoration:  BoxDecoration(
-          color: AppColors.primary, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-      ],
-      Text(label, style: TextStyle(
-        color: active ? AppColors.primary : AppColors.textMuted,
-        fontSize: 12, fontWeight: FontWeight.w600)),
-    ]),
-  );
+  Widget _buildWalletCard(Akun w) {
+    final jenis = KazzIllustration.normalisasiJenis(w.jenis);
+    return KazzWalletCard(
+      name: w.nama,
+      balance: w.saldo,
+      jenis: jenis,
+      onTap: () => _showWalletDetail(w),
+      onMenuTap: () => _showWalletMenu(w),
+    );
+  }
+
+  /// Tombol urutkan — membuka menu seperti referensi (Name A-Z dst).
+  Widget _sortButton() {
+    return GestureDetector(
+      onTap: _showSortMenu,
+      child: Container(
+        key: _sortKey,
+        width: 36, height: 36,
+        decoration: BoxDecoration(
+          color: AppColors.bgCard,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.glassBorder),
+        ),
+        child: Icon(Icons.sort_rounded, size: 18, color: AppColors.textPrimary),
+      ),
+    );
+  }
+
+  /// Menu urutan. Ditampilkan lewat showMenu supaya posisinya menempel
+  /// tepat di bawah tombol sort, bukan di tengah layar.
+  Future<void> _showSortMenu() async {
+    final box = _sortKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+
+    final topLeft = box.localToGlobal(Offset.zero);
+    final size = box.size;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+
+    final pilihan = await showMenu<KazzSort>(
+      context: context,
+      color: AppColors.bgElevated,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(topLeft.dx - 150, topLeft.dy + size.height + 4, 210, 0),
+        Offset.zero & overlay.size,
+      ),
+      items: KazzSort.values.map((mode) => PopupMenuItem<KazzSort>(
+        value: mode,
+        height: 46,
+        child: Row(children: [
+          if (_sortMode == mode)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Icon(Icons.check_rounded, size: 16, color: AppColors.primary),
+            ),
+          Expanded(child: Text(mode.label, style: TextStyle(
+            color: AppColors.textPrimary, fontSize: 14))),
+        ]),
+      )).toList(),
+    );
+
+    if (pilihan != null && mounted) setState(() => _sortMode = pilihan);
+  }
+
+  /// Menu tiga titik pada kartu dompet: ubah nama / saldo, atau hapus.
+  Future<void> _showWalletMenu(Akun w) async {
+    final aksi = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const SizedBox(height: 12),
+        Container(width: 40, height: 4, decoration: BoxDecoration(
+          color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 12),
+        ListTile(
+          leading: KazzIllustration.forJenis(w.jenis, size: 28),
+          title: Text(w.nama, style: TextStyle(
+            color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+          subtitle: Text('${w.saldo < 0 ? '-' : ''}Rp ${formatAmount(w.saldo.abs())}',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        ),
+        Divider(color: AppColors.divider, height: 1),
+        _sheetAction(ctx, Icons.edit_outlined, 'Ubah saldo', 'edit'),
+        _sheetAction(ctx, Icons.delete_outline, 'Hapus Kazz', 'hapus',
+          color: AppColors.danger),
+        const SizedBox(height: 8),
+      ])),
+    );
+
+    if (!mounted || aksi == null) return;
+    if (aksi == 'edit') await _showEditSaldoModal(w);
+    if (aksi == 'hapus') await _hapusWallet(w);
+  }
+
+  Widget _sheetAction(BuildContext ctx, IconData icon, String label, String value,
+      {Color? color}) =>
+      ListTile(
+        onTap: () => Navigator.pop(ctx, value),
+        leading: Icon(icon, color: color ?? AppColors.textSecond, size: 20),
+        title: Text(label, style: TextStyle(
+          color: color ?? AppColors.textPrimary, fontSize: 14)),
+      );
+
+  Future<void> _showEditSaldoModal(Akun w) async {
+    final ctrl = TextEditingController(text: w.saldo.toStringAsFixed(0));
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(left: 20, right: 20, top: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(
+            color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+          Text('Ubah saldo ${w.nama}', style: TextStyle(
+            color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            style: TextStyle(color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: '0',
+              hintStyle: TextStyle(color: AppColors.textMuted),
+              filled: true, fillColor: AppColors.bgElevated,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppColors.primary)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(width: double.infinity, child: ElevatedButton(
+            onPressed: () async {
+              final baru = double.tryParse(ctrl.text.replaceAll(RegExp(r'[^0-9-]'), '')) ?? 0;
+              Navigator.pop(ctx);
+              try {
+                await ApiService.updateAkunSaldo(w.id, baru);
+                AppEvents.instance.akunBerubah();
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Gagal menyimpan: $e')));
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary, foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: const Text('Simpan', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+          )),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _hapusWallet(Akun w) async {
+    final yakin = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Hapus ${w.nama}?',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text('Kazz ini akan dihapus dari daftar dompetmu.',
+          style: TextStyle(color: AppColors.textSecond, fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Batal', style: TextStyle(color: AppColors.textSecond))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Hapus', style: TextStyle(
+              color: AppColors.danger, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (yakin != true) return;
+
+    try {
+      await ApiService.deleteAkun(w.id);
+      AppEvents.instance.akunBerubah();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menghapus: $e')));
+    }
+  }
+
+  /// Ketuk kartu → ringkasan singkat dompet.
+  void _showWalletDetail(Akun w) {
+    final jenis = KazzIllustration.normalisasiJenis(w.jenis);
+    final label = kazzTipes
+        .firstWhere((t) => t.key == jenis, orElse: () => kazzTipes.first)
+        .nama;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(
+            color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 18),
+          Row(children: [
+            KazzIllustration(jenis: jenis, size: 44),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(w.nama, style: TextStyle(
+                color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(label, style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            ])),
+          ]),
+          const SizedBox(height: 18),
+          DashedBox(child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Saldo', style: TextStyle(color: AppColors.textSecond, fontSize: 13)),
+              Text('${w.saldo < 0 ? '-' : ''}Rp ${formatAmount(w.saldo.abs())}',
+                style: TextStyle(
+                  color: w.saldo < 0 ? AppColors.expense : AppColors.textPrimary,
+                  fontSize: 15, fontWeight: FontWeight.w700)),
+            ])),
+          const SizedBox(height: 8),
+        ]),
+      )),
+    );
+  }
+
+  Future<void> _bukaTambahKazz() async {
+    final ditambah = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const TambahKazzScreen()),
+    );
+    if (ditambah == true) _load();
+  }
+
+  Widget _filterChip(String label, bool active, {IconData? icon, VoidCallback? onTap}) =>
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? AppColors.slateSoft : AppColors.bgCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: active ? AppColors.glassBorder : AppColors.glassBorder),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14,
+                color: active ? AppColors.textPrimary : AppColors.textMuted),
+              const SizedBox(width: 6),
+            ],
+            Text(label, style: TextStyle(
+              color: active ? AppColors.textPrimary : AppColors.textMuted,
+              fontSize: 12.5, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      );
 
   // ─── Budget Tab ─────────────────────────────────────────────
   Widget _buildBudgetTab() {

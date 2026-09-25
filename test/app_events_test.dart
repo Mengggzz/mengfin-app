@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mengfin/services/app_events.dart';
 import 'package:mengfin/services/update_service.dart';
-import 'package:mengfin/widgets/update_dialog.dart';
 
 void main() {
   test('AppEvents memberi tahu pendengar saat transaksi berubah', () {

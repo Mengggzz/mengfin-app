@@ -76,6 +76,14 @@ class AppColors {
   static Color get glassBg     => _pick(const Color(0x0AFFFFFF), const Color(0x0A0F172A));
   static Color get divider     => _pick(const Color(0xFF30363D), const Color(0xFFD8E0EA));
 
+  // ── Slate (menu Kazz: pill aktif, panel saldo) ─────────────────
+  // Slate dipakai supaya menu Kazz terlihat kalem dan tidak "menyala"
+  // seperti aksen cyan utama.
+  static Color get slate     => _pick(const Color(0xFF46587A), const Color(0xFF334155));
+  static Color get slateSoft => _pick(const Color(0xFF2C2C2E), const Color(0xFFE2E8F0));
+  /// Garis putus-putus panel Saldo.
+  static Color get dashLine  => _pick(const Color(0xFF3E4C66), const Color(0xFF94A3B8));
+
   // ── Numpad ─────────────────────────────────────────────────────
   static Color get numpadBg  => _pick(const Color(0xFF0D1117), const Color(0xFFE9EEF5));
   static Color get numpadKey => _pick(const Color(0xFF161B22), const Color(0xFFFFFFFF));

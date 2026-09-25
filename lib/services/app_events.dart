@@ -19,7 +19,11 @@ class AppEvents {
   /// Nilai bertambah setiap kali data goals berubah.
   final ValueNotifier<int> goals = ValueNotifier<int>(0);
 
+  /// Nilai bertambah setiap kali daftar Kazz / akun berubah.
+  final ValueNotifier<int> akun = ValueNotifier<int>(0);
+
   void transaksiBerubah() => transaksi.value++;
   void anggaranBerubah() => anggaran.value++;
   void goalsBerubah() => goals.value++;
+  void akunBerubah() => akun.value++;
 }
