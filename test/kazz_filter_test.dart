@@ -109,4 +109,82 @@ void main() {
     expect(KazzIllustration.normalisasiJenis(null), 'cashflow');
     expect(KazzIllustration.normalisasiJenis(''), 'cashflow');
   });
+
+  // ── Budget: filter + urutan ─────────────────────────────────────────────
+  Anggaran buatAnggaran(String kategori, double batas, double terpakai,
+          [double persentase = 0]) =>
+      Anggaran(
+        id: kategori,
+        kategori: kategori,
+        batas: batas,
+        periode: '2026-09',
+        terpakai: terpakai,
+        persentase: persentase,
+      );
+
+  test('budget: urutan label enum sesuai UI', () {
+    expect(BudgetSort.values.map((e) => e.label).toList(),
+        ['Pemakaian tertinggi', 'Nominal terpakai', 'Batas terbesar', 'Nama kategori']);
+  });
+
+  test('budget: urutan pemakaian tertinggi', () {
+    final list = [
+      buatAnggaran('Makan', 1000000, 200000, 20),
+      buatAnggaran('Transport', 500000, 450000, 90),
+      buatAnggaran('Belanja', 2000000, 500000, 25),
+    ];
+    final hasil = filterDanUrutkanBudget(list, false, BudgetSort.persentase);
+    expect(hasil.map((a) => a.kategori).toList(),
+        ['Transport', 'Belanja', 'Makan']);
+  });
+
+  test('budget: urutan nominal terpakai dan batas terbesar', () {
+    final list = [
+      buatAnggaran('Makan', 1000000, 200000, 20),
+      buatAnggaran('Transport', 500000, 450000, 90),
+      buatAnggaran('Belanja', 2000000, 500000, 25),
+    ];
+    expect(
+        filterDanUrutkanBudget(list, false, BudgetSort.terpakai)
+            .map((a) => a.kategori)
+            .toList(),
+        ['Belanja', 'Transport', 'Makan']);
+    expect(
+        filterDanUrutkanBudget(list, false, BudgetSort.batas)
+            .map((a) => a.kategori)
+            .toList(),
+        ['Belanja', 'Makan', 'Transport']);
+  });
+
+  test('budget: urutan nama kategori A-Z', () {
+    final list = [
+      buatAnggaran('Transport', 500000, 0),
+      buatAnggaran('belanja', 500000, 0),
+      buatAnggaran('Makan', 500000, 0),
+    ];
+    expect(
+        filterDanUrutkanBudget(list, false, BudgetSort.nama)
+            .map((a) => a.kategori)
+            .toList(),
+        ['belanja', 'Makan', 'Transport'],
+        reason: 'perbandingan tidak boleh peka huruf besar/kecil');
+  });
+
+  test('budget: filter aktif membuang yang sudah lewat 100%', () {
+    final list = [
+      buatAnggaran('Makan', 1000000, 200000, 20),
+      buatAnggaran('Transport', 500000, 600000, 120),
+      buatAnggaran('Jajan', 300000, 300000, 100),
+    ];
+    final semua = filterDanUrutkanBudget(list, false, BudgetSort.persentase);
+    final aktif = filterDanUrutkanBudget(list, true, BudgetSort.persentase);
+
+    expect(semua.length, 3);
+    expect(aktif.map((a) => a.kategori).toList(), ['Makan'],
+        reason: 'persentase 100 dan 120 sudah tidak aktif');
+  });
+
+  test('budget: daftar kosong tidak error', () {
+    expect(filterDanUrutkanBudget([], true, BudgetSort.batas), isEmpty);
+  });
 }

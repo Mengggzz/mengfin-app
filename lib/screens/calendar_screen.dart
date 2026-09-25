@@ -191,13 +191,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
         // ── Selected day transactions ────────────────────────
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          // Dua sisi dibuat lentur supaya teks panjang tidak overflow di
+          // layar sempit.
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(
+            Flexible(child: Text(
               '${_selectedDate.day} ${formatBulanShort('${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}')}',
-              style:  TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
-            Text(
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style:  TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700))),
+            const SizedBox(width: 8),
+            Flexible(child: Text(
               '${selectedDayTx.length} transaksi · Rp ${formatAmount(totalForDay)}',
-              style:  TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end,
+              style:  TextStyle(color: AppColors.textMuted, fontSize: 12))),
           ]),
         ),
         if (selectedDayTx.isEmpty)

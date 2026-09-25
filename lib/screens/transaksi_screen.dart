@@ -179,7 +179,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
                   child: _headerIcon(Icons.bar_chart),
                 ),
                 const SizedBox(width: 8),
-                _headerIcon(Icons.schedule),
+                _headerIcon(Icons.schedule, onTap: _bukaRiwayatOtomatis),
               ]),
             ]),
             const SizedBox(height: 6),
@@ -293,15 +293,75 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
     );
   }
 
-  Widget _headerIcon(IconData icon) => Container(
-    width: 36, height: 36,
-    decoration: BoxDecoration(
-      color: AppColors.bgCard,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: AppColors.glassBorder),
-    ),
-    child: Icon(icon, color: AppColors.textSecond, size: 18),
-  );
+  Widget _headerIcon(IconData icon, {VoidCallback? onTap}) {
+    final kotak = Container(
+      width: 36, height: 36,
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Icon(icon, color: AppColors.textSecond, size: 18),
+    );
+    if (onTap == null) return kotak;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: kotak,
+    );
+  }
+
+  /// Riwayat transaksi yang dibuat otomatis dari notifikasi.
+  ///
+  /// Ikon jam tadinya cuma hiasan. Sekarang membuka daftar transaksi
+  /// bermetode "auto" supaya bisa diperiksa pengguna.
+  void _bukaRiwayatOtomatis() {
+    final otomatis = _list
+        .where((t) => t.metodePembayaran.toLowerCase().contains('auto'))
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(
+            color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+          Text('Auto-catat dari notifikasi', style: TextStyle(
+            color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text(
+            otomatis.isEmpty
+                ? 'Belum ada transaksi yang tercatat otomatis. Aktifkan di Lainnya → Auto-catat dari notifikasi.'
+                : '${otomatis.length} transaksi tercatat otomatis.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.4)),
+          const SizedBox(height: 12),
+          if (otomatis.isNotEmpty) ...[
+            ...otomatis.take(8).map((t) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                Icon(Icons.notifications_active_outlined, size: 16,
+                  color: AppColors.textMuted),
+                const SizedBox(width: 10),
+                Expanded(child: Text(t.deskripsi.isEmpty ? t.kategori : t.deskripsi,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 13))),
+                Text('Rp ${formatAmount(t.nominal)}', style: TextStyle(
+                  color: t.jenis == 'pemasukan' ? AppColors.income : AppColors.expense,
+                  fontSize: 12, fontWeight: FontWeight.w600)),
+              ]),
+            )),
+          ],
+          const SizedBox(height: 8),
+        ]),
+      )),
+    );
+  }
 
   Widget _filterBtn(String label, IconData icon, VoidCallback onTap, {bool active = false}) => GestureDetector(
     onTap: onTap,

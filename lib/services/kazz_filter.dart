@@ -60,3 +60,41 @@ List<Akun> filterDanUrutkanKazz(
   }
   return list;
 }
+
+/// Urutan daftar budget di tab Budget.
+enum BudgetSort {
+  persentase('Pemakaian tertinggi'),
+  terpakai('Nominal terpakai'),
+  batas('Batas terbesar'),
+  nama('Nama kategori');
+
+  final String label;
+  const BudgetSort(this.label);
+}
+
+/// Saring lalu urutkan daftar anggaran.
+///
+/// [hanyaAktif] membuang anggaran yang pemakaiannya sudah lewat 100%.
+List<Anggaran> filterDanUrutkanBudget(
+  List<Anggaran> anggaran,
+  bool hanyaAktif,
+  BudgetSort sort,
+) {
+  Iterable<Anggaran> hasil = anggaran;
+  if (hanyaAktif) {
+    hasil = hasil.where((a) => a.persentase < 100);
+  }
+
+  final list = hasil.toList();
+  switch (sort) {
+    case BudgetSort.persentase:
+      list.sort((a, b) => b.persentase.compareTo(a.persentase));
+    case BudgetSort.terpakai:
+      list.sort((a, b) => b.terpakai.compareTo(a.terpakai));
+    case BudgetSort.batas:
+      list.sort((a, b) => b.batas.compareTo(a.batas));
+    case BudgetSort.nama:
+      list.sort((a, b) => a.kategori.toLowerCase().compareTo(b.kategori.toLowerCase()));
+  }
+  return list;
+}

@@ -4,9 +4,12 @@ import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/app_events.dart';
+import '../services/export_service.dart';
 import '../services/kazz_filter.dart';
 import '../widgets/kazz_illustrations.dart';
 import '../widgets/widgets.dart';
+import 'calendar_screen.dart';
+import 'settings_screen.dart';
 import 'tambah_kazz_screen.dart';
 
 class KazzScreen extends StatefulWidget {
@@ -25,6 +28,10 @@ class _KazzScreenState extends State<KazzScreen> {
   // ── Filter & urutan dompet (menu Kazz → tab Dompet) ─────────────
   KazzFilter _walletFilter = KazzFilter.semua;
   KazzSort _sortMode = KazzSort.nameAZ;
+
+  /// Urutan daftar budget di tab Budget.
+  BudgetSort _budgetSort = BudgetSort.persentase;
+  final GlobalKey _budgetSortKey = GlobalKey();
 
   /// Saldo disembunyikan (ikon kunci di panel Saldo). Tap untuk lihat.
   bool _saldoTersembunyi = true;
@@ -159,11 +166,16 @@ class _KazzScreenState extends State<KazzScreen> {
              Text('Kazz', style: TextStyle(
               color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.w800)),
             Row(children: [
-              _headerIcon(Icons.ios_share_outlined),
+              _headerIcon(Icons.ios_share_outlined, onTap: _showEksporMenu),
               const SizedBox(width: 8),
-              _headerIcon(Icons.calendar_month_outlined),
+              _headerIcon(Icons.calendar_month_outlined,
+                onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const CalendarScreen()))),
               const SizedBox(width: 8),
-              _headerIcon(Icons.tune),
+              _headerIcon(Icons.tune,
+                onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) =>
+                    const SettingsScreen(page: SettingsPage.kazzUtama)))),
             ]),
           ]),
           const SizedBox(height: 16),
@@ -188,15 +200,96 @@ class _KazzScreenState extends State<KazzScreen> {
     );
   }
 
-  Widget _headerIcon(IconData icon) => Container(
-    width: 36, height: 36,
-    decoration: BoxDecoration(
-      color: AppColors.bgCard,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: AppColors.glassBorder),
-    ),
-    child: Icon(icon, color: AppColors.textSecond, size: 18),
-  );
+  Widget _headerIcon(IconData icon, {VoidCallback? onTap}) {
+    final kotak = Container(
+      width: 36, height: 36,
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Icon(icon, color: AppColors.textSecond, size: 18),
+    );
+    if (onTap == null) return kotak;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: kotak,
+    );
+  }
+
+  /// Ikon bagikan: ekspor transaksi ke CSV atau PDF.
+  ///
+  /// Datanya diambil saat menu dipilih (bukan saat layar dibuka) supaya
+  /// ekspor selalu memakai transaksi terbaru.
+  Future<void> _showEksporMenu() async {
+    final pilihan = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const SizedBox(height: 12),
+        Container(width: 40, height: 4, decoration: BoxDecoration(
+          color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 14),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Bagikan data transaksi', style: TextStyle(
+              color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800)),
+          ),
+        ),
+        const SizedBox(height: 6),
+        _sheetAction(ctx, Icons.table_chart_outlined, 'Ekspor ke CSV', 'csv'),
+        _sheetAction(ctx, Icons.picture_as_pdf_outlined, 'Ekspor ke PDF', 'pdf'),
+        const SizedBox(height: 8),
+      ])),
+    );
+
+    if (!mounted || pilihan == null) return;
+
+    // Ekspor butuh data, jadi tampilkan indikator selama mengambil.
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Row(children: [
+          SizedBox(width: 22, height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4, color: AppColors.primary)),
+          const SizedBox(width: 14),
+          Text('Menyiapkan berkas...', style: TextStyle(
+            color: AppColors.textSecond, fontSize: 13)),
+        ]),
+      ),
+    );
+
+    try {
+      final transaksi = await ApiService.getTransaksi(limit: 500);
+      if (!mounted) return;
+      Navigator.pop(context); // tutup indikator
+
+      if (transaksi.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Belum ada transaksi untuk diekspor.')));
+        return;
+      }
+
+      if (pilihan == 'csv') {
+        await ExportService.exportToCSV(transaksi, context);
+      } else {
+        await ExportService.exportToPDF(transaksi, context);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengekspor: $e')));
+    }
+  }
 
   // ─── Dompet (Wallets) Tab ──────────────────────────────────
   Widget _buildDompetTab() {
@@ -228,18 +321,28 @@ class _KazzScreenState extends State<KazzScreen> {
       const SizedBox(height: 14),
 
       // ── Filter chips + tombol urutkan ────────────────────────────
+      // Chip bisa digulir mendatar (bukan Row biasa) supaya di layar sempit
+      // dan font besar tidak overflow — tombol urutkan tetap di kanan.
       Row(children: [
-        _filterChip('Semua', _walletFilter == KazzFilter.semua,
-          icon: Icons.check_circle,
-          onTap: () => setState(() => _walletFilter = KazzFilter.semua)),
-        const SizedBox(width: 8),
-        _filterChip('Cashflow', _walletFilter == KazzFilter.cashflow,
-          onTap: () => setState(() => _walletFilter = KazzFilter.cashflow)),
-        const SizedBox(width: 8),
-        _filterChip('Arsip', _walletFilter == KazzFilter.arsip,
-          icon: Icons.inventory_2_outlined,
-          onTap: () => setState(() => _walletFilter = KazzFilter.arsip)),
-        const Spacer(),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              _filterChip('Semua', _walletFilter == KazzFilter.semua,
+                icon: Icons.check_circle,
+                onTap: () => setState(() => _walletFilter = KazzFilter.semua)),
+              const SizedBox(width: 8),
+              _filterChip('Cashflow', _walletFilter == KazzFilter.cashflow,
+                onTap: () => setState(() => _walletFilter = KazzFilter.cashflow)),
+              const SizedBox(width: 8),
+              _filterChip('Arsip', _walletFilter == KazzFilter.arsip,
+                icon: Icons.inventory_2_outlined,
+                onTap: () => setState(() => _walletFilter = KazzFilter.arsip)),
+              const SizedBox(width: 8),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 4),
         _sortButton(),
       ]),
       const SizedBox(height: 16),
@@ -305,41 +408,68 @@ class _KazzScreenState extends State<KazzScreen> {
     );
   }
 
-  /// Menu urutan. Ditampilkan lewat showMenu supaya posisinya menempel
-  /// tepat di bawah tombol sort, bukan di tengah layar.
+  /// Menu urutan dompet — tombol bulat di baris filter.
   Future<void> _showSortMenu() async {
-    final box = _sortKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return;
+    final pilihan = await _menuDiBawah<KazzSort>(
+      key: _sortKey,
+      nilai: KazzSort.values,
+      label: (m) => m.label,
+      terpilih: (m) => m == _sortMode,
+    );
+    if (pilihan != null && mounted) setState(() => _sortMode = pilihan);
+  }
+
+  /// Menu urutan budget — tombol Tune di tab Budget.
+  Future<void> _showBudgetSortMenu() async {
+    final pilihan = await _menuDiBawah<BudgetSort>(
+      key: _budgetSortKey,
+      nilai: BudgetSort.values,
+      label: (m) => m.label,
+      terpilih: (m) => m == _budgetSort,
+    );
+    if (pilihan != null && mounted) setState(() => _budgetSort = pilihan);
+  }
+
+  /// Tampilkan menu tepat di bawah widget yang ditunjuk [key].
+  ///
+  /// Dipakai tombol urutkan Dompet dan tombol Tune di Budget supaya
+  /// posisinya konsisten (menempel di bawah tombolnya).
+  Future<T?> _menuDiBawah<T>({
+    required GlobalKey key,
+    required List<T> nilai,
+    required String Function(T) label,
+    required bool Function(T) terpilih,
+  }) async {
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return null;
 
     final topLeft = box.localToGlobal(Offset.zero);
     final size = box.size;
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (overlay == null) return;
+    if (overlay == null) return null;
 
-    final pilihan = await showMenu<KazzSort>(
+    return showMenu<T>(
       context: context,
       color: AppColors.bgElevated,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       position: RelativeRect.fromRect(
-        Rect.fromLTWH(topLeft.dx - 150, topLeft.dy + size.height + 4, 210, 0),
+        Rect.fromLTWH(topLeft.dx - 160, topLeft.dy + size.height + 4, 230, 0),
         Offset.zero & overlay.size,
       ),
-      items: KazzSort.values.map((mode) => PopupMenuItem<KazzSort>(
-        value: mode,
+      items: nilai.map((v) => PopupMenuItem<T>(
+        value: v,
         height: 46,
         child: Row(children: [
-          if (_sortMode == mode)
+          if (terpilih(v))
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Icon(Icons.check_rounded, size: 16, color: AppColors.primary),
             ),
-          Expanded(child: Text(mode.label, style: TextStyle(
+          Expanded(child: Text(label(v), style: TextStyle(
             color: AppColors.textPrimary, fontSize: 14))),
         ]),
       )).toList(),
     );
-
-    if (pilihan != null && mounted) setState(() => _sortMode = pilihan);
   }
 
   /// Menu tiga titik pada kartu dompet: ubah nama / saldo, atau hapus.
@@ -550,9 +680,8 @@ class _KazzScreenState extends State<KazzScreen> {
 
   // ─── Budget Tab ─────────────────────────────────────────────
   Widget _buildBudgetTab() {
-    final filteredBudgets = _budgetFilter == 'Aktif'
-        ? _budgets.where((b) => b.persentase < 100).toList()
-        : _budgets;
+    final filteredBudgets =
+        filterDanUrutkanBudget(_budgets, _budgetFilter == 'Aktif', _budgetSort);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Filter: Semua / Aktif
@@ -595,7 +724,20 @@ class _KazzScreenState extends State<KazzScreen> {
           ),
         ),
         const Spacer(),
-        Icon(Icons.tune, size: 18, color: AppColors.textMuted),
+        GestureDetector(
+          onTap: _showBudgetSortMenu,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            key: _budgetSortKey,
+            width: 34, height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.bgCard,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.glassBorder),
+            ),
+            child: Icon(Icons.tune, size: 16, color: AppColors.textPrimary),
+          ),
+        ),
       ]),
       const SizedBox(height: 12),
 
