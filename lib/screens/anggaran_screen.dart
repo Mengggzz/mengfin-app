@@ -36,10 +36,10 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
   Future<void> _delete(int id) async {
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       backgroundColor: AppColors.bgCard,
-      title: const Text('Hapus Anggaran', style: TextStyle(color: AppColors.textPrimary)),
+      title:  Text('Hapus Anggaran', style: TextStyle(color: AppColors.textPrimary)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
-        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Hapus', style: TextStyle(color: AppColors.danger))),
+        TextButton(onPressed: () => Navigator.pop(context, false), child:  Text('Batal', style: TextStyle(color: AppColors.textMuted))),
+        TextButton(onPressed: () => Navigator.pop(context, true), child:  Text('Hapus', style: TextStyle(color: AppColors.danger))),
       ],
     ));
     if (ok == true) { await ApiService.deleteAnggaran(id); _load(); }
@@ -58,11 +58,11 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
           Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 16),
           Text(edit != null ? 'Edit Anggaran' : 'Buat Anggaran',
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
+            style:  TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 16),
 
           if (edit == null) ...[
-            const Text('KATEGORI', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
+             Text('KATEGORI', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
               children: kategoriList.where((k) => !['Gaji','Bonus','Investasi'].contains(k.label)).map((k) =>
@@ -83,18 +83,18 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
             const SizedBox(height: 16),
           ],
 
-          const Text('BATAS ANGGARAN (Rp)', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
+           Text('BATAS ANGGARAN (Rp)', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
             controller: TextEditingController(text: batas),
             keyboardType: TextInputType.number,
-            style: const TextStyle(color: AppColors.textPrimary),
+            style:  TextStyle(color: AppColors.textPrimary),
             decoration: InputDecoration(
-              hintText: '1.500.000', hintStyle: const TextStyle(color: AppColors.textMuted),
+              hintText: '1.500.000', hintStyle:  TextStyle(color: AppColors.textMuted),
               filled: true, fillColor: AppColors.bgElevated,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.glassBorder)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.glassBorder)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.glassBorder)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.glassBorder)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.primary)),
             ),
             onChanged: (v) => batas = v,
           ),
@@ -127,7 +127,7 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: AppColors.bg,
-        title: const Text('Anggaran', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
+        title:  Text('Anggaran', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
         actions: [
           IconButton(
             icon: Container(padding: const EdgeInsets.all(8),
@@ -143,9 +143,9 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
         child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
           // Month picker
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            IconButton(onPressed: () => _changeMonth(-1), icon: const Icon(Icons.chevron_left, color: AppColors.textSecond)),
-            Text(formatBulan(_periode), style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-            IconButton(onPressed: () => _changeMonth(1), icon: const Icon(Icons.chevron_right, color: AppColors.textSecond)),
+            IconButton(onPressed: () => _changeMonth(-1), icon:  Icon(Icons.chevron_left, color: AppColors.textSecond)),
+            Text(formatBulan(_periode), style:  TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+            IconButton(onPressed: () => _changeMonth(1), icon:  Icon(Icons.chevron_right, color: AppColors.textSecond)),
           ]),
           const SizedBox(height: 4),
 
@@ -168,12 +168,12 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
           ),
           const SizedBox(height: 16),
 
-          if (_loading) const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          if (_loading)  Center(child: CircularProgressIndicator(color: AppColors.primary))
           else if (_list.isEmpty)
             Center(child: Padding(padding: const EdgeInsets.only(top: 40), child: Column(children: [
               const Text('📊', style: TextStyle(fontSize: 48)),
               const SizedBox(height: 12),
-              const Text('Belum ada anggaran', style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
+               Text('Belum ada anggaran', style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
               const SizedBox(height: 12),
               ElevatedButton(onPressed: () => _showAddModal(),
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white,
@@ -194,10 +194,10 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
                       child: Center(child: Text(kat.icon, style: const TextStyle(fontSize: 18)))),
                     const SizedBox(width: 12),
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(a.kategori, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
+                      Text(a.kategori, style:  TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
                       Row(children: [
                         CurrencyText(a.terpakai, short: true, color: AppColors.textMuted, fontSize: 12),
-                        const Text(' / ', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                         Text(' / ', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                         CurrencyText(a.batas, short: true, color: AppColors.textMuted, fontSize: 12),
                       ]),
                     ]),
@@ -205,11 +205,11 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
                   Row(children: [
                     GestureDetector(onTap: () => _showAddModal(edit: a),
                       child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.bgElevated, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.edit_outlined, size: 16, color: AppColors.textMuted))),
+                        child:  Icon(Icons.edit_outlined, size: 16, color: AppColors.textMuted))),
                     const SizedBox(width: 6),
                     GestureDetector(onTap: () => _delete(a.id),
                       child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.danger.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.delete_outline, size: 16, color: AppColors.danger))),
+                        child:  Icon(Icons.delete_outline, size: 16, color: AppColors.danger))),
                   ]),
                 ]),
                 const SizedBox(height: 12),

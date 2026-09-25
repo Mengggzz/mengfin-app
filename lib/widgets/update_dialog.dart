@@ -175,7 +175,7 @@ class _UpdateDialogState extends State<UpdateDialog>
                       version: widget.currentTag.isEmpty ? 'dev' : widget.currentTag,
                       color: AppColors.textMuted,
                     ),
-                    const Padding(
+                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 10),
                       child: Icon(Icons.arrow_forward_rounded,
                           size: 16, color: AppColors.textMuted),
@@ -187,7 +187,7 @@ class _UpdateDialogState extends State<UpdateDialog>
                     ),
                     const Spacer(),
                     Text(widget.release.readableVersion,
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                      style:  TextStyle(color: AppColors.textMuted, fontSize: 10)),
                   ]),
                   const SizedBox(height: 20),
 
@@ -205,7 +205,7 @@ class _UpdateDialogState extends State<UpdateDialog>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      const Text('Yang Baru',
+                       Text('Yang Baru',
                         style: TextStyle(color: AppColors.textPrimary,
                           fontSize: 14, fontWeight: FontWeight.w700)),
                     ]),
@@ -220,7 +220,7 @@ class _UpdateDialogState extends State<UpdateDialog>
                       ),
                       child: Text(
                         _parseChangelog(widget.release.body),
-                        style: const TextStyle(color: AppColors.textSecond,
+                        style:  TextStyle(color: AppColors.textSecond,
                           fontSize: 12.5, height: 1.6),
                         maxLines: 8,
                         overflow: TextOverflow.ellipsis,
@@ -236,7 +236,7 @@ class _UpdateDialogState extends State<UpdateDialog>
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: AppColors.warning.withOpacity(0.3)),
                     ),
-                    child: const Row(children: [
+                    child:  Row(children: [
                       Icon(Icons.info_outline_rounded, size: 14, color: AppColors.warning),
                       SizedBox(width: 8),
                       Expanded(child: Text(
@@ -259,10 +259,10 @@ class _UpdateDialogState extends State<UpdateDialog>
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: const BorderSide(color: AppColors.glassBorder),
+                          side:  BorderSide(color: AppColors.glassBorder),
                         ),
                       ),
-                      child: const Text('Nanti',
+                      child:  Text('Nanti',
                         style: TextStyle(color: AppColors.textMuted,
                           fontWeight: FontWeight.w600)),
                     ),
@@ -321,7 +321,7 @@ class _UpdateDialogState extends State<UpdateDialog>
     required Color color,
   }) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(color: AppColors.textMuted,
+        Text(label, style:  TextStyle(color: AppColors.textMuted,
           fontSize: 10, fontWeight: FontWeight.w500)),
         const SizedBox(height: 2),
         Container(
@@ -393,7 +393,7 @@ class InfoDialog extends StatelessWidget {
       icon = Icons.cloud_off_rounded;
       color = AppColors.warning;
       title = 'Gagal Cek Update';
-      message = 'Tidak bisa menghubungi server update.\n$error';
+      message = 'Tidak bisa menghubungi GitHub untuk cek versi terbaru.\n$error';
     } else if (unknownCurrent) {
       icon = Icons.build_circle_outlined;
       color = AppColors.info;
@@ -404,7 +404,8 @@ class InfoDialog extends StatelessWidget {
       icon = Icons.verified_rounded;
       color = AppColors.income;
       title = 'Sudah Versi Terbaru';
-      message = 'Kamu memakai versi terbaru ($currentTag). Tidak ada update yang perlu dipasang.';
+      message = 'Kamu memakai versi terbaru ($currentTag).'
+          '${latestTag != null && latestTag != currentTag ? '\n\nVersi terbaru di GitHub: $latestTag' : ''}';
     }
 
     return AlertDialog(
@@ -417,16 +418,25 @@ class InfoDialog extends StatelessWidget {
           child: Icon(icon, color: color, size: 32),
         ),
         const SizedBox(height: 16),
-        Text(title, style: const TextStyle(color: AppColors.textPrimary,
+        Text(title, style:  TextStyle(color: AppColors.textPrimary,
           fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         Text(message, textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.textSecond, fontSize: 13, height: 1.5)),
+          style:  TextStyle(color: AppColors.textSecond, fontSize: 13, height: 1.5)),
       ]),
       actions: [
+        if (latestTag != null)
+          TextButton(
+            onPressed: () => launchUrl(
+              Uri.parse(UpdateService.releasesPage),
+              mode: LaunchMode.externalApplication,
+            ),
+            child: Text('Buka GitHub', style: TextStyle(
+              color: AppColors.textSecond, fontWeight: FontWeight.w600)),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('OK', style: TextStyle(
+          child:  Text('OK', style: TextStyle(
             color: AppColors.primary, fontWeight: FontWeight.w700)),
         ),
       ],

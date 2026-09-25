@@ -3,6 +3,7 @@ import '../constants/app_colors.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
+import '../services/app_events.dart';
 import '../widgets/widgets.dart';
 import 'calendar_screen.dart';
 import 'laporan_screen.dart';
@@ -23,14 +24,18 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
-  void initState() { 
-    super.initState(); 
-    _load(); 
+  void initState() {
+    super.initState();
+    _load();
     _searchController.addListener(_applySearch);
+    // Ikut menyegarkan diri saat transaksi berubah dari layar lain
+    // (input manual, scan struk, voice, hapus) — tanpa pull-to-refresh.
+    AppEvents.instance.transaksi.addListener(_load);
   }
 
   @override
   void dispose() {
+    AppEvents.instance.transaksi.removeListener(_load);
     _searchController.dispose();
     super.dispose();
   }
@@ -127,13 +132,13 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       backgroundColor: AppColors.bgCard,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('Hapus Transaksi', style: TextStyle(color: AppColors.textPrimary)),
-      content: const Text('Yakin hapus?', style: TextStyle(color: AppColors.textSecond)),
+      title:  Text('Hapus Transaksi', style: TextStyle(color: AppColors.textPrimary)),
+      content:  Text('Yakin hapus?', style: TextStyle(color: AppColors.textSecond)),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false),
-          child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
+          child:  Text('Batal', style: TextStyle(color: AppColors.textMuted))),
         TextButton(onPressed: () => Navigator.pop(context, true),
-          child: const Text('Hapus', style: TextStyle(color: AppColors.danger))),
+          child:  Text('Hapus', style: TextStyle(color: AppColors.danger))),
       ],
     ));
     if (ok == true) { await ApiService.deleteTransaksi(id); _load(); }
@@ -159,7 +164,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Transaksi', style: TextStyle(
+               Text('Transaksi', style: TextStyle(
                 color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.w800)),
               Row(children: [
                 GestureDetector(
@@ -178,7 +183,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
               ]),
             ]),
             const SizedBox(height: 6),
-            const Text(
+             Text(
               'Lihat transaksi dari beberapa dompet sekaligus dalam satu tampilan.',
               style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
             const SizedBox(height: 12),
@@ -233,13 +238,13 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
 
         // ── List ───────────────────────────────────────────────
         if (_loading)
-          const Expanded(child: Center(child: CircularProgressIndicator(color: AppColors.primary)))
+           Expanded(child: Center(child: CircularProgressIndicator(color: AppColors.primary)))
         else Expanded(
           child: RefreshIndicator(
             color: AppColors.primary, backgroundColor: AppColors.bgCard,
             onRefresh: _load,
             child: _list.isEmpty
-              ? const Center(child: Text('Belum ada transaksi',
+              ?  Center(child: Text('Belum ada transaksi',
                   style: TextStyle(color: AppColors.textMuted)))
               : ListView(padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: _grouped.entries.map((e) => Column(
@@ -248,9 +253,9 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
                         padding: const EdgeInsets.only(bottom: 8, top: 4),
                         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                           Text(formatTanggal(e.key),
-                            style: const TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
+                            style:  TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
                           Text('${e.value.length} transaksi',
-                            style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                            style:  TextStyle(color: AppColors.textMuted, fontSize: 10)),
                         ]),
                       ),
                       ...e.value.map((tx) => Stack(
@@ -269,7 +274,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(color: AppColors.warning.withOpacity(0.4)),
                                 ),
-                                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                                child:  Row(mainAxisSize: MainAxisSize.min, children: [
                                   Icon(Icons.cloud_upload_outlined, size: 10, color: AppColors.warning),
                                   SizedBox(width: 3),
                                   Text('Sync', style: TextStyle(

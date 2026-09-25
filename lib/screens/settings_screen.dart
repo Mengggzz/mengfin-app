@@ -52,20 +52,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.bg,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon:  Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           widget.page == SettingsPage.kazzUtama
               ? 'Pengaturan Kazz Utama'
               : 'Auto-catat dari notifikasi',
-          style: const TextStyle(
+          style:  TextStyle(
             color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
           maxLines: 1, overflow: TextOverflow.ellipsis,
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ?  Center(child: CircularProgressIndicator(color: AppColors.primary))
           : widget.page == SettingsPage.kazzUtama
               ? _buildKazzUtama()
               : _buildAutoNotif(),
@@ -79,10 +79,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           const SizedBox(height: 8),
-          const Text('Pilih Kazz untuk Tampilan Home',
+           Text('Pilih Kazz untuk Tampilan Home',
             style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
-          const Text(
+           Text(
             'Anda dapat memilih beberapa untuk melihat tampilan gabungan.\n'
             'Ideal : tampilkan hanya sisa saldo yang bisa dihabiskan periode ini.',
             style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.4)),
@@ -109,7 +109,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(w.nama, style: const TextStyle(
+                Text(w.nama, style:  TextStyle(
                   color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
                 Text('${w.saldo < 0 ? '-' : ''}Rp ${formatAmount(w.saldo.abs())}',
                   style: TextStyle(
@@ -125,7 +125,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: (v) => setState(() => _primaryWalletId = v),
                     activeColor: AppColors.primary,
                   ),
-                  const Text('Utama', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                   Text('Utama', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                 ]),
               const SizedBox(width: 4),
               // Checkbox
@@ -136,7 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   else _selectedWallets.remove(w.id);
                 }),
                 activeColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.textMuted),
+                side:  BorderSide(color: AppColors.textMuted),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
               ),
             ]),
@@ -179,7 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(Icons.search, color: AppColors.primary, size: 18),
             const SizedBox(width: 10),
-            const Expanded(child: Text(
+             Expanded(child: Text(
               'Aktifkan dan lihat seberapa efektif fitur ini menangkap transaksimu. '
               'Tetapi mengubah draft menjadi transaksi (Scan All) memerlukan Premium.',
               style: TextStyle(color: AppColors.textSecond, fontSize: 12, height: 1.4))),
@@ -205,7 +205,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   color: _notifEnabled ? AppColors.primary : AppColors.textPrimary,
                   fontSize: 14, fontWeight: FontWeight.w700)),
-              const Text('Izinkan Kazz membaca notifikasi dari aplikasi yang kamu pilih',
+               Text('Izinkan Kazz membaca notifikasi dari aplikasi yang kamu pilih',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
             ])),
             Switch(
@@ -226,9 +226,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.info_outline, size: 14, color: AppColors.warning),
+             Icon(Icons.info_outline, size: 14, color: AppColors.warning),
             const SizedBox(width: 8),
-            const Expanded(child: Text(
+             Expanded(child: Text(
               'Beberapa HP (mis. Xiaomi, Huawei, Oppo) suka mematikan aplikasi latar belakang demi hemat baterai. '
               'Kalau notifikasi berhenti tertangkap, cek pengaturan baterai HP kamu dan izinkan Kazz berjalan di latar belakang.',
               style: TextStyle(color: AppColors.warning, fontSize: 10, height: 1.4))),
@@ -245,27 +245,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             border: Border.all(color: AppColors.glassBorder),
           ),
           child: Row(children: [
-            const Icon(Icons.apps, size: 18, color: AppColors.textMuted),
+             Icon(Icons.apps, size: 18, color: AppColors.textMuted),
             const SizedBox(width: 12),
-            const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Aplikasi yang dipantau', style: TextStyle(
                 color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
               Text('Belum ada aplikasi dipilih', style: TextStyle(
                 color: AppColors.textMuted, fontSize: 11)),
             ])),
-            const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+             Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
           ]),
         ),
         const SizedBox(height: 20),
 
         // Keywords whitelist
-        const Text('Kata kunci whitelist', style: TextStyle(
+         Text('Kata kunci whitelist', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.info_outline, size: 13, color: AppColors.textMuted),
+           Icon(Icons.info_outline, size: 13, color: AppColors.textMuted),
           const SizedBox(width: 6),
-          const Expanded(child: Text(
+           Expanded(child: Text(
             'Notifikasi cuma ditangkap kalau mengandung salah satu kata ini dan ada angka nominalnya.',
             style: TextStyle(color: AppColors.textMuted, fontSize: 11, height: 1.3))),
         ]),
@@ -281,11 +281,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               border: Border.all(color: AppColors.primary.withOpacity(0.3)),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(kw, style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w500)),
+              Text(kw, style:  TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w500)),
               const SizedBox(width: 4),
               GestureDetector(
                 onTap: () => setState(() => _keywords.remove(kw)),
-                child: const Icon(Icons.close, size: 14, color: AppColors.primary)),
+                child:  Icon(Icons.close, size: 14, color: AppColors.primary)),
             ]),
           )).toList()),
         const SizedBox(height: 12),
@@ -293,10 +293,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // Add keyword
         Row(children: [
           Expanded(child: TextField(
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            style:  TextStyle(color: AppColors.textPrimary, fontSize: 13),
             decoration: InputDecoration(
               hintText: 'Tambah kata kunci (mis. "berhasil")',
-              hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 12),
+              hintStyle:  TextStyle(color: AppColors.textHint, fontSize: 12),
               filled: true, fillColor: AppColors.bgElevated,
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               border: OutlineInputBorder(

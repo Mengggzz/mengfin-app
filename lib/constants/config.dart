@@ -20,3 +20,10 @@ const String kGoogleClientId = '266649571000-80vs1ngb0cnn2vo06aoei8katfmu4lhg.ap
 //   flutter build apk --dart-define=APP_BUILD_TAG=v20260923-1210
 // Kalau kosong (build lokal / dev), pengecekan update dilewati dengan aman.
 const String kAppBuildTag = String.fromEnvironment('APP_BUILD_TAG');
+
+// ── Repo GitHub untuk notifikasi update ────────────────────────────────────
+// Jalur cadangan: kalau backend belum punya endpoint /update/check (server
+// produksi masih versi lama), app query GitHub Releases langsung. Repo ini
+// publik, jadi tidak perlu token.
+const String kGithubOwner = 'Mengggzz';
+const String kGithubRepo  = 'mengfin-app';

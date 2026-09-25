@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'constants/app_colors.dart';
+import 'constants/app_theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/transaksi_screen.dart';
@@ -17,17 +18,23 @@ import 'services/auth_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/sync_service.dart';
 import 'services/local_db.dart';
+import 'services/theme_service.dart';
 import 'services/update_service.dart';
 import 'widgets/update_dialog.dart';
 
+/// Warna status bar & navigation bar Android harus ikut mode tampilan —
+/// di mode terang ikonnya harus gelap, kalau tidak jadi tidak terbaca.
+void applySystemUi(bool isDark) {
+  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    systemNavigationBarColor: AppColors.bgCard,
+    systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+  ));
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: AppColors.bgCard,
-    systemNavigationBarIconBrightness: Brightness.light,
-  ));
 
   // Init services — sqflite tidak support web, skip di web
   if (!kIsWeb) {
@@ -37,6 +44,9 @@ void main() async {
 
   // Load token dari storage (cek apakah sudah login)
   await AuthService.instance.init();
+
+  // Baca preferensi mode tampilan (Sistem / Terang / Gelap)
+  await ThemeService.instance.init();
 
   // Init update service (baca versi app dari PackageInfo)
   if (!kIsWeb) {
@@ -48,7 +58,12 @@ void main() async {
     SyncService.instance.pullFromServer();
   }
 
-  runApp(const MengFinApp());
+  runApp(
+    ChangeNotifierProvider<ThemeService>.value(
+      value: ThemeService.instance,
+      child: const MengFinApp(),
+    ),
+  );
 }
 
 class MengFinApp extends StatelessWidget {
@@ -56,34 +71,24 @@ class MengFinApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Bangun ulang MaterialApp setiap mode tampilan berubah supaya
+    // dialog, date picker, dan komponen bawaan ikut menyesuaikan.
+    final themeService = context.watch<ThemeService>();
+    applySystemUi(themeService.isDark);
+
     return MaterialApp(
       title: 'MengFin',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: const ColorScheme.dark(
-          primary: AppColors.primary,
-          secondary: AppColors.accent,
-          surface: AppColors.bgCard,
-        ),
-        scaffoldBackgroundColor: AppColors.bg,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: AppColors.bg,
-          elevation: 0,
-          centerTitle: false,
-          iconTheme: IconThemeData(color: AppColors.textPrimary),
-        ),
-        textTheme: GoogleFonts.spaceGroteskTextTheme(ThemeData.dark().textTheme).apply(
-          bodyColor: AppColors.textPrimary,
-          displayColor: AppColors.textPrimary,
-        ),
-        useMaterial3: true,
-        splashColor: AppColors.primary.withOpacity(0.2),
-        highlightColor: AppColors.primary.withOpacity(0.1),
-      ),
+      themeMode: themeService.mode,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
       initialRoute: AuthService.instance.isLoggedIn ? '/home' : '/login',
       routes: {
         '/login': (_) => const LoginScreen(),
-        '/home':  (_) => const MainNav(),
+        // Bukan `const`: builder ini dievaluasi ulang tiap MaterialApp
+        // rebuild, jadi state MainNav diperbarui (bukan dibuat ulang) dan
+        // seluruh layar tab membangun ulang dengan warna mode terbaru.
+        '/home':  (_) => MainNav(),
       },
     );
   }
@@ -101,7 +106,11 @@ class _MainNavState extends State<MainNav> {
   bool _showSyncBanner = false;
   int _pendingCount = 0;
 
-  static const _screens = [
+  // Sengaja BUKAN `static const`: kalau instance-nya sama persis, Flutter
+  // melewati rebuild dan layar tidak ikut berubah warna saat mode tampilan
+  // diganti. Dengan instance baru tiap build, tiap layar membangun ulang
+  // (state-nya tetap) dan membaca AppColors yang sudah diperbarui.
+  List<Widget> get _screens => [
     DashboardScreen(),   // 0 — Home
     KazzScreen(),        // 1 — Kazz (Wallets/Budget)
     TransaksiScreen(),   // 2 — Transaksi (History/View)
@@ -120,6 +129,9 @@ class _MainNavState extends State<MainNav> {
     super.initState();
     _isOnline = ConnectivityService.instance.isOnline;
     _updatePendingCount();
+    // Ganti mode tampilan → bangun ulang seluruh layar tab supaya warna
+    // (AppColors) langsung ikut berubah tanpa perlu restart app.
+    ThemeService.instance.addListener(_onThemeBerubah);
 
     ConnectivityService.instance.onStatusChange.listen((online) async {
       setState(() => _isOnline = online);
@@ -146,6 +158,16 @@ class _MainNavState extends State<MainNav> {
     if (mounted && result.hasUpdate) {
       await UpdateDialog.show(context, result);
     }
+  }
+
+  void _onThemeBerubah() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    ThemeService.instance.removeListener(_onThemeBerubah);
+    super.dispose();
   }
 
   Future<void> _updatePendingCount() async {
@@ -194,7 +216,7 @@ class _MainNavState extends State<MainNav> {
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: AppColors.primary, width: 2),
+            side:  BorderSide(color: AppColors.primary, width: 2),
           ),
           child: const Icon(Icons.add, color: Colors.white, size: 28),
         ),
@@ -202,7 +224,7 @@ class _MainNavState extends State<MainNav> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       // ── Bottom Navigation Bar ──────────────────────────────────
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
+        decoration:  BoxDecoration(
           color: AppColors.bgCard,
           border: Border(top: BorderSide(color: AppColors.glassBorder)),
         ),

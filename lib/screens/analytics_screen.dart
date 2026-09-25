@@ -74,34 +74,34 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: AppColors.bgCard,
-        title: const Text('Analytics', style: TextStyle(color: AppColors.textPrimary)),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        title:  Text('Analytics', style: TextStyle(color: AppColors.textPrimary)),
+        iconTheme:  IconThemeData(color: AppColors.textPrimary),
         elevation: 0,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ?  Center(child: CircularProgressIndicator(color: AppColors.primary))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Line chart weekly trend
-                  const Text('Tren Saldo Mingguan', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+                   Text('Tren Saldo Mingguan', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 12),
                   SizedBox(height: 200, child: _buildLineChart(_weeklyBalance())),
                   const SizedBox(height: 24),
                   // Line chart monthly trend
-                  const Text('Tren Saldo Bulanan', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+                   Text('Tren Saldo Bulanan', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 12),
                   SizedBox(height: 200, child: _buildLineChart(_monthlyBalance())),
                   const SizedBox(height: 24),
                   // Donut chart kategori terbesar
-                  const Text('Pengeluaran per Kategori', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+                   Text('Pengeluaran per Kategori', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 12),
                   SizedBox(height: 250, child: _buildDonutChart(_categoryExpenses())),
                   const SizedBox(height: 24),
                   // Summary stats
-                  const Text('Ringkasan', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+                   Text('Ringkasan', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   _buildSummary(),
                 ],
@@ -111,7 +111,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Widget _buildLineChart(Map<dynamic, double> dataMap) {
-    if (dataMap.isEmpty) return const Center(child: Text('Tidak ada data', style: TextStyle(color: AppColors.textMuted)));
+    if (dataMap.isEmpty) return  Center(child: Text('Tidak ada data', style: TextStyle(color: AppColors.textMuted)));
     final sortedKeys = dataMap.keys.toList()..sort((a, b) => a.compareTo(b));
     final spots = <FlSpot>[];
     for (int i = 0; i < sortedKeys.length; i++) {
@@ -125,7 +125,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, interval: null, getTitlesWidget: (value, meta) => Text('\${value.toInt()}', style: const TextStyle(color: AppColors.textSecond, fontSize: 10))),
+          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, interval: null, getTitlesWidget: (value, meta) => Text('\${value.toInt()}', style:  TextStyle(color: AppColors.textSecond, fontSize: 10))),
           ),
         ),
         lineBarsData: [
@@ -142,7 +142,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Widget _buildDonutChart(Map<String, double> dataMap) {
-    if (dataMap.isEmpty) return const Center(child: Text('Tidak ada data', style: TextStyle(color: AppColors.textMuted)));
+    if (dataMap.isEmpty) return  Center(child: Text('Tidak ada data', style: TextStyle(color: AppColors.textMuted)));
     final total = dataMap.values.fold<double>(0, (p, e) => p + e);
     final sections = dataMap.entries.map((e) {
       final percent = (e.value / total) * 100;
@@ -185,9 +185,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Total pemasukan: \${totalIncome.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.income, fontSize: 14)),
-        Text('Total pengeluaran: \${totalExpense.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.expense, fontSize: 14)),
-        Text('Rata-rata harian: \${avgDaily.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.textSecond, fontSize: 14)),
+        Text('Total pemasukan: \${totalIncome.toStringAsFixed(0)}', style:  TextStyle(color: AppColors.income, fontSize: 14)),
+        Text('Total pengeluaran: \${totalExpense.toStringAsFixed(0)}', style:  TextStyle(color: AppColors.expense, fontSize: 14)),
+        Text('Rata-rata harian: \${avgDaily.toStringAsFixed(0)}', style:  TextStyle(color: AppColors.textSecond, fontSize: 14)),
         Text('Perubahan minggu lalu: ${changePct.toStringAsFixed(1)}%', style: TextStyle(color: changePct >= 0 ? AppColors.danger : AppColors.income, fontSize: 14)),
       ],
     );

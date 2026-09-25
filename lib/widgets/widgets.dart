@@ -152,7 +152,7 @@ class TransaksiTile extends StatelessWidget {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
               tx.deskripsi.isEmpty ? tx.kategori : tx.deskripsi,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+              style:  TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
               maxLines: 1, overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 2),
@@ -160,7 +160,7 @@ class TransaksiTile extends StatelessWidget {
               tx.tanggal.length > 10
                   ? '${formatTanggalShort(tx.tanggal.substring(0, 10))} ${formatTime(tx.tanggal)}'
                   : formatTanggalShort(tx.tanggal),
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+              style:  TextStyle(color: AppColors.textMuted, fontSize: 11),
             ),
           ])),
           // Amount
@@ -207,7 +207,7 @@ class HealthScoreGauge extends StatelessWidget {
         ),
         Column(mainAxisSize: MainAxisSize.min, children: [
           Text('$score', style: TextStyle(color: color, fontSize: 26, fontWeight: FontWeight.w800)),
-          Text(status, style: const TextStyle(color: AppColors.textSecond, fontSize: 10)),
+          Text(status, style:  TextStyle(color: AppColors.textSecond, fontSize: 10)),
         ]),
       ]),
     );
@@ -363,10 +363,10 @@ class KazzWalletCard extends StatelessWidget {
               ),
               child: Center(child: Text(icon, style: const TextStyle(fontSize: 18))),
             ),
-            const Icon(Icons.more_vert, color: AppColors.textMuted, size: 18),
+             Icon(Icons.more_vert, color: AppColors.textMuted, size: 18),
           ]),
           const SizedBox(height: 12),
-          Text(name, style: const TextStyle(
+          Text(name, style:  TextStyle(
             color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(
@@ -396,7 +396,7 @@ class AddKazzCard extends StatelessWidget {
         painter: _DashedBorderPainter(),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 28),
-          child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          child:  Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(Icons.add_circle_outline, color: AppColors.textMuted, size: 36),
             SizedBox(height: 8),
             Text('Tambah Kazz', style: TextStyle(
@@ -564,7 +564,7 @@ class CalcNumpad extends StatelessWidget {
         color: AppColors.numpadKey,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Center(child: Text(val, style: const TextStyle(
+      child: Center(child: Text(val, style:  TextStyle(
         color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.w600))),
     ),
   );
@@ -591,15 +591,15 @@ class CalcNumpad extends StatelessWidget {
       ),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         _opBtn('+'), _opBtn('-'),
-        const Text('×', style: TextStyle(color: AppColors.textSecond, fontSize: 14)),
-        const Text('÷', style: TextStyle(color: AppColors.textSecond, fontSize: 14)),
+         Text('×', style: TextStyle(color: AppColors.textSecond, fontSize: 14)),
+         Text('÷', style: TextStyle(color: AppColors.textSecond, fontSize: 14)),
       ]),
     ),
   );
 
   Widget _opBtn(String op) => GestureDetector(
     onTap: () => onKey(op),
-    child: Text(op, style: const TextStyle(color: AppColors.textSecond, fontSize: 14, fontWeight: FontWeight.w600)),
+    child: Text(op, style:  TextStyle(color: AppColors.textSecond, fontSize: 14, fontWeight: FontWeight.w600)),
   );
 
   Widget _confirmKey() => GestureDetector(
@@ -646,7 +646,7 @@ class QuickActionButton extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 16, color: iconColor ?? AppColors.primary),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(
+          Text(label, style:  TextStyle(
             color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
         ]),
       ),
@@ -701,7 +701,7 @@ class TransactionTypeSelector extends StatelessWidget {
       if (selected != null)
         Expanded(child: Text(
           transactionTypes.firstWhere((t) => t.type == selected).description,
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+          style:  TextStyle(color: AppColors.textMuted, fontSize: 10),
           maxLines: 2,
         )),
     ]);

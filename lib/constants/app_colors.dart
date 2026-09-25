@@ -1,65 +1,101 @@
 import 'package:flutter/material.dart';
 
+/// Palet warna aplikasi.
+///
+/// Sebagian warna berubah mengikuti mode terang/gelap: latar, teks, border,
+/// aksen, dan warna status. Nilai mode GELAP sama dengan palet lama, jadi
+/// tampilan gelap tidak berubah.
+///
+/// Karena warnanya dinamis, JANGAN menaruhnya di dalam `const`
+/// (mis. `const TextStyle(color: AppColors.textPrimary)`) — itu gagal
+/// dikompilasi. Pakai `TextStyle(color: AppColors.textPrimary)` biasa.
+/// Gradien tetap `const` sehingga aman dipakai di dalam `const`.
 class AppColors {
-  // ── Background ─────────────────────────────────────────────────
-  static const Color bg          = Color(0xFF0D1117);
-  static const Color bgCard      = Color(0xFF161B22);
-  static const Color bgElevated  = Color(0xFF21262D);
-  static const Color bgInput     = Color(0xFF1C2128);
-  static const Color bgSurface   = Color(0xFF161B22);
+  AppColors._();
 
-  // ── Primary (Neon Turquoise/Cyan) ──────────────────────────────
-  static const Color primary     = Color(0xFF00E5FF);
-  static const Color primaryLight= Color(0xFF84FFFF);
-  static const Color primaryDark = Color(0xFF00B8D4);
+  static Brightness _brightness = Brightness.dark;
+
+  /// Dipanggil ThemeService setiap mode tampilan berubah.
+  static void applyBrightness(Brightness b) => _brightness = b;
+
+  /// Terapkan brightness sesuai ThemeMode. ThemeMode.system memakai
+  /// brightness platform yang sedang aktif.
+  static void applyBrightnessForMode(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.dark:
+        applyBrightness(Brightness.dark);
+      case ThemeMode.light:
+        applyBrightness(Brightness.light);
+      case ThemeMode.system:
+        final p = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+        applyBrightness(p);
+    }
+  }
+
+  static Brightness get brightness => _brightness;
+  static bool get isDark => _brightness == Brightness.dark;
+
+  static Color _pick(Color dark, Color light) => isDark ? dark : light;
+
+  // ── Background ─────────────────────────────────────────────────
+  static Color get bg         => _pick(const Color(0xFF0D1117), const Color(0xFFF2F5F9));
+  static Color get bgCard     => _pick(const Color(0xFF161B22), const Color(0xFFFFFFFF));
+  static Color get bgElevated => _pick(const Color(0xFF21262D), const Color(0xFFE9EEF5));
+  static Color get bgInput    => _pick(const Color(0xFF1C2128), const Color(0xFFFFFFFF));
+  static Color get bgSurface  => _pick(const Color(0xFF161B22), const Color(0xFFFFFFFF));
+
+  // ── Primary (Neon Turquoise/Cyan → Teal gelap untuk mode terang) ─
+  static Color get primary     => _pick(const Color(0xFF00E5FF), const Color(0xFF0E7490));
+  static Color get primaryLight=> _pick(const Color(0xFF84FFFF), const Color(0xFF0891B2));
+  static Color get primaryDark => _pick(const Color(0xFF00B8D4), const Color(0xFF155E75));
 
   // ── Accent (Neon Purple/Lavender) ──────────────────────────────
-  static const Color accent      = Color(0xFFB388FF);
+  static Color get accent      => _pick(const Color(0xFFB388FF), const Color(0xFF6D28D9));
   static const Color accentLight = Color(0xFFD1C4E9);
 
   // ── Text ───────────────────────────────────────────────────────
-  static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textSecond  = Color(0xFF8B949E);
-  static const Color textMuted   = Color(0xFF6E7681);
-  static const Color textHint    = Color(0xFF484F58);
+  static Color get textPrimary => _pick(const Color(0xFFFFFFFF), const Color(0xFF0F172A));
+  static Color get textSecond  => _pick(const Color(0xFF8B949E), const Color(0xFF475569));
+  static Color get textMuted   => _pick(const Color(0xFF6E7681), const Color(0xFF64748B));
+  static Color get textHint    => _pick(const Color(0xFF484F58), const Color(0xFF94A3B8));
 
   // ── Status ─────────────────────────────────────────────────────
-  static const Color success     = Color(0xFF00E676);
+  static Color get success     => _pick(const Color(0xFF00E676), const Color(0xFF047857));
   static const Color successLight= Color(0xFF69F0AE);
-  static const Color warning     = Color(0xFFFFD600);
-  static const Color danger      = Color(0xFFFF1744);
-  static const Color dangerDark  = Color(0xFFD50000);
-  static const Color info        = Color(0xFF00E5FF);
+  static Color get warning     => _pick(const Color(0xFFFFD600), const Color(0xFFA16207));
+  static Color get danger      => _pick(const Color(0xFFFF1744), const Color(0xFFBE123C));
+  static const Color dangerDark = Color(0xFFD50000);
+  static Color get info        => _pick(const Color(0xFF00E5FF), const Color(0xFF0369A1));
 
   // ── Income / Expense ───────────────────────────────────────────
-  static const Color income      = Color(0xFF00E676);
-  static const Color expense     = Color(0xFFFF1744);
+  static Color get income      => _pick(const Color(0xFF00E676), const Color(0xFF047857));
+  static Color get expense     => _pick(const Color(0xFFFF1744), const Color(0xFFBE123C));
 
   // ── Glass / Border ─────────────────────────────────────────────
-  static const Color glassBorder = Color(0x33FFFFFF);
-  static const Color glassBg     = Color(0x0AFFFFFF);
-  static const Color divider     = Color(0xFF30363D);
+  static Color get glassBorder => _pick(const Color(0x33FFFFFF), const Color(0x1F0F172A));
+  static Color get glassBg     => _pick(const Color(0x0AFFFFFF), const Color(0x0A0F172A));
+  static Color get divider     => _pick(const Color(0xFF30363D), const Color(0xFFD8E0EA));
 
   // ── Numpad ─────────────────────────────────────────────────────
-  static const Color numpadBg    = Color(0xFF0D1117);
-  static const Color numpadKey   = Color(0xFF161B22);
-  static const Color numpadOp    = Color(0xFF21262D);
-  static const Color numpadDel   = Color(0xFFFF1744);
-  static const Color numpadEq    = Color(0xFFB388FF);
-  static const Color numpadOk    = Color(0xFF00E676);
+  static Color get numpadBg  => _pick(const Color(0xFF0D1117), const Color(0xFFE9EEF5));
+  static Color get numpadKey => _pick(const Color(0xFF161B22), const Color(0xFFFFFFFF));
+  static Color get numpadOp  => _pick(const Color(0xFF21262D), const Color(0xFFDCE4EE));
+  static Color get numpadDel => _pick(const Color(0xFFFF1744), const Color(0xFFBE123C));
+  static Color get numpadEq  => _pick(const Color(0xFFB388FF), const Color(0xFF6D28D9));
+  static Color get numpadOk  => _pick(const Color(0xFF00E676), const Color(0xFF047857));
 
   // ── Category Tag Colors ────────────────────────────────────────
-  static const Color catFood     = Color(0xFFFF6D00);
-  static const Color catTransport= Color(0xFF00E5FF);
-  static const Color catShopping = Color(0xFFFF4081);
-  static const Color catHealth   = Color(0xFF00E676);
-  static const Color catEntertain= Color(0xFFE040FB);
-  static const Color catBills    = Color(0xFFFF1744);
-  static const Color catEducation= Color(0xFF651FFF);
-  static const Color catSalary   = Color(0xFF00E5FF);
-  static const Color catInvest   = Color(0xFF651FFF);
+  static Color get catFood     => _pick(const Color(0xFFFF6D00), const Color(0xFFC2410C));
+  static Color get catTransport=> _pick(const Color(0xFF00E5FF), const Color(0xFF0369A1));
+  static Color get catShopping => _pick(const Color(0xFFFF4081), const Color(0xFFBE185D));
+  static Color get catHealth   => _pick(const Color(0xFF00E676), const Color(0xFF047857));
+  static Color get catEntertain=> _pick(const Color(0xFFE040FB), const Color(0xFF7E22CE));
+  static Color get catBills    => _pick(const Color(0xFFFF1744), const Color(0xFFBE123C));
+  static Color get catEducation=> _pick(const Color(0xFF651FFF), const Color(0xFF4C1D95));
+  static Color get catSalary   => _pick(const Color(0xFF00E5FF), const Color(0xFF0369A1));
+  static Color get catInvest   => _pick(const Color(0xFF651FFF), const Color(0xFF4C1D95));
 
-  // ── Gradients ──────────────────────────────────────────────────
+  // ── Gradients (tetap `const`, aman di kedua mode) ──────────────
   static const List<Color> gradientPrimary = [Color(0xFF00E5FF), Color(0xFF00B8D4)];
   static const List<Color> gradientIncome  = [Color(0xFF00E676), Color(0xFF00C853)];
   static const List<Color> gradientExpense = [Color(0xFFFF1744), Color(0xFFD50000)];
@@ -68,15 +104,15 @@ class AppColors {
   static const List<Color> gradientPurple  = [Color(0xFFE040FB), Color(0xFFAA00FF)];
 
   // ── Need / Want / Saving ───────────────────────────────────────
-  static const Color typeNeed    = Color(0xFF00E5FF);
-  static const Color typeWant    = Color(0xFFFFD600);
-  static const Color typeSaving  = Color(0xFF00E676);
+  static Color get typeNeed    => _pick(const Color(0xFF00E5FF), const Color(0xFF0369A1));
+  static Color get typeWant    => _pick(const Color(0xFFFFD600), const Color(0xFFA16207));
+  static Color get typeSaving  => _pick(const Color(0xFF00E676), const Color(0xFF047857));
 
   // ── Analytics Chart Palette (variatif & presisi) ───────────────
   // Status bar berdasarkan % pemakaian budget: aman → hampir → lewat
-  static const Color chartSafe   = Color(0xFF00E5FF); // 0–70%
-  static const Color chartWarn   = Color(0xFFFFB020); // 70–100%
-  static const Color chartOver   = Color(0xFFFF2D55); // >100%
+  static Color get chartSafe   => _pick(const Color(0xFF00E5FF), const Color(0xFF0E7490)); // 0-70%
+  static Color get chartWarn   => _pick(const Color(0xFFFFB020), const Color(0xFFB45309)); // 70-100%
+  static Color get chartOver   => _pick(const Color(0xFFFF2D55), const Color(0xFFBE123C)); // >100%
 
   static const List<Color> gradientChartSafe = [Color(0xFF22D3EE), Color(0xFF0EA5B7)];
   static const List<Color> gradientChartWarn = [Color(0xFFFFC53D), Color(0xFFFF8A00)];

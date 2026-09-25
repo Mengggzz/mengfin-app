@@ -111,7 +111,7 @@ class _AiScreenState extends State<AiScreen> {
             child: const Icon(Icons.auto_awesome, color: Colors.white, size: 18)),
           const SizedBox(width: 10),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('MengFin AI', style: TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+             Text('MengFin AI', style: TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
             Row(children: [
               Container(width: 6, height: 6, decoration: BoxDecoration(
                 color: ConnectivityService.instance.isOnline ? AppColors.success : AppColors.danger,
@@ -127,7 +127,7 @@ class _AiScreenState extends State<AiScreen> {
         actions: [
           IconButton(
             onPressed: () => setState(() { _msgs.clear(); _msgs.add(_Msg(id: 'welcome', isUser: false, text: '👋 Sesi baru! Ada yang bisa saya bantu?')); }),
-            icon: const Icon(Icons.refresh_outlined, color: AppColors.textMuted, size: 20),
+            icon:  Icon(Icons.refresh_outlined, color: AppColors.textMuted, size: 20),
           ),
         ],
       ),
@@ -153,7 +153,7 @@ class _AiScreenState extends State<AiScreen> {
                 margin: const EdgeInsets.only(right: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.glassBorder)),
-                child: Text(p, style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w500)),
+                child: Text(p, style:  TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w500)),
               ),
             )).toList(),
           )),
@@ -161,22 +161,22 @@ class _AiScreenState extends State<AiScreen> {
         // Input bar
         Container(
           padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).viewInsets.bottom + 12),
-          decoration: const BoxDecoration(
+          decoration:  BoxDecoration(
             color: AppColors.bgCard,
             border: Border(top: BorderSide(color: AppColors.glassBorder)),
           ),
           child: Row(children: [
             Expanded(child: TextField(
               controller: _ctrl,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+              style:  TextStyle(color: AppColors.textPrimary, fontSize: 14),
               maxLines: 3, minLines: 1,
               decoration: InputDecoration(
                 hintText: 'Tulis pesan atau catat transaksi...',
-                hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                hintStyle:  TextStyle(color: AppColors.textMuted, fontSize: 13),
                 filled: true, fillColor: AppColors.bgElevated,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.glassBorder)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.glassBorder)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide:  BorderSide(color: AppColors.glassBorder)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide:  BorderSide(color: AppColors.glassBorder)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide:  BorderSide(color: AppColors.primary)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               ),
             )),
@@ -208,7 +208,7 @@ class _AiScreenState extends State<AiScreen> {
           if (!m.isUser) ...[
             Container(width: 30, height: 30, margin: const EdgeInsets.only(right: 8, bottom: 2),
               decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.auto_awesome, size: 14, color: AppColors.primary)),
+              child:  Icon(Icons.auto_awesome, size: 14, color: AppColors.primary)),
           ],
           Flexible(child: Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -233,7 +233,7 @@ class _AiScreenState extends State<AiScreen> {
                     child: Container(padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(color: AppColors.success.withOpacity(0.15), borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: AppColors.success.withOpacity(0.4))),
-                      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      child:  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Icon(Icons.check_circle_outline, size: 16, color: AppColors.success),
                         SizedBox(width: 4),
                         Text('Simpan', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 13)),
@@ -245,7 +245,7 @@ class _AiScreenState extends State<AiScreen> {
                     child: Container(padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(color: AppColors.danger.withOpacity(0.15), borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: AppColors.danger.withOpacity(0.4))),
-                      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      child:  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Icon(Icons.cancel_outlined, size: 16, color: AppColors.danger),
                         SizedBox(width: 4),
                         Text('Batal', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600, fontSize: 13)),
@@ -266,7 +266,7 @@ class _AiScreenState extends State<AiScreen> {
       margin: const EdgeInsets.only(bottom: 12, left: 38),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.glassBorder)),
-      child: const SizedBox(width: 40, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+      child:  SizedBox(width: 40, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
     ),
   );
 

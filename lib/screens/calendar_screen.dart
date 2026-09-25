@@ -79,11 +79,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgElevated,
-        title: const Text('Hapus Transaksi?', style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text('Tindakan ini tidak dapat dibatalkan.', style: TextStyle(color: AppColors.textMuted)),
+        title:  Text('Hapus Transaksi?', style: TextStyle(color: AppColors.textPrimary)),
+        content:  Text('Tindakan ini tidak dapat dibatalkan.', style: TextStyle(color: AppColors.textMuted)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Hapus', style: TextStyle(color: AppColors.expense))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child:  Text('Batal', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child:  Text('Hapus', style: TextStyle(color: AppColors.expense))),
         ],
       ),
     );
@@ -115,23 +115,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.bg,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon:  Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Peta Kalender', style: TextStyle(
+        title:  Text('Peta Kalender', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ?  Center(child: CircularProgressIndicator(color: AppColors.primary))
           : ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
         // ── Date range ─────────────────────────────────────
         Row(children: [
-          const Icon(Icons.calendar_today, size: 14, color: AppColors.textMuted),
+           Icon(Icons.calendar_today, size: 14, color: AppColors.textMuted),
           const SizedBox(width: 6),
           Text(
             '1 ${formatBulanShort('${_selectedMonth.year}-${_selectedMonth.month.toString().padLeft(2, '0')}')} – '
             '$daysInMonth ${formatBulanShort('${_selectedMonth.year}-${_selectedMonth.month.toString().padLeft(2, '0')}')}',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            style:  TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),
         ]),
         const SizedBox(height: 8),
@@ -143,7 +143,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             color: AppColors.primary.withOpacity(0.15),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+          child:  Row(mainAxisSize: MainAxisSize.min, children: [
             Text('Dompet Utama', style: TextStyle(
               color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600)),
           ]),
@@ -168,12 +168,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
         // ── Month Navigation ─────────────────────────────────
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           IconButton(onPressed: () => _changeMonth(-1),
-            icon: const Icon(Icons.chevron_left, color: AppColors.textSecond)),
+            icon:  Icon(Icons.chevron_left, color: AppColors.textSecond)),
           Text(
             formatBulan('${_selectedMonth.year}-${_selectedMonth.month.toString().padLeft(2, '0')}'),
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+            style:  TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
           IconButton(onPressed: () => _changeMonth(1),
-            icon: const Icon(Icons.chevron_right, color: AppColors.textSecond)),
+            icon:  Icon(Icons.chevron_right, color: AppColors.textSecond)),
         ]),
         const SizedBox(height: 8),
 
@@ -194,14 +194,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text(
               '${_selectedDate.day} ${formatBulanShort('${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}')}',
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
+              style:  TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
             Text(
               '${selectedDayTx.length} transaksi · Rp ${formatAmount(totalForDay)}',
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              style:  TextStyle(color: AppColors.textMuted, fontSize: 12)),
           ]),
         ),
         if (selectedDayTx.isEmpty)
-          const Padding(padding: EdgeInsets.symmetric(vertical: 24),
+           Padding(padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(child: Text('Tidak ada transaksi pada hari ini',
               style: TextStyle(color: AppColors.textMuted, fontSize: 13))))
         else

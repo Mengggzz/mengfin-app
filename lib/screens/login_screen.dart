@@ -97,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen>
   Widget build(BuildContext context) {
     // Tampilkan loading spinner saat redirect ke home
     if (_redirecting) {
-      return const Scaffold(
+      return  Scaffold(
         backgroundColor: AppColors.bg,
         body: Center(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -138,12 +138,12 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 const SizedBox(height: 28),
 
-                const Text('MengFin', style: TextStyle(
+                 Text('MengFin', style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: -1,
                 )),
                 const SizedBox(height: 8),
-                const Text('Kelola keuangan pribadimu\ndengan cerdas & simpel 💡',
+                 Text('Kelola keuangan pribadimu\ndengan cerdas & simpel 💡',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textMuted, fontSize: 15, height: 1.5)),
                 const SizedBox(height: 48),
@@ -165,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen>
                       child: Center(child: Text(f.$1, style: const TextStyle(fontSize: 20))),
                     ),
                     const SizedBox(width: 14),
-                    Text(f.$2, style: const TextStyle(color: AppColors.textSecond, fontSize: 14)),
+                    Text(f.$2, style:  TextStyle(color: AppColors.textSecond, fontSize: 14)),
                   ]),
                 )),
                 const SizedBox(height: 40),
@@ -181,9 +181,9 @@ class _LoginScreenState extends State<LoginScreen>
                       border: Border.all(color: AppColors.danger.withOpacity(0.3)),
                     ),
                     child: Row(children: [
-                      const Icon(Icons.error_outline, color: AppColors.danger, size: 16),
+                       Icon(Icons.error_outline, color: AppColors.danger, size: 16),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 13))),
+                      Expanded(child: Text(_error!, style:  TextStyle(color: AppColors.danger, fontSize: 13))),
                     ]),
                   ),
 
@@ -202,7 +202,7 @@ class _LoginScreenState extends State<LoginScreen>
                       side: const BorderSide(color: Color(0xFFE0E0E0)),
                     ),
                     child: _loading
-                      ? const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      ?  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                           SizedBox(width: 20, height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2, color: AppColors.primary)),
@@ -215,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen>
                             'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
                             width: 22, height: 22,
                             errorBuilder: (_, __, ___) =>
-                                const Icon(Icons.login, size: 22, color: AppColors.primary),
+                                 Icon(Icons.login, size: 22, color: AppColors.primary),
                           ),
                           const SizedBox(width: 12),
                           const Text('Masuk dengan Google',
@@ -226,10 +226,10 @@ class _LoginScreenState extends State<LoginScreen>
 
                 const SizedBox(height: 16),
                 if (kIsWeb && !_loading)
-                  const Text('Kamu akan diarahkan ke halaman Google',
+                   Text('Kamu akan diarahkan ke halaman Google',
                     style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                 const SizedBox(height: 8),
-                const Text('Data kamu aman & terenkripsi 🔒',
+                 Text('Data kamu aman & terenkripsi 🔒',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
               ],

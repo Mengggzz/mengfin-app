@@ -13,7 +13,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
   List<Goal> _goals = [];
   bool _loading = true;
 
-  static const _prioColors = {'tinggi': AppColors.danger, 'sedang': AppColors.warning, 'rendah': AppColors.success};
+  static final _prioColors = {'tinggi': AppColors.danger, 'sedang': AppColors.warning, 'rendah': AppColors.success};
   static const _prioLabels = {'tinggi': '🔴 Tinggi', 'sedang': '🟡 Sedang', 'rendah': '🟢 Rendah'};
 
   @override
@@ -30,10 +30,10 @@ class _GoalsScreenState extends State<GoalsScreen> {
   Future<void> _delete(int id) async {
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       backgroundColor: AppColors.bgCard,
-      title: const Text('Hapus Goal', style: TextStyle(color: AppColors.textPrimary)),
+      title:  Text('Hapus Goal', style: TextStyle(color: AppColors.textPrimary)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
-        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Hapus', style: TextStyle(color: AppColors.danger))),
+        TextButton(onPressed: () => Navigator.pop(context, false), child:  Text('Batal', style: TextStyle(color: AppColors.textMuted))),
+        TextButton(onPressed: () => Navigator.pop(context, true), child:  Text('Hapus', style: TextStyle(color: AppColors.danger))),
       ],
     ));
     if (ok == true) { await ApiService.deleteGoal(id); _load(); }
@@ -49,16 +49,16 @@ class _GoalsScreenState extends State<GoalsScreen> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 16),
-          Text('Tambah Dana ke "${g.nama}"', style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800)),
+          Text('Tambah Dana ke "${g.nama}"', style:  TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800)),
           const SizedBox(height: 16),
           TextField(
             keyboardType: TextInputType.number,
-            style: const TextStyle(color: AppColors.textPrimary),
-            decoration: InputDecoration(hintText: '100.000', hintStyle: const TextStyle(color: AppColors.textMuted),
+            style:  TextStyle(color: AppColors.textPrimary),
+            decoration: InputDecoration(hintText: '100.000', hintStyle:  TextStyle(color: AppColors.textMuted),
               filled: true, fillColor: AppColors.bgElevated,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.glassBorder)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.glassBorder)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary))),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.glassBorder)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.glassBorder)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.primary))),
             onChanged: (v) => tambah = v,
           ),
           const SizedBox(height: 16),
@@ -88,13 +88,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
         child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 16),
-          const Text('Buat Goal Baru', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
+           Text('Buat Goal Baru', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 16),
           _field('Nama Goal', 'Liburan ke Bali...', (v) => nama = v),
           _field('Target (Rp)', '5.000.000', (v) => target = v, number: true),
           _field('Nabung/Bulan (Rp, opsional)', '500.000', (v) => nabung = v, number: true),
           _field('Deadline (YYYY-MM-DD, opsional)', '2026-12-31', (v) => deadline = v),
-          const Text('PRIORITAS', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
+           Text('PRIORITAS', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Row(children: _prioColors.keys.map((p) => Expanded(child: Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -137,17 +137,17 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
   Widget _field(String label, String hint, Function(String) onChange, {bool number = false, bool multiline = false}) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label.toUpperCase(), style: const TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
+      Text(label.toUpperCase(), style:  TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
       const SizedBox(height: 6),
       TextField(
         keyboardType: number ? TextInputType.number : TextInputType.text,
         maxLines: multiline ? 3 : 1,
-        style: const TextStyle(color: AppColors.textPrimary),
-        decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: AppColors.textMuted),
+        style:  TextStyle(color: AppColors.textPrimary),
+        decoration: InputDecoration(hintText: hint, hintStyle:  TextStyle(color: AppColors.textMuted),
           filled: true, fillColor: AppColors.bgElevated,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.glassBorder)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.glassBorder)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary))),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.glassBorder)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.glassBorder)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.primary))),
         onChanged: onChange,
       ),
       const SizedBox(height: 12),
@@ -159,7 +159,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: AppColors.bg,
-        title: const Text('Tabungan & Goals', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
+        title:  Text('Tabungan & Goals', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
         actions: [
           IconButton(
             icon: Container(padding: const EdgeInsets.all(8),
@@ -171,16 +171,16 @@ class _GoalsScreenState extends State<GoalsScreen> {
         ],
       ),
       body: _loading
-        ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+        ?  Center(child: CircularProgressIndicator(color: AppColors.primary))
         : RefreshIndicator(
             color: AppColors.primary, backgroundColor: AppColors.bgCard, onRefresh: _load,
             child: _goals.isEmpty
               ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Text('🏆', style: TextStyle(fontSize: 64)),
                   const SizedBox(height: 12),
-                  const Text('Belum ada goals', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+                   Text('Belum ada goals', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
-                  const Text('Tetapkan tujuan tabunganmu!', style: TextStyle(color: AppColors.textMuted)),
+                   Text('Tetapkan tujuan tabunganmu!', style: TextStyle(color: AppColors.textMuted)),
                   const SizedBox(height: 20),
                   ElevatedButton(onPressed: _showAddModal,
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white,
@@ -210,25 +210,25 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           ])),
                           const SizedBox(width: 14),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(g.nama, style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+                            Text(g.nama, style:  TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
                             const SizedBox(height: 4),
-                            Text(_prioLabels[g.prioritas] ?? '', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                            if (g.deadline != null) Text('📅 ${g.deadline}', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                            Text(_prioLabels[g.prioritas] ?? '', style:  TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                            if (g.deadline != null) Text('📅 ${g.deadline}', style:  TextStyle(color: AppColors.textMuted, fontSize: 12)),
                           ])),
                           GestureDetector(onTap: () => _delete(g.id),
                             child: Container(padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(color: AppColors.danger.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                              child: const Icon(Icons.delete_outline, size: 16, color: AppColors.danger))),
+                              child:  Icon(Icons.delete_outline, size: 16, color: AppColors.danger))),
                         ]),
                         const SizedBox(height: 12),
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            const Text('Terkumpul', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                             Text('Terkumpul', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                             CurrencyText(g.terkumpul, short: true, fontSize: 13, fontWeight: FontWeight.w700,
                               color: g.tercapai ? AppColors.success : AppColors.textPrimary),
                           ]),
                           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                            const Text('Target', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                             Text('Target', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                             CurrencyText(g.target, short: true, fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecond),
                           ]),
                         ]),
@@ -237,18 +237,18 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         if (g.nabungPerBulan > 0) ...[
                           const SizedBox(height: 10),
                           Row(children: [
-                            const Icon(Icons.savings_outlined, size: 14, color: AppColors.primary),
+                             Icon(Icons.savings_outlined, size: 14, color: AppColors.primary),
                             const SizedBox(width: 6),
-                            Text('Nabung ', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                            Text('Nabung ', style:  TextStyle(color: AppColors.textMuted, fontSize: 12)),
                             CurrencyText(g.nabungPerBulan, short: true, fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
-                            const Text('/bulan', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                             Text('/bulan', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                           ]),
                         ],
                         if (g.tercapai) ...[
                           const SizedBox(height: 10),
                           Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(color: AppColors.success.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-                            child: const Text('🎉 Goal Tercapai!', textAlign: TextAlign.center,
+                            child:  Text('🎉 Goal Tercapai!', textAlign: TextAlign.center,
                               style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w700))),
                         ] else ...[
                           const SizedBox(height: 10),
@@ -257,7 +257,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                             child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10),
                               decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10),
                                 border: Border.all(color: AppColors.primary.withOpacity(0.3))),
-                              child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              child:  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                                 Icon(Icons.add_circle_outline, size: 16, color: AppColors.primary),
                                 SizedBox(width: 6),
                                 Text('Tambah Dana', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13)),

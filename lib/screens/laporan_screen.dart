@@ -125,7 +125,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
               color: AppColors.textMuted.withOpacity(0.3),
               borderRadius: BorderRadius.circular(2)),
           ),
-          const Padding(
+           Padding(
             padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Align(alignment: Alignment.centerLeft, child: Text(
               'Pilih Periode', style: TextStyle(color: AppColors.textPrimary,
@@ -144,7 +144,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
                   color: selected ? AppColors.primary : AppColors.textPrimary,
                   fontSize: 14, fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
                 trailing: selected
-                  ? const Icon(Icons.check_circle, color: AppColors.primary, size: 18)
+                  ?  Icon(Icons.check_circle, color: AppColors.primary, size: 18)
                   : null,
                 onTap: () => Navigator.pop(ctx, m),
               );
@@ -203,12 +203,12 @@ class _LaporanScreenState extends State<LaporanScreen> {
         Container(width: 40, height: 4, margin: const EdgeInsets.only(top: 12),
           decoration: BoxDecoration(color: AppColors.textMuted.withOpacity(0.3),
             borderRadius: BorderRadius.circular(2))),
-        const Padding(
+         Padding(
           padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
           child: Align(alignment: Alignment.centerLeft, child: Text('Ekspor Laporan',
             style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700))),
         ),
-        const Padding(
+         Padding(
           padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
           child: Align(alignment: Alignment.centerLeft, child: Text(
             'Unduh transaksi periode terpilih sebagai file',
@@ -217,20 +217,20 @@ class _LaporanScreenState extends State<LaporanScreen> {
         ListTile(
           leading: Container(width: 40, height: 40, decoration: BoxDecoration(
             color: AppColors.income.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.table_chart_outlined, color: AppColors.income, size: 20)),
-          title: const Text('Ekspor CSV', style: TextStyle(
+            child:  Icon(Icons.table_chart_outlined, color: AppColors.income, size: 20)),
+          title:  Text('Ekspor CSV', style: TextStyle(
             color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-          subtitle: const Text('Buka di Excel / Google Sheets', style: TextStyle(
+          subtitle:  Text('Buka di Excel / Google Sheets', style: TextStyle(
             color: AppColors.textMuted, fontSize: 11)),
           onTap: () => Navigator.pop(ctx, 'csv'),
         ),
         ListTile(
           leading: Container(width: 40, height: 40, decoration: BoxDecoration(
             color: AppColors.expense.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.picture_as_pdf_outlined, color: AppColors.expense, size: 20)),
-          title: const Text('Ekspor PDF', style: TextStyle(
+            child:  Icon(Icons.picture_as_pdf_outlined, color: AppColors.expense, size: 20)),
+          title:  Text('Ekspor PDF', style: TextStyle(
             color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-          subtitle: const Text('Laporan siap cetak / dibagikan', style: TextStyle(
+          subtitle:  Text('Laporan siap cetak / dibagikan', style: TextStyle(
             color: AppColors.textMuted, fontSize: 11)),
           onTap: () => Navigator.pop(ctx, 'pdf'),
         ),
@@ -241,7 +241,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
     if (pilihan == null || !mounted) return;
     final txs = _txPeriode;
     if (txs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(
         content: Text('Tidak ada transaksi pada periode ini'),
         backgroundColor: AppColors.warning));
       return;
@@ -279,10 +279,10 @@ class _LaporanScreenState extends State<LaporanScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.bg,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon:  Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Laporan', style: TextStyle(
+        title:  Text('Laporan', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         actions: [
           IconButton(
@@ -294,7 +294,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
                 color: AppColors.bgCard,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.glassBorder)),
-              child: const Icon(Icons.ios_share_rounded,
+              child:  Icon(Icons.ios_share_rounded,
                 color: AppColors.textSecond, size: 17),
             ),
           ),
@@ -302,7 +302,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ?  Center(child: CircularProgressIndicator(color: AppColors.primary))
           : RefreshIndicator(
               onRefresh: _load,
               color: AppColors.primary,
@@ -320,17 +320,17 @@ class _LaporanScreenState extends State<LaporanScreen> {
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Row(children: [
-                    const Icon(Icons.calendar_today, size: 14, color: AppColors.textMuted),
+                     Icon(Icons.calendar_today, size: 14, color: AppColors.textMuted),
                     const SizedBox(width: 8),
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(formatBulan(_periode),
-                        style: const TextStyle(color: AppColors.textPrimary,
+                        style:  TextStyle(color: AppColors.textPrimary,
                           fontSize: 13, fontWeight: FontWeight.w600)),
                       Text('${_txPeriode.length} transaksi tercatat',
-                        style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                        style:  TextStyle(color: AppColors.textMuted, fontSize: 11)),
                     ]),
                   ]),
-                  const Icon(Icons.keyboard_arrow_down, color: AppColors.textMuted, size: 20),
+                   Icon(Icons.keyboard_arrow_down, color: AppColors.textMuted, size: 20),
                 ]),
               ),
             ),
@@ -363,7 +363,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // ── Arus Kas Bersih ──────────────────────────────────
       GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Arus kas bersih', style: TextStyle(
+         Text('Arus kas bersih', style: TextStyle(
           color: AppColors.textSecond, fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         Text(
@@ -392,9 +392,9 @@ class _LaporanScreenState extends State<LaporanScreen> {
               )),
               Column(mainAxisSize: MainAxisSize.min, children: [
                 Text(_netCashFlow >= 0 ? 'Masuk' : 'Keluar',
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 9)),
+                  style:  TextStyle(color: AppColors.textMuted, fontSize: 9)),
                 Text('Rp ${formatAmount(_netCashFlow.abs())}',
-                  style: const TextStyle(color: AppColors.textPrimary,
+                  style:  TextStyle(color: AppColors.textPrimary,
                     fontSize: 10, fontWeight: FontWeight.w700)),
               ]),
             ]),
@@ -412,7 +412,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
       // ── Pergerakan uang (transfer internal) ──────────────
       GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text('Pergerakan uang', style: TextStyle(
+           Text('Pergerakan uang', style: TextStyle(
             color: AppColors.textSecond, fontSize: 14, fontWeight: FontWeight.w600)),
           Text('Rp ${formatAmount(_totalTransfer)}', style: TextStyle(
             color: _totalTransfer > 0 ? AppColors.textPrimary : AppColors.textMuted,
@@ -423,7 +423,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
           _totalTransfer > 0
             ? '${_txPeriode.where((t) => t.jenis == 'transfer').length} transfer internal pada periode ini'
             : 'Tidak ada transfer internal pada periode ini',
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          style:  TextStyle(color: AppColors.textMuted, fontSize: 12)),
       ])),
       const SizedBox(height: 12),
 
@@ -431,10 +431,10 @@ class _LaporanScreenState extends State<LaporanScreen> {
       GlassCard(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Row(children: [
-            const Text('Anggap transfer sebagai arus kas', style: TextStyle(
+             Text('Anggap transfer sebagai arus kas', style: TextStyle(
               color: AppColors.textSecond, fontSize: 12)),
             const SizedBox(width: 4),
-            const Icon(Icons.info_outline, size: 14, color: AppColors.textMuted),
+             Icon(Icons.info_outline, size: 14, color: AppColors.textMuted),
           ]),
           Switch(
             value: _transferAsCashflow,
@@ -448,11 +448,11 @@ class _LaporanScreenState extends State<LaporanScreen> {
 
       // ── Tujuan Pengeluaran (Need/Want/Saving dari data nyata) ──
       GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Tujuan pengeluaran', style: TextStyle(
+         Text('Tujuan pengeluaran', style: TextStyle(
           color: AppColors.textSecond, fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(height: 16),
         if (totalNWS <= 0)
-          const Padding(padding: EdgeInsets.symmetric(vertical: 12),
+           Padding(padding: EdgeInsets.symmetric(vertical: 12),
             child: Text('Belum ada pengeluaran pada periode ini',
               style: TextStyle(color: AppColors.textMuted, fontSize: 12)))
         else
@@ -472,10 +472,10 @@ class _LaporanScreenState extends State<LaporanScreen> {
                   centerSpaceRadius: 28, sectionsSpace: 2, startDegreeOffset: -90,
                 )),
                 Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Text('Kebutuhan', style: TextStyle(
+                   Text('Kebutuhan', style: TextStyle(
                     color: AppColors.textMuted, fontSize: 8)),
                   Text('${(nws.need / totalNWS * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(color: AppColors.textPrimary,
+                    style:  TextStyle(color: AppColors.textPrimary,
                       fontSize: 12, fontWeight: FontWeight.w700)),
                 ]),
               ]),
@@ -495,7 +495,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
       // ── Kategori terbesar ────────────────────────────────
       if (topKategori.isNotEmpty) ...[
         GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Kategori pengeluaran terbesar', style: TextStyle(
+           Text('Kategori pengeluaran terbesar', style: TextStyle(
             color: AppColors.textSecond, fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 14),
           ...topKategori.take(5).map((e) {
@@ -507,16 +507,16 @@ class _LaporanScreenState extends State<LaporanScreen> {
                 Row(children: [
                   Text(kat.icon, style: const TextStyle(fontSize: 14)),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(e.key, style: const TextStyle(
+                  Expanded(child: Text(e.key, style:  TextStyle(
                     color: AppColors.textPrimary, fontSize: 12.5,
                     fontWeight: FontWeight.w600))),
-                  Text('Rp ${formatAmount(e.value)}', style: const TextStyle(
+                  Text('Rp ${formatAmount(e.value)}', style:  TextStyle(
                     color: AppColors.textSecond, fontSize: 12,
                     fontWeight: FontWeight.w600)),
                   const SizedBox(width: 8),
                   SizedBox(width: 40, child: Text('${persen.toStringAsFixed(0)}%',
                     textAlign: TextAlign.right,
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11))),
+                    style:  TextStyle(color: AppColors.textMuted, fontSize: 11))),
                 ]),
                 const SizedBox(height: 5),
                 ClipRRect(
@@ -544,7 +544,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
                 begin: Alignment.topCenter, end: Alignment.bottomCenter),
               borderRadius: BorderRadius.circular(2))),
             const SizedBox(width: 8),
-            const Text('Analisis AI', style: TextStyle(
+             Text('Analisis AI', style: TextStyle(
               color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
           ]),
           const SizedBox(height: 12),
@@ -560,9 +560,9 @@ class _LaporanScreenState extends State<LaporanScreen> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.expense.withOpacity(0.3))),
           child: Row(children: [
-            const Icon(Icons.error_outline, color: AppColors.expense, size: 16),
+             Icon(Icons.error_outline, color: AppColors.expense, size: 16),
             const SizedBox(width: 8),
-            Expanded(child: Text(_narasiError!, style: const TextStyle(
+            Expanded(child: Text(_narasiError!, style:  TextStyle(
               color: AppColors.expense, fontSize: 12))),
           ]),
         ),
@@ -616,14 +616,14 @@ class _LaporanScreenState extends State<LaporanScreen> {
         spans.add(TextSpan(
           text: parts[j],
           style: j.isOdd
-            ? const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)
+            ?  TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)
             : null,
         ));
       }
       if (i < lines.length - 1) spans.add(const TextSpan(text: '\n'));
     }
     return RichText(text: TextSpan(
-      style: const TextStyle(color: AppColors.textSecond, fontSize: 12.5, height: 1.65),
+      style:  TextStyle(color: AppColors.textSecond, fontSize: 12.5, height: 1.65),
       children: spans));
   }
 
@@ -632,13 +632,13 @@ class _LaporanScreenState extends State<LaporanScreen> {
       Container(width: 8, height: 8, decoration: BoxDecoration(
         color: color, borderRadius: BorderRadius.circular(2))),
       const SizedBox(width: 8),
-      Text(label, style: const TextStyle(color: AppColors.textSecond, fontSize: 12)),
+      Text(label, style:  TextStyle(color: AppColors.textSecond, fontSize: 12)),
       const Spacer(),
       Text('Rp ${formatAmount(amount)}',
-        style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+        style:  TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
       const SizedBox(width: 8),
       Text('${persen.toStringAsFixed(1)}%',
-        style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+        style:  TextStyle(color: AppColors.textMuted, fontSize: 11)),
     ]);
 
   Widget _purposeRow(String label, double amount, double total, Color color) =>
@@ -646,13 +646,13 @@ class _LaporanScreenState extends State<LaporanScreen> {
       Container(width: 8, height: 8, decoration: BoxDecoration(
         color: color, borderRadius: BorderRadius.circular(2))),
       const SizedBox(width: 8),
-      Text(label, style: const TextStyle(color: AppColors.textSecond, fontSize: 12)),
+      Text(label, style:  TextStyle(color: AppColors.textSecond, fontSize: 12)),
       const Spacer(),
       Text('Rp ${formatAmount(amount)}',
-        style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+        style:  TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
       const SizedBox(width: 8),
       Text(total > 0 ? '${(amount / total * 100).toStringAsFixed(1)}%' : '0%',
-        style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+        style:  TextStyle(color: AppColors.textMuted, fontSize: 11)),
     ]);
 
   // ══════════════════════════════════════════════════════════════
@@ -684,7 +684,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
               final now = DateTime.now();
               final months = List.generate(12, (i) => DateTime(now.year, now.month - i, 1));
               return SafeArea(child: ListView(shrinkWrap: true, children: [
-                const Padding(
+                 Padding(
                   padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
                   child: Align(alignment: Alignment.centerLeft, child: Text(
                     'Bandingkan dengan', style: TextStyle(color: AppColors.textPrimary,
@@ -698,7 +698,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
                       color: key == _periodePembanding ? AppColors.primary : AppColors.textPrimary,
                       fontSize: 14)),
                     trailing: key == _periodePembanding
-                      ? const Icon(Icons.check_circle, color: AppColors.primary, size: 18) : null,
+                      ?  Icon(Icons.check_circle, color: AppColors.primary, size: 18) : null,
                     onTap: () => Navigator.pop(ctx, key),
                   );
                 }),
@@ -717,25 +717,25 @@ class _LaporanScreenState extends State<LaporanScreen> {
             border: Border.all(color: AppColors.glassBorder)),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Row(children: [
-              const Icon(Icons.compare_arrows_rounded, size: 15, color: AppColors.textMuted),
+               Icon(Icons.compare_arrows_rounded, size: 15, color: AppColors.textMuted),
               const SizedBox(width: 8),
               Text('${formatBulan(_periode)}  vs  ${formatBulan(_periodePembanding)}',
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13,
+                style:  TextStyle(color: AppColors.textPrimary, fontSize: 13,
                   fontWeight: FontWeight.w600)),
             ]),
-            const Icon(Icons.keyboard_arrow_down, color: AppColors.textMuted, size: 20),
+             Icon(Icons.keyboard_arrow_down, color: AppColors.textMuted, size: 20),
           ]),
         ),
       ),
       const SizedBox(height: 16),
 
       if (_compareLoading)
-        const Padding(padding: EdgeInsets.symmetric(vertical: 40),
+         Padding(padding: EdgeInsets.symmetric(vertical: 40),
           child: Center(child: CircularProgressIndicator(color: AppColors.primary)))
       else ...[
         // Bar chart perbandingan
         GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Perbandingan arus kas', style: TextStyle(
+           Text('Perbandingan arus kas', style: TextStyle(
             color: AppColors.textSecond, fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
           SizedBox(
@@ -747,7 +747,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
                   getTooltipColor: (_) => AppColors.bgElevated,
                   getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
                     'Rp ${formatAmount(rod.toY)}',
-                    const TextStyle(color: AppColors.textPrimary, fontSize: 11,
+                     TextStyle(color: AppColors.textPrimary, fontSize: 11,
                       fontWeight: FontWeight.w700)),
                 ),
               ),
@@ -767,7 +767,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
                     final idx = v.toInt();
                     if (idx < 0 || idx >= labels.length) return const SizedBox();
                     return Padding(padding: const EdgeInsets.only(top: 6),
-                      child: Text(labels[idx], style: const TextStyle(
+                      child: Text(labels[idx], style:  TextStyle(
                         color: AppColors.textMuted, fontSize: 10)));
                   },
                 )),
@@ -825,7 +825,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
     Container(width: 10, height: 10, decoration: BoxDecoration(
       color: color, borderRadius: BorderRadius.circular(3))),
     const SizedBox(width: 6),
-    Text(label, style: const TextStyle(color: AppColors.textSecond, fontSize: 11)),
+    Text(label, style:  TextStyle(color: AppColors.textSecond, fontSize: 11)),
   ]);
 
   Widget _deltaRow(String label, double a, double b, Color color, bool higherIsBetter) {
@@ -839,7 +839,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Text(label, style: const TextStyle(
+        Text(label, style:  TextStyle(
           color: AppColors.textSecond, fontSize: 12.5, fontWeight: FontWeight.w600)),
         const Spacer(),
         if (diff != 0) ...[
@@ -849,20 +849,20 @@ class _LaporanScreenState extends State<LaporanScreen> {
           Text('${persen.abs().toStringAsFixed(1)}%', style: TextStyle(
             color: deltaColor, fontSize: 12, fontWeight: FontWeight.w700)),
         ] else
-          const Text('sama', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+           Text('sama', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
       ]),
       const SizedBox(height: 6),
       Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(formatBulan(_periode), style: const TextStyle(
+          Text(formatBulan(_periode), style:  TextStyle(
             color: AppColors.textMuted, fontSize: 10)),
           Text('Rp ${formatAmount(a)}', style: TextStyle(
             color: color, fontSize: 13, fontWeight: FontWeight.w700)),
         ])),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(formatBulan(_periodePembanding), style: const TextStyle(
+          Text(formatBulan(_periodePembanding), style:  TextStyle(
             color: AppColors.textMuted, fontSize: 10)),
-          Text('Rp ${formatAmount(b)}', style: const TextStyle(
+          Text('Rp ${formatAmount(b)}', style:  TextStyle(
             color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w600)),
         ])),
       ]),

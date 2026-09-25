@@ -188,7 +188,7 @@ class _ScanScreenState extends State<ScanScreen> {
       lastDate: DateTime.now().add(const Duration(days: 1)),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.dark(
+          colorScheme:  ColorScheme.dark(
             primary: AppColors.primary,
             surface: AppColors.bgCard,
           ),
@@ -206,16 +206,16 @@ class _ScanScreenState extends State<ScanScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.bg,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon:  Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context, false),
         ),
-        title: const Text('Scan Struk', style: TextStyle(
+        title:  Text('Scan Struk', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         actions: [
           if (_imageBytes != null && !_scanning)
             IconButton(
               tooltip: 'Scan ulang',
-              icon: const Icon(Icons.refresh_rounded, color: AppColors.textSecond),
+              icon:  Icon(Icons.refresh_rounded, color: AppColors.textSecond),
               onPressed: _scan,
             ),
         ],
@@ -245,7 +245,7 @@ class _ScanScreenState extends State<ScanScreen> {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: AppColors.primary.withOpacity(0.3)),
         ),
-        child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        child:  Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           SizedBox(width: 40, height: 40,
             child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.primary)),
           SizedBox(height: 16),
@@ -278,10 +278,10 @@ class _ScanScreenState extends State<ScanScreen> {
             child: const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 36),
           ),
           const SizedBox(height: 16),
-          const Text('Foto struk belanjamu', style: TextStyle(
+           Text('Foto struk belanjamu', style: TextStyle(
             color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
-          const Text('Total, toko, tanggal, dan item dibaca otomatis',
+           Text('Total, toko, tanggal, dan item dibaca otomatis',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
           const SizedBox(height: 20),
@@ -296,7 +296,7 @@ class _ScanScreenState extends State<ScanScreen> {
           ]),
           if (kIsWeb) ...[
             const SizedBox(height: 12),
-            const Text('Di web, "Kamera" memakai kamera perangkat bila diizinkan.',
+             Text('Di web, "Kamera" memakai kamera perangkat bila diizinkan.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.textHint, fontSize: 10.5)),
           ],
@@ -313,7 +313,7 @@ class _ScanScreenState extends State<ScanScreen> {
           width: double.infinity,
           color: AppColors.bgCard,
           child: Image.memory(_imageBytes!, fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Center(
+            errorBuilder: (_, __, ___) =>  Center(
               child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted, size: 40))),
         ),
       ),
@@ -382,7 +382,7 @@ class _ScanScreenState extends State<ScanScreen> {
             begin: Alignment.topCenter, end: Alignment.bottomCenter),
           borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 8),
-        const Text('Hasil Scan', style: TextStyle(
+         Text('Hasil Scan', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
         const Spacer(),
         Container(
@@ -391,7 +391,7 @@ class _ScanScreenState extends State<ScanScreen> {
             color: AppColors.income.withOpacity(0.12),
             borderRadius: BorderRadius.circular(6),
             border: Border.all(color: AppColors.income.withOpacity(0.3))),
-          child: const Text('AI', style: TextStyle(
+          child:  Text('AI', style: TextStyle(
             color: AppColors.income, fontSize: 10, fontWeight: FontWeight.w800)),
         ),
       ]),
@@ -434,9 +434,9 @@ class _ScanScreenState extends State<ScanScreen> {
         icon: Icons.storefront_rounded, label: 'Toko / Keterangan',
         child: TextField(
           controller: _deskripsiCtrl,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14,
+          style:  TextStyle(color: AppColors.textPrimary, fontSize: 14,
             fontWeight: FontWeight.w600),
-          decoration: const InputDecoration(
+          decoration:  InputDecoration(
             isDense: true, border: InputBorder.none,
             hintText: 'Nama toko', hintStyle: TextStyle(color: AppColors.textHint)),
         ),
@@ -462,7 +462,7 @@ class _ScanScreenState extends State<ScanScreen> {
         onTap: _pickTanggal,
         child: Text(
           formatTanggal(_tanggal.toIso8601String().split('T').first),
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14,
+          style:  TextStyle(color: AppColors.textPrimary, fontSize: 14,
             fontWeight: FontWeight.w600),
         ),
       ),
@@ -504,9 +504,9 @@ class _ScanScreenState extends State<ScanScreen> {
             border: Border.all(color: AppColors.glassBorder)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Icon(Icons.list_alt_rounded, size: 15, color: AppColors.textSecond),
+               Icon(Icons.list_alt_rounded, size: 15, color: AppColors.textSecond),
               const SizedBox(width: 6),
-              Text('${_items.length} item terbaca', style: const TextStyle(
+              Text('${_items.length} item terbaca', style:  TextStyle(
                 color: AppColors.textSecond, fontSize: 12, fontWeight: FontWeight.w600)),
             ]),
             const SizedBox(height: 10),
@@ -517,8 +517,8 @@ class _ScanScreenState extends State<ScanScreen> {
                 child: Row(children: [
                   Expanded(child: Text((it['nama'] ?? '-').toString(),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 12))),
-                  Text('Rp ${formatAmount(harga)}', style: const TextStyle(
+                    style:  TextStyle(color: AppColors.textPrimary, fontSize: 12))),
+                  Text('Rp ${formatAmount(harga)}', style:  TextStyle(
                     color: AppColors.textSecond, fontSize: 12,
                     fontWeight: FontWeight.w600)),
                 ]),
@@ -526,7 +526,7 @@ class _ScanScreenState extends State<ScanScreen> {
             }),
             if (_items.length > 12)
               Text('+${_items.length - 12} item lainnya',
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                style:  TextStyle(color: AppColors.textMuted, fontSize: 11)),
           ]),
         ),
       ],
@@ -541,8 +541,8 @@ class _ScanScreenState extends State<ScanScreen> {
             padding: const EdgeInsets.symmetric(vertical: 15),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: AppColors.glassBorder))),
-          child: const Text('Batal', style: TextStyle(
+              side:  BorderSide(color: AppColors.glassBorder))),
+          child:  Text('Batal', style: TextStyle(
             color: AppColors.textMuted, fontWeight: FontWeight.w600)),
         )),
         const SizedBox(width: 12),
@@ -594,7 +594,7 @@ class _ScanScreenState extends State<ScanScreen> {
             Row(children: [
               Icon(icon, size: 13, color: AppColors.textMuted),
               const SizedBox(width: 6),
-              Text(label.toUpperCase(), style: const TextStyle(
+              Text(label.toUpperCase(), style:  TextStyle(
                 color: AppColors.textMuted, fontSize: 10,
                 fontWeight: FontWeight.w700, letterSpacing: 0.5)),
             ]),
@@ -638,9 +638,9 @@ class _ScanScreenState extends State<ScanScreen> {
       border: Border.all(color: AppColors.glassBorder)),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        const Icon(Icons.lightbulb_outline_rounded, size: 15, color: AppColors.warning),
+         Icon(Icons.lightbulb_outline_rounded, size: 15, color: AppColors.warning),
         const SizedBox(width: 6),
-        const Text('Supaya hasilnya akurat', style: TextStyle(
+         Text('Supaya hasilnya akurat', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 12.5, fontWeight: FontWeight.w700)),
       ]),
       const SizedBox(height: 8),
@@ -651,8 +651,8 @@ class _ScanScreenState extends State<ScanScreen> {
         .map((t) => Padding(
           padding: const EdgeInsets.only(bottom: 5),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('• ', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-            Expanded(child: Text(t, style: const TextStyle(
+             Text('• ', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            Expanded(child: Text(t, style:  TextStyle(
               color: AppColors.textSecond, fontSize: 11.5, height: 1.4))),
           ]),
         )),

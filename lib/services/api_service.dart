@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import '../constants/config.dart';
 import '../models/models.dart';
+import 'app_events.dart';
 import 'auth_service.dart';
+import 'update_service.dart';
 import 'local_db.dart';
 import 'connectivity_service.dart';
 import 'sync_service.dart';
@@ -72,26 +74,55 @@ class ApiService {
   }
 
   // ── Transaksi (offline-aware) ──────────────────────────────────────────────
+  /// Ambil transaksi untuk ditampilkan.
+  ///
+  /// PENTING: baris lokal yang belum terkirim (synced = 0) SELALU ikut
+  /// digabung, walau sedang online. Sebelumnya saat online fungsi ini hanya
+  /// mengembalikan daftar dari server — kalau upload gagal (permintaan
+  /// ditolak atau jaringan putus di tengah), baris lokal tidak terlihat dan
+  /// transaksi hasil scan seolah hilang.
   static Future<List<Transaksi>> getTransaksi({
     String? jenis, int limit = 100,
   }) async {
+    List<Transaksi> server = [];
     if (_online) {
       try {
-        final txs = await getTransaksiFromServer(jenis: jenis, limit: limit);
+        server = await getTransaksiFromServer(jenis: jenis, limit: limit);
         // Update cache lokal (mobile/desktop only)
         if (!kIsWeb) {
-          for (final tx in txs) {
+          // Simpan salinan server ke cache. upsert memakai local_id sebagai
+          // kunci, jadi baris lokal yang id-nya sudah jadi id server tidak
+          // terduplikasi.
+          for (final tx in server) {
             await LocalDb.upsertTransaksi(tx, synced: true);
           }
         }
-        return txs;
       } catch (_) {
-        // Fallback ke lokal (mobile/desktop only)
+        // Gagal ambil dari server → pakai data lokal saja di bawah
       }
     }
-    if (kIsWeb) return [];
-    return LocalDb.getTransaksi(jenis: jenis, limit: limit);
+
+    if (kIsWeb) return server;
+
+    // Gabung dengan baris lokal yang belum tersinkron supaya tidak ada
+    // transaksi yang "hilang" dari tampilan saat upload belum selesai.
+    final pending = await LocalDb.getTransaksi(
+      jenis: jenis, limit: limit, hanyaBelumSync: true);
+
+    final sudahAda = <String>{ for (final t in server) _txKey(t) };
+    final gabungan = <Transaksi>[
+      ...pending.where((t) => !sudahAda.contains(_txKey(t))),
+      ...server,
+    ];
+
+    if (gabungan.isEmpty && !_online) {
+      // Offline dan tidak ada pending → tampilkan seluruh cache.
+      return LocalDb.getTransaksi(jenis: jenis, limit: limit);
+    }
+    return gabungan;
   }
+
+  static String _txKey(Transaksi t) => '${t.id}|${t.localId ?? ''}';
 
   static Future<List<Transaksi>> getTransaksiFromServer({
     String? bulan, String? jenis, int limit = 200,
@@ -107,17 +138,22 @@ class ApiService {
     // Di web: langsung kirim ke server
     if (kIsWeb) {
       final result = await createTransaksiRaw(body);
+      AppEvents.instance.transaksiBerubah();
       return Transaksi.fromJson(result['data']);
     }
 
     final localId = 'tx_${DateTime.now().millisecondsSinceEpoch}';
     await LocalDb.insertTransaksiLocal(body, localId);
+    // Baris lokal sudah tersimpan → beri tahu layar lain sekarang juga,
+    // supaya transaksi tampil walau upload ke server belum selesai/gagal.
+    AppEvents.instance.transaksiBerubah();
 
     if (_online) {
       try {
         final result = await createTransaksiRaw(body);
         final tx = Transaksi.fromJson(result['data']);
         await LocalDb.replaceTransaksiLocalToServer(localId, tx.id);
+        AppEvents.instance.transaksiBerubah();
         return tx;
       } catch (_) {}
     }
@@ -144,9 +180,11 @@ class ApiService {
   static Future<void> deleteTransaksi(dynamic id) async {
     if (kIsWeb) {
       if (id != null) await deleteTransaksiRaw(id);
+      AppEvents.instance.transaksiBerubah();
       return;
     }
     await LocalDb.deleteTransaksi(id);
+    AppEvents.instance.transaksiBerubah();
     if (_online) {
       try {
         if (id != null) await deleteTransaksiRaw(id);
@@ -197,10 +235,12 @@ class ApiService {
   static Future<void> createAnggaran(String kategori, double batas, String periode) async {
     if (kIsWeb) {
       await createAnggaranRaw(kategori, batas, periode);
+      AppEvents.instance.anggaranBerubah();
       return;
     }
     final localId = 'ang_${DateTime.now().millisecondsSinceEpoch}';
     await LocalDb.insertAnggaranLocal(localId, kategori, batas, periode);
+    AppEvents.instance.anggaranBerubah();
 
     if (_online) {
       try {
@@ -220,8 +260,13 @@ class ApiService {
       _post('/anggaran', {'kategori': kategori, 'batas': batas, 'periode': periode});
 
   static Future<void> updateAnggaran(dynamic id, double batas) async {
-    if (kIsWeb) { await updateAnggaranRaw(id, batas); return; }
+    if (kIsWeb) {
+      await updateAnggaranRaw(id, batas);
+      AppEvents.instance.anggaranBerubah();
+      return;
+    }
     await LocalDb.updateAnggaranBatas(id, batas);
+    AppEvents.instance.anggaranBerubah();
     if (_online) {
       try {
         await updateAnggaranRaw(id, batas);
@@ -238,8 +283,13 @@ class ApiService {
       _put('/anggaran/$id', {'batas': batas});
 
   static Future<void> deleteAnggaran(dynamic id) async {
-    if (kIsWeb) { await deleteAnggaranRaw(id); return; }
+    if (kIsWeb) {
+      await deleteAnggaranRaw(id);
+      AppEvents.instance.anggaranBerubah();
+      return;
+    }
     await LocalDb.deleteAnggaran(id);
+    AppEvents.instance.anggaranBerubah();
     if (_online) {
       try {
         await deleteAnggaranRaw(id);
@@ -279,9 +329,14 @@ class ApiService {
   }
 
   static Future<void> createGoal(Map<String, dynamic> body) async {
-    if (kIsWeb) { await createGoalRaw(body); return; }
+    if (kIsWeb) {
+      await createGoalRaw(body);
+      AppEvents.instance.goalsBerubah();
+      return;
+    }
     final localId = 'goal_${DateTime.now().millisecondsSinceEpoch}';
     await LocalDb.insertGoalLocal(localId, body);
+    AppEvents.instance.goalsBerubah();
 
     if (_online) {
       try {
@@ -299,8 +354,13 @@ class ApiService {
       _post('/goals', body);
 
   static Future<void> updateProgres(dynamic id, double tambah) async {
-    if (kIsWeb) { await updateProgresRaw(id, tambah); return; }
+    if (kIsWeb) {
+      await updateProgresRaw(id, tambah);
+      AppEvents.instance.goalsBerubah();
+      return;
+    }
     await LocalDb.updateGoalProgres(id, tambah);
+    AppEvents.instance.goalsBerubah();
     if (_online) {
       try {
         await updateProgresRaw(id, tambah);
@@ -317,8 +377,13 @@ class ApiService {
       _put('/goals/$id/progres', {'tambah': tambah});
 
   static Future<void> deleteGoal(dynamic id) async {
-    if (kIsWeb) { await deleteGoalRaw(id); return; }
+    if (kIsWeb) {
+      await deleteGoalRaw(id);
+      AppEvents.instance.goalsBerubah();
+      return;
+    }
     await LocalDb.deleteGoal(id);
+    AppEvents.instance.goalsBerubah();
     if (_online) {
       try {
         await deleteGoalRaw(id);
@@ -363,14 +428,19 @@ class ApiService {
   }
 
   // ── Update checker (via backend, terintegrasi GitHub) ──────────────────────
-  static Future<Map<String, dynamic>> checkUpdate() async {
-    if (kIsWeb) return {'has_update': false, 'unknown_current': true};
-    final res = await _client.get(
-      Uri.parse('$kApiBaseUrl/update/check?current=$kAppBuildTag'),
-      headers: {'Accept': 'application/json'},
-    ).timeout(const Duration(seconds: 12));
-    if (res.statusCode != 200) throw Exception('update check failed: ${res.statusCode}');
-    return jsonDecode(res.body) as Map<String, dynamic>;
+  /// Cek update. Dulu fungsi ini memanggil backend `/update/check`, tapi
+  /// server produksi masih versi lama dan membalas 404 sehingga notifikasi
+  /// update selalu gagal senyap. Sekarang sumber utamanya GitHub Releases.
+  static Future<Map<String, dynamic>> checkUpdate({bool force = false}) async {
+    final r = await UpdateService.instance.checkForUpdate(force: force);
+    return {
+      'has_update': r.hasUpdate,
+      'current_version': r.currentTag,
+      'latest_version': r.latestTag,
+      'unknown_current': r.unknownCurrent,
+      'error': r.error,
+      'source': r.source,
+    };
   }
 
   // ── Trigger sync ───────────────────────────────────────────────────────────

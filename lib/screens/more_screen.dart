@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../services/auth_service.dart';
+import '../services/theme_service.dart';
 import 'ai_screen.dart';
 import 'goals_screen.dart';
 import 'settings_screen.dart';
@@ -16,10 +18,10 @@ class MoreScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           const SizedBox(height: 16),
-          const Text('Lainnya', style: TextStyle(
+           Text('Lainnya', style: TextStyle(
             color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
-          const Text('Pengaturan & fitur tambahan', style: TextStyle(
+           Text('Pengaturan & fitur tambahan', style: TextStyle(
             color: AppColors.textMuted, fontSize: 13)),
           const SizedBox(height: 24),
 
@@ -66,6 +68,22 @@ class MoreScreen extends StatelessWidget {
             subtitle: 'Tampilan & perilaku layar utama',
             onTap: () => _showHomeSettings(context),
           ),
+          // Mode tampilan: ketuk untuk berganti Sistem → Terang → Gelap.
+          Consumer<ThemeService>(
+            builder: (context, theme, _) => _menuTile(
+              icon: theme.icon,
+              color: AppColors.accent,
+              title: 'Mode Tampilan',
+              subtitle: '${theme.label} · ketuk untuk ganti',
+              onTap: () {
+                theme.cycle();
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Mode tampilan: ${theme.label}'),
+                  duration: const Duration(seconds: 2),
+                ));
+              },
+            ),
+          ),
           const SizedBox(height: 16),
 
           // ── Account ──────────────────────────────────────────
@@ -92,7 +110,7 @@ class MoreScreen extends StatelessWidget {
 
   Widget _sectionLabel(String label) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: Text(label, style: const TextStyle(
+    child: Text(label, style:  TextStyle(
       color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
   );
 
@@ -123,13 +141,13 @@ class MoreScreen extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(
+          Text(title, style:  TextStyle(
             color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text(subtitle, style: const TextStyle(
+          Text(subtitle, style:  TextStyle(
             color: AppColors.textMuted, fontSize: 11)),
         ])),
-        const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+         Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
       ]),
     ),
   );
@@ -148,14 +166,14 @@ class MoreScreen extends StatelessWidget {
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       backgroundColor: AppColors.bgCard,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('Keluar', style: TextStyle(color: AppColors.textPrimary)),
-      content: const Text('Yakin ingin keluar dari akun?',
+      title:  Text('Keluar', style: TextStyle(color: AppColors.textPrimary)),
+      content:  Text('Yakin ingin keluar dari akun?',
         style: TextStyle(color: AppColors.textSecond)),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false),
-          child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
+          child:  Text('Batal', style: TextStyle(color: AppColors.textMuted))),
         TextButton(onPressed: () => Navigator.pop(context, true),
-          child: const Text('Keluar', style: TextStyle(color: AppColors.danger))),
+          child:  Text('Keluar', style: TextStyle(color: AppColors.danger))),
       ],
     ));
     if (ok == true) {
@@ -184,10 +202,10 @@ class _HomeSettingsSheetState extends State<_HomeSettingsSheet> {
         Container(width: 40, height: 4, decoration: BoxDecoration(
           color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2))),
         const SizedBox(height: 16),
-        const Align(alignment: Alignment.centerLeft, child: Text('Pengaturan beranda',
+         Align(alignment: Alignment.centerLeft, child: Text('Pengaturan beranda',
           style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800))),
         const SizedBox(height: 4),
-        const Align(alignment: Alignment.centerLeft, child: Text(
+         Align(alignment: Alignment.centerLeft, child: Text(
           'Sesuaikan tampilan dan perilaku layar beranda kamu.',
           style: TextStyle(color: AppColors.textMuted, fontSize: 12))),
         const SizedBox(height: 16),
@@ -201,7 +219,7 @@ class _HomeSettingsSheetState extends State<_HomeSettingsSheet> {
         const SizedBox(height: 20),
 
         // Display toggles
-        const Align(alignment: Alignment.centerLeft, child: Text('Tampilan',
+         Align(alignment: Alignment.centerLeft, child: Text('Tampilan',
           style: TextStyle(color: AppColors.expense, fontSize: 13, fontWeight: FontWeight.w600))),
         const SizedBox(height: 12),
         _toggleRow('Tampilkan grafik segmen', _showChart, (v) => setState(() => _showChart = v)),
@@ -209,7 +227,7 @@ class _HomeSettingsSheetState extends State<_HomeSettingsSheet> {
         const SizedBox(height: 20),
 
         // Quick action ordering
-        const Align(alignment: Alignment.centerLeft, child: Text('Aksi cepat',
+         Align(alignment: Alignment.centerLeft, child: Text('Aksi cepat',
           style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600))),
         const SizedBox(height: 8),
         _menuRow(Icons.sort, 'Urutkan aksi cepat', 'Sesuaikan urutan tombol aksi cepat Anda'),
@@ -217,7 +235,7 @@ class _HomeSettingsSheetState extends State<_HomeSettingsSheet> {
 
         GestureDetector(
           onTap: () => Navigator.pop(context),
-          child: const Text('Tutup', style: TextStyle(
+          child:  Text('Tutup', style: TextStyle(
             color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.w600)),
         ),
         SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
@@ -243,10 +261,10 @@ class _HomeSettingsSheetState extends State<_HomeSettingsSheet> {
             color: _dataMode == idx ? AppColors.primary : AppColors.textPrimary,
             fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text(desc, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          Text(desc, style:  TextStyle(color: AppColors.textMuted, fontSize: 11)),
         ])),
         if (_dataMode == idx)
-          const Icon(Icons.check_circle, color: AppColors.primary, size: 20),
+           Icon(Icons.check_circle, color: AppColors.primary, size: 20),
       ]),
     ),
   );
@@ -254,7 +272,7 @@ class _HomeSettingsSheetState extends State<_HomeSettingsSheet> {
   Widget _toggleRow(String label, bool value, ValueChanged<bool> onChanged) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label, style: const TextStyle(color: AppColors.textSecond, fontSize: 13)),
+      Text(label, style:  TextStyle(color: AppColors.textSecond, fontSize: 13)),
       Switch(
         value: value,
         onChanged: onChanged,
@@ -274,10 +292,10 @@ class _HomeSettingsSheetState extends State<_HomeSettingsSheet> {
       Icon(icon, size: 18, color: AppColors.textMuted),
       const SizedBox(width: 10),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-        Text(subtitle, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+        Text(title, style:  TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(subtitle, style:  TextStyle(color: AppColors.textMuted, fontSize: 10)),
       ])),
-      const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+       Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
     ]),
   );
 }

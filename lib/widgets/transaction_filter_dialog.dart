@@ -34,7 +34,7 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
       lastDate: DateTime(2030),
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
-          colorScheme: const ColorScheme.dark(
+          colorScheme:  ColorScheme.dark(
             primary: AppColors.primary,
             surface: AppColors.bgCard,
           ),
@@ -76,7 +76,7 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
     final allCategories = [...expenseCategories, ...incomeCategories];
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration:  BoxDecoration(
         color: AppColors.bgCard,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -97,30 +97,30 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
 
           // Header
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Filter Transaksi', style: TextStyle(
+             Text('Filter Transaksi', style: TextStyle(
               color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
             TextButton(
               onPressed: _reset,
-              child: const Text('Reset', style: TextStyle(color: AppColors.primary)),
+              child:  Text('Reset', style: TextStyle(color: AppColors.primary)),
             ),
           ]),
           const SizedBox(height: 20),
 
           // Date Range
-          const Text('Rentang Tanggal', style: TextStyle(
+           Text('Rentang Tanggal', style: TextStyle(
             color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Row(children: [
             Expanded(child: _dateButton('Dari', _startDate, () => _pickDate(true))),
             const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward, size: 16, color: AppColors.textMuted),
+             Icon(Icons.arrow_forward, size: 16, color: AppColors.textMuted),
             const SizedBox(width: 8),
             Expanded(child: _dateButton('Sampai', _endDate, () => _pickDate(false))),
           ]),
           const SizedBox(height: 20),
 
           // Type filter
-          const Text('Jenis Transaksi', style: TextStyle(
+           Text('Jenis Transaksi', style: TextStyle(
             color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Wrap(spacing: 8, children: [
@@ -131,7 +131,7 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
           const SizedBox(height: 20),
 
           // Category filter
-          const Text('Kategori', style: TextStyle(
+           Text('Kategori', style: TextStyle(
             color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8, children: [
@@ -168,10 +168,10 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
         border: Border.all(color: AppColors.glassBorder),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+        Text(label, style:  TextStyle(color: AppColors.textMuted, fontSize: 10)),
         const SizedBox(height: 2),
         Text(formatTanggalShort('${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}'),
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+          style:  TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
       ]),
     ),
   );

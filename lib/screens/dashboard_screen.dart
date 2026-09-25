@@ -6,6 +6,7 @@ import '../constants/app_colors.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
+import '../services/app_events.dart';
 import '../services/auth_service.dart';
 import '../services/local_db.dart';
 import '../services/update_service.dart';
@@ -49,16 +50,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _load();
     _autoCheckUpdate();
+    // Data baru (hasil scan struk, input manual, voice, hapus) langsung
+    // menyegarkan layar ini tanpa perlu pull-to-refresh.
+    AppEvents.instance.transaksi.addListener(_onDataBerubah);
+    AppEvents.instance.anggaran.addListener(_onDataBerubah);
+  }
+
+  void _onDataBerubah() {
+    if (!mounted) return;
+    _load();
   }
 
   /// Cek update saat app dibuka — hanya beri tahu, tidak memaksa.
   /// Diam total kalau sudah versi terbaru.
   Future<void> _autoCheckUpdate() async {
     try {
-      final res = await ApiService.checkUpdate();
+      final r = await UpdateService.instance.checkForUpdate();
       if (!mounted) return;
-      setState(() => _hasUpdate = res['has_update'] == true);
-      if (_hasUpdate) {
+      setState(() => _hasUpdate = r.hasUpdate);
+      if (r.hasUpdate) {
         await UpdateFlow.run(context);
       }
     } catch (_) {}
@@ -66,6 +76,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    AppEvents.instance.transaksi.removeListener(_onDataBerubah);
+    AppEvents.instance.anggaran.removeListener(_onDataBerubah);
     _insightPageCtrl?.dispose();
     super.dispose();
   }
@@ -75,11 +87,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgElevated,
-        title: const Text('Hapus Transaksi?', style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text('Tindakan ini tidak dapat dibatalkan.', style: TextStyle(color: AppColors.textMuted)),
+        title:  Text('Hapus Transaksi?', style: TextStyle(color: AppColors.textPrimary)),
+        content:  Text('Tindakan ini tidak dapat dibatalkan.', style: TextStyle(color: AppColors.textMuted)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Hapus', style: TextStyle(color: AppColors.danger))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child:  Text('Batal', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child:  Text('Hapus', style: TextStyle(color: AppColors.danger))),
         ],
       ),
     );
@@ -225,7 +237,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: _loading
-        ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+        ?  Center(child: CircularProgressIndicator(color: AppColors.primary))
         : _error || _data == null
           ? _buildErrorState()
           : RefreshIndicator(
@@ -243,12 +255,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildErrorState() => Center(child: Column(
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
-      const Icon(Icons.wifi_off_rounded, color: AppColors.textMuted, size: 48),
+       Icon(Icons.wifi_off_rounded, color: AppColors.textMuted, size: 48),
       const SizedBox(height: 16),
-      const Text('Gagal memuat data', style: TextStyle(
+       Text('Gagal memuat data', style: TextStyle(
         color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
       const SizedBox(height: 8),
-      const Text('Periksa koneksi internet', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+       Text('Periksa koneksi internet', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
       const SizedBox(height: 20),
       ElevatedButton.icon(
         onPressed: _load,
@@ -272,7 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.warning.withOpacity(0.3)),
       ),
-      child: const Row(children: [
+      child:  Row(children: [
         Icon(Icons.info_outline, size: 14, color: AppColors.warning),
         SizedBox(width: 8),
         Text('Menampilkan data lokal · Refresh saat online',
@@ -302,7 +314,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // 4. Icon jam → laporan (bar_chart)
         // 3. Icon notifikasi → update discord
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text('Home', style: TextStyle(
+           Text('Home', style: TextStyle(
             color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.w800)),
           Row(children: [
             _headerIcon(Icons.calendar_today_outlined, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalendarScreen()))),
@@ -325,10 +337,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                const Text('Dompet Saya', style: TextStyle(
+                 Text('Dompet Saya', style: TextStyle(
                   color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w500)),
                 const SizedBox(width: 6),
-                const Icon(Icons.lock_outline, size: 13, color: AppColors.textMuted),
+                 Icon(Icons.lock_outline, size: 13, color: AppColors.textMuted),
               ]),
               const SizedBox(height: 6),
               Text(
@@ -338,7 +350,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   fontSize: 22, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 4),
-              const Text('1 dompet · ketuk untuk kelola',
+               Text('1 dompet · ketuk untuk kelola',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
               const SizedBox(height: 4),
               Container(
@@ -347,7 +359,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: AppColors.bgElevated,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text('Dompet Utama', style: TextStyle(
+                child:  Text('Dompet Utama', style: TextStyle(
                   color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w500)),
               ),
             ]),
@@ -415,7 +427,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.glassBorder),
                 ),
-                child: const Icon(Icons.tune, size: 18, color: AppColors.textMuted),
+                child:  Icon(Icons.tune, size: 18, color: AppColors.textMuted),
               ),
             ),
           ]),
@@ -432,7 +444,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         // ── Transactions Header ──────────────────────────────────
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text('Transaksi', style: TextStyle(
+           Text('Transaksi', style: TextStyle(
             color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
           GestureDetector(
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalendarScreen())),
@@ -443,7 +455,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppColors.glassBorder),
               ),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              child:  Row(mainAxisSize: MainAxisSize.min, children: [
                 Text('7 hari terakhir', style: TextStyle(
                   color: AppColors.textMuted, fontSize: 11)),
                 SizedBox(width: 4),
@@ -456,7 +468,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         // ── Transaction List by Date ────────────────────────────
         if (_recentTx.isEmpty)
-          const Center(child: Padding(padding: EdgeInsets.all(20),
+           Center(child: Padding(padding: EdgeInsets.all(20),
             child: Text('Belum ada transaksi', style: TextStyle(color: AppColors.textMuted))))
         else
           ...groupedTx.entries.map((entry) => Column(
@@ -466,7 +478,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   _isToday(entry.key) ? 'Hari ini, ${formatTanggalShort(entry.key)}' : formatTanggalShort(entry.key),
-                  style: const TextStyle(
+                  style:  TextStyle(
                     color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
               ),
               ...entry.value.map((tx) => TransaksiTile(
@@ -512,7 +524,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // Header + toggle minimize/maximize
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Row(children: [
-          const Text('Budget Harian', style: TextStyle(
+           Text('Budget Harian', style: TextStyle(
             color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(width: 8),
           GestureDetector(
@@ -520,7 +532,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(color: AppColors.bgElevated, borderRadius: BorderRadius.circular(6)),
-              child: const Icon(Icons.edit_outlined, size: 12, color: AppColors.textMuted),
+              child:  Icon(Icons.edit_outlined, size: 12, color: AppColors.textMuted),
             ),
           ),
         ]),
@@ -533,10 +545,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 border: Border.all(color: AppColors.primary.withOpacity(0.2)),
               ),
               child: Text('Rp ${formatAmount(_budgetHarian)}/hari',
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
+                style:  TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
             )
           else
-            const Text('Belum diatur', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+             Text('Belum diatur', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
           const SizedBox(width: 6),
           GestureDetector(
             onTap: () => setState(() => _budgetMinimized = !_budgetMinimized),
@@ -676,7 +688,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text('budget ${_compactLabel(_budgetHarian)}',
-                      style: const TextStyle(
+                      style:  TextStyle(
                         color: AppColors.accent, fontSize: 8.5,
                         fontWeight: FontWeight.w700)),
                   ]),
@@ -702,7 +714,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       SizedBox(
                         height: 12,
                         child: isOver
-                          ? Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.chartOver, shape: BoxShape.circle))
+                          ? Container(width: 6, height: 6, decoration:  BoxDecoration(color: AppColors.chartOver, shape: BoxShape.circle))
                           : const SizedBox(),
                       ),
                       // value label — compact, tidak numpuk
@@ -817,7 +829,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ])),
                 const SizedBox(width: 6),
-                const Icon(Icons.chevron_right, size: 16, color: AppColors.textMuted),
+                 Icon(Icons.chevron_right, size: 16, color: AppColors.textMuted),
               ]),
             ));
           }),
@@ -844,7 +856,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: AppColors.expense.withOpacity(0.18)),
             ),
-            child: const Row(children: [
+            child:  Row(children: [
               Icon(Icons.error_outline, size: 13, color: AppColors.expense),
               SizedBox(width: 6),
               Expanded(child: Text('Hari ini sudah melebihi budget harian',
@@ -862,7 +874,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: AppColors.primary.withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+            child:  Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.add, color: AppColors.primary, size: 18),
               SizedBox(width: 6),
               Text('Atur budget harian', style: TextStyle(
@@ -891,7 +903,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _budgetStat(String label, String value, {Color? valueColor}) => Column(children: [
-    Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+    Text(label, style:  TextStyle(color: AppColors.textMuted, fontSize: 10)),
     const SizedBox(height: 2),
     Text(value, style: TextStyle(
       color: valueColor ?? AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w600)),
@@ -924,21 +936,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Atur Budget Harian', style: TextStyle(
+        title:  Text('Atur Budget Harian', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Masukkan batas pengeluaran per hari',
+           Text('Masukkan batas pengeluaran per hari',
             style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
           const SizedBox(height: 12),
           TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
+            style:  TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
             decoration: InputDecoration(
               prefixText: 'Rp ',
-              prefixStyle: const TextStyle(color: AppColors.textMuted, fontSize: 16),
+              prefixStyle:  TextStyle(color: AppColors.textMuted, fontSize: 16),
               hintText: '20000',
-              hintStyle: const TextStyle(color: AppColors.textMuted),
+              hintStyle:  TextStyle(color: AppColors.textMuted),
               filled: true,
               fillColor: AppColors.bgElevated,
               border: OutlineInputBorder(
@@ -951,14 +963,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal', style: TextStyle(color: AppColors.textMuted)),
+            child:  Text('Batal', style: TextStyle(color: AppColors.textMuted)),
           ),
           TextButton(
             onPressed: () {
               final val = double.tryParse(controller.text) ?? 0;
               Navigator.pop(ctx, val);
             },
-            child: const Text('Simpan', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
+            child:  Text('Simpan', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -985,7 +997,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.glassBorder),
         ),
-        child: const Icon(Icons.notifications_outlined,
+        child:  Icon(Icons.notifications_outlined,
           color: AppColors.textSecond, size: 18),
       ),
       if (_hasUpdate)
@@ -1010,7 +1022,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: const Row(children: [
+        content:  Row(children: [
           SizedBox(width: 24, height: 24,
             child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary)),
           SizedBox(width: 16),
@@ -1071,10 +1083,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text('Pengaturan Beranda', style: TextStyle(
+           Text('Pengaturan Beranda', style: TextStyle(
             color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          const Text('Kelola tampilan dan widget di halaman utama',
+           Text('Kelola tampilan dan widget di halaman utama',
             style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
           const SizedBox(height: 20),
           _settingsTile(Icons.pie_chart_outline, 'Budget Harian', 'Atur batas pengeluaran harian',
@@ -1100,11 +1112,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         child: Icon(icon, color: AppColors.primary, size: 20),
       ),
-      title: Text(title, style: const TextStyle(
+      title: Text(title, style:  TextStyle(
         color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle, style: const TextStyle(
+      subtitle: Text(subtitle, style:  TextStyle(
         color: AppColors.textMuted, fontSize: 11)),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+      trailing:  Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
       onTap: onTap,
       contentPadding: EdgeInsets.zero,
     );
@@ -1146,12 +1158,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text(
             _insightPage == 0 ? 'Saldo vs Pengeluaran' : 'Kategori Pengeluaran',
-            style: const TextStyle(color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w600),
+            style:  TextStyle(color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w600),
           ),
           _carouselDots(pageCount),
         ]),
         Text(_insightPage == 0 ? 'Bulan ini' : '30 hari terakhir',
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+          style:  TextStyle(color: AppColors.textMuted, fontSize: 10)),
         const SizedBox(height: 12),
         SizedBox(
           height: 150,
@@ -1207,8 +1219,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           )),
           Column(mainAxisSize: MainAxisSize.min, children: [
             Text('${saldoPersen.toStringAsFixed(0)}%',
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w800)),
-            const Text('Saldo', style: TextStyle(color: AppColors.textMuted, fontSize: 9)),
+              style:  TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w800)),
+             Text('Saldo', style: TextStyle(color: AppColors.textMuted, fontSize: 9)),
           ]),
         ]),
       ),
@@ -1225,7 +1237,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             decoration: BoxDecoration(
               color: AppColors.warning.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8)),
-            child: const Row(children: [
+            child:  Row(children: [
               Icon(Icons.warning_amber_rounded, size: 12, color: AppColors.warning),
               SizedBox(width: 5),
               Expanded(child: Text('Pengeluaran melebihi saldo',
@@ -1263,7 +1275,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           )),
           Column(mainAxisSize: MainAxisSize.min, children: [
             Text('${pct.toStringAsFixed(0)}%',
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w800)),
+              style:  TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w800)),
             Text(info.icon, style: const TextStyle(fontSize: 11)),
           ]),
         ]),
@@ -1275,7 +1287,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text(info.icon, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 6),
           Expanded(child: Text(k['kategori'] as String,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
+            style:  TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
             maxLines: 1, overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 6),
@@ -1288,14 +1300,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             color: AppColors.income.withOpacity(0.10),
             borderRadius: BorderRadius.circular(8)),
           child: Text('$topName (${topPct.toStringAsFixed(0)}%) mendominasi pengeluaran',
-            style: const TextStyle(color: AppColors.income, fontSize: 9.5, fontWeight: FontWeight.w600),
+            style:  TextStyle(color: AppColors.income, fontSize: 9.5, fontWeight: FontWeight.w600),
             maxLines: 2),
         ),
       ])),
     ]);
   }
 
-  Widget _emptyKategoriPage() => const Center(child: Text(
+  Widget _emptyKategoriPage() =>  Center(child: Text(
     'Belum ada data kategori',
     style: TextStyle(color: AppColors.textMuted, fontSize: 12)));
 
@@ -1303,12 +1315,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Container(width: 8, height: 8, decoration: BoxDecoration(
       color: color, borderRadius: BorderRadius.circular(2))),
     const SizedBox(width: 8),
-    Text(label, style: const TextStyle(color: AppColors.textSecond, fontSize: 12)),
+    Text(label, style:  TextStyle(color: AppColors.textSecond, fontSize: 12)),
     const Spacer(),
-    Text(persen, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+    Text(persen, style:  TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
     if (amount.isNotEmpty) ...[
       const SizedBox(width: 6),
-      Text(amount, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+      Text(amount, style:  TextStyle(color: AppColors.textMuted, fontSize: 11)),
     ],
   ]);
 }
@@ -1368,6 +1380,13 @@ class _DayDetailSheetState extends State<_DayDetailSheet> {
     super.initState();
     _selected = DateTime(widget.initialDay.year, widget.initialDay.month, widget.initialDay.day);
     _load();
+    AppEvents.instance.transaksi.addListener(_load);
+  }
+
+  @override
+  void dispose() {
+    AppEvents.instance.transaksi.removeListener(_load);
+    super.dispose();
   }
 
   /// 7 tanggal terakhir, index 0 = 6 hari lalu (sama dengan _last7DaysSpending).
@@ -1417,7 +1436,7 @@ class _DayDetailSheetState extends State<_DayDetailSheet> {
     final maxH = MediaQuery.of(context).size.height * 0.82;
     return Container(
       constraints: BoxConstraints(maxHeight: maxH),
-      decoration: const BoxDecoration(
+      decoration:  BoxDecoration(
         color: AppColors.bg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1434,14 +1453,14 @@ class _DayDetailSheetState extends State<_DayDetailSheet> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(children: [
-            const Icon(Icons.calendar_month_rounded, size: 16, color: AppColors.primary),
+             Icon(Icons.calendar_month_rounded, size: 16, color: AppColors.primary),
             const SizedBox(width: 8),
-            const Text('7 Hari Terakhir', style: TextStyle(
+             Text('7 Hari Terakhir', style: TextStyle(
               color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
             const Spacer(),
             GestureDetector(
               onTap: () => Navigator.pop(context),
-              child: const Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted),
+              child:  Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted),
             ),
           ]),
         ),
@@ -1518,18 +1537,18 @@ class _DayDetailSheetState extends State<_DayDetailSheet> {
             border: Border.all(color: AppColors.glassBorder)),
           child: Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(formatTanggal(_key), style: const TextStyle(
+              Text(formatTanggal(_key), style:  TextStyle(
                 color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
               const SizedBox(height: 3),
-              Text('${_dayTx.length} transaksi', style: const TextStyle(
+              Text('${_dayTx.length} transaksi', style:  TextStyle(
                 color: AppColors.textMuted, fontSize: 11)),
             ])),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('-Rp ${formatAmount(_daySpend)}', style: const TextStyle(
+              Text('-Rp ${formatAmount(_daySpend)}', style:  TextStyle(
                 color: AppColors.expense, fontSize: 13, fontWeight: FontWeight.w700)),
               if (_dayIncome > 0) ...[
                 const SizedBox(height: 3),
-                Text('+Rp ${formatAmount(_dayIncome)}', style: const TextStyle(
+                Text('+Rp ${formatAmount(_dayIncome)}', style:  TextStyle(
                   color: AppColors.income, fontSize: 12, fontWeight: FontWeight.w600)),
               ],
             ]),
@@ -1567,16 +1586,16 @@ class _DayDetailSheetState extends State<_DayDetailSheet> {
 
         // Daftar transaksi
         Flexible(child: _loading
-          ? const Center(child: Padding(
+          ?  Center(child: Padding(
               padding: EdgeInsets.all(30),
               child: CircularProgressIndicator(color: AppColors.primary)))
           : _error
-            ? const Center(child: Padding(
+            ?  Center(child: Padding(
                 padding: EdgeInsets.all(30),
                 child: Text('Gagal memuat transaksi',
                   style: TextStyle(color: AppColors.textMuted, fontSize: 12))))
             : _dayTx.isEmpty
-              ? const Center(child: Padding(
+              ?  Center(child: Padding(
                   padding: EdgeInsets.all(30),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.receipt_long_outlined, color: AppColors.textHint, size: 32),
@@ -1612,7 +1631,7 @@ class _DayDetailSheetState extends State<_DayDetailSheet> {
                             (tx.deskripsi ?? '').toString().isEmpty
                               ? tx.kategori.toString() : tx.deskripsi.toString(),
                             maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: AppColors.textPrimary,
+                            style:  TextStyle(color: AppColors.textPrimary,
                               fontSize: 13, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 2),
                           Text(
@@ -1620,7 +1639,7 @@ class _DayDetailSheetState extends State<_DayDetailSheet> {
                             '${waktu.isNotEmpty ? ' · $waktu' : ''}'
                             '${(tx.metodePembayaran ?? '').toString().isNotEmpty ? ' · ${tx.metodePembayaran}' : ''}',
                             maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
+                            style:  TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
                         ])),
                         const SizedBox(width: 8),
                         Text('${isIncome ? '+' : '-'}Rp ${formatAmount((tx.nominal as num).toDouble())}',

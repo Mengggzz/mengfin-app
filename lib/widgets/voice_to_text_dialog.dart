@@ -132,9 +132,9 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
       backgroundColor: AppColors.bgCard,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       title: Row(children: [
-        const Icon(Icons.mic, color: AppColors.primary, size: 20),
+         Icon(Icons.mic, color: AppColors.primary, size: 20),
         const SizedBox(width: 8),
-        const Text('Input Suara', style: TextStyle(
+         Text('Input Suara', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
       ]),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -168,7 +168,7 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
         );
       case _VoiceStage.parsing:
       case _VoiceStage.saving:
-        return const SizedBox(
+        return  SizedBox(
           width: 64, height: 64,
           child: Center(child: CircularProgressIndicator(
             strokeWidth: 3, color: AppColors.primary)));
@@ -177,14 +177,14 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
           width: 64, height: 64,
           decoration: BoxDecoration(
             color: AppColors.income.withOpacity(0.15), shape: BoxShape.circle),
-          child: const Icon(Icons.check_circle, size: 34, color: AppColors.income),
+          child:  Icon(Icons.check_circle, size: 34, color: AppColors.income),
         );
       case _VoiceStage.error:
         return Container(
           width: 64, height: 64,
           decoration: BoxDecoration(
             color: AppColors.warning.withOpacity(0.15), shape: BoxShape.circle),
-          child: const Icon(Icons.error_outline, size: 32, color: AppColors.warning),
+          child:  Icon(Icons.error_outline, size: 32, color: AppColors.warning),
         );
     }
   }
@@ -193,18 +193,18 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
     switch (_stage) {
       case _VoiceStage.listening:
         return Text(_isListening ? 'Mendengarkan…' : 'Menunggu…',
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 12));
+          style:  TextStyle(color: AppColors.textMuted, fontSize: 12));
       case _VoiceStage.parsing:
-        return const Text('AI mendeteksi objek & nominal…',
+        return  Text('AI mendeteksi objek & nominal…',
           style: TextStyle(color: AppColors.textMuted, fontSize: 12));
       case _VoiceStage.saving:
-        return const Text('Menyimpan transaksi…',
+        return  Text('Menyimpan transaksi…',
           style: TextStyle(color: AppColors.textMuted, fontSize: 12));
       case _VoiceStage.done:
         return _savedPreview();
       case _VoiceStage.error:
         return Text(_errorMsg, textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.textSecond, fontSize: 12));
+          style:  TextStyle(color: AppColors.textSecond, fontSize: 12));
     }
   }
 
@@ -223,12 +223,12 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
           Text(info.icon, style: const TextStyle(fontSize: 16)),
           const SizedBox(width: 8),
           Expanded(child: Text((t['deskripsi'] ?? '-').toString(),
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
+            style:  TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
             maxLines: 1, overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 6),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(info.label, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          Text(info.label, style:  TextStyle(color: AppColors.textMuted, fontSize: 11)),
           Text('${isIncome ? '+' : '-'}Rp ${formatAmount(nominal)}',
             style: TextStyle(
               color: isIncome ? AppColors.income : AppColors.expense,
@@ -242,7 +242,7 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
     if (_stage == _VoiceStage.done) {
       return [
         TextButton(onPressed: _retry,
-          child: const Text('Rekam Lagi', style: TextStyle(color: AppColors.textMuted))),
+          child:  Text('Rekam Lagi', style: TextStyle(color: AppColors.textMuted))),
         ElevatedButton(
           onPressed: () => Navigator.pop(context, true),
           style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
@@ -256,7 +256,7 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
     if (_stage == _VoiceStage.error) {
       return [
         TextButton(onPressed: () => Navigator.pop(context),
-          child: const Text('Tutup', style: TextStyle(color: AppColors.textMuted))),
+          child:  Text('Tutup', style: TextStyle(color: AppColors.textMuted))),
         ElevatedButton(
           onPressed: _retry,
           style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
@@ -267,7 +267,7 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
     return [
       TextButton(
         onPressed: () { _speech.stop(); Navigator.pop(context); },
-        child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
+        child:  Text('Batal', style: TextStyle(color: AppColors.textMuted))),
       ElevatedButton(
         onPressed: _text.trim().isNotEmpty ? () => _processVoice(_text) : null,
         style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),

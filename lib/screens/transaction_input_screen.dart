@@ -142,7 +142,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
       lastDate: DateTime(2030),
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
-          colorScheme: const ColorScheme.dark(
+          colorScheme:  ColorScheme.dark(
             primary: AppColors.primary,
             surface: AppColors.bgCard,
           ),
@@ -169,10 +169,10 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.bg,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon:  Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Transaksi', style: TextStyle(
+        title:  Text('Transaksi', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         centerTitle: true,
       ),
@@ -230,10 +230,10 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(children: [
-                    const Icon(Icons.calendar_today, size: 14, color: AppColors.primary),
+                     Icon(Icons.calendar_today, size: 14, color: AppColors.primary),
                     const SizedBox(width: 6),
                     Text(formatTanggalShort(_tanggal),
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500)),
+                      style:  TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500)),
                   ]),
                 ),
               ),
@@ -248,9 +248,9 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                   const Text('💰', style: TextStyle(fontSize: 14)),
                   const SizedBox(width: 6),
                   Text(_walletName,
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500)),
+                    style:  TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500)),
                   const SizedBox(width: 4),
-                  const Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.textMuted),
+                   Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.textMuted),
                 ]),
               ),
             ]),
@@ -258,7 +258,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
 
             // ── Amount Display ─────────────────────────────────
             Center(child: Column(children: [
-              const Text('Jumlah', style: TextStyle(
+               Text('Jumlah', style: TextStyle(
                 color: AppColors.textMuted, fontSize: 12)),
               const SizedBox(height: 4),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -277,16 +277,16 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
 
             // ── Description Field ──────────────────────────────
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Deskripsi (Opsional)', style: TextStyle(
+               Text('Deskripsi (Opsional)', style: TextStyle(
                 color: AppColors.textMuted, fontSize: 11)),
               const SizedBox(height: 6),
               Row(children: [
                 Expanded(child: TextField(
                   controller: _deskripsiCtrl,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                  style:  TextStyle(color: AppColors.textPrimary, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'kopi',
-                    hintStyle: const TextStyle(color: AppColors.textHint),
+                    hintStyle:  TextStyle(color: AppColors.textHint),
                     filled: true, fillColor: AppColors.bgElevated,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     border: OutlineInputBorder(
@@ -302,11 +302,11 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                     color: AppColors.primary.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.auto_fix_high, color: AppColors.primary, size: 18),
+                  child:  Icon(Icons.auto_fix_high, color: AppColors.primary, size: 18),
                 ),
               ]),
               const SizedBox(height: 4),
-              const Text('✦ Otomatis kategorikan dari transaksi terakhir',
+               Text('✦ Otomatis kategorikan dari transaksi terakhir',
                 style: TextStyle(color: AppColors.textHint, fontSize: 10)),
             ]),
             const SizedBox(height: 14),
@@ -321,7 +321,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
 
             // ── Type Tags (Need/Want/Saving) ───────────────────
             if (_isExpense) ...[
-              const Text('TIPE', style: TextStyle(
+               Text('TIPE', style: TextStyle(
                 color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
               const SizedBox(height: 8),
               TransactionTypeSelector(
@@ -339,7 +339,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
           color: AppColors.numpadBg,
           child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
             Text('= ${formatAmount(_parseAmount())}',
-              style: const TextStyle(color: AppColors.textSecond, fontSize: 14)),
+              style:  TextStyle(color: AppColors.textSecond, fontSize: 14)),
           ]),
         ),
 

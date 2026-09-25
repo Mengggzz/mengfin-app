@@ -54,11 +54,11 @@ class _KazzScreenState extends State<KazzScreen> {
             color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 16),
           Text(edit != null ? 'Edit Budget' : 'Buat Budget Baru',
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
+            style:  TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 16),
 
           if (edit == null) ...[
-            const Text('KATEGORI', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
+             Text('KATEGORI', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
               children: expenseCategories.map((k) =>
@@ -79,18 +79,18 @@ class _KazzScreenState extends State<KazzScreen> {
             const SizedBox(height: 16),
           ],
 
-          const Text('BATAS ANGGARAN (Rp)', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
+           Text('BATAS ANGGARAN (Rp)', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
             controller: TextEditingController(text: batas),
             keyboardType: TextInputType.number,
-            style: const TextStyle(color: AppColors.textPrimary),
+            style:  TextStyle(color: AppColors.textPrimary),
             decoration: InputDecoration(
-              hintText: '1.500.000', hintStyle: const TextStyle(color: AppColors.textMuted),
+              hintText: '1.500.000', hintStyle:  TextStyle(color: AppColors.textMuted),
               filled: true, fillColor: AppColors.bgElevated,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.primary)),
+                borderSide:  BorderSide(color: AppColors.primary)),
             ),
             onChanged: (v) => batas = v,
           ),
@@ -125,7 +125,7 @@ class _KazzScreenState extends State<KazzScreen> {
           const SizedBox(height: 16),
           // ── Header ───────────────────────────────────────────
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Kazz', style: TextStyle(
+             Text('Kazz', style: TextStyle(
               color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.w800)),
             Row(children: [
               _headerIcon(Icons.ios_share_outlined),
@@ -146,7 +146,7 @@ class _KazzScreenState extends State<KazzScreen> {
           const SizedBox(height: 16),
 
           if (_loading)
-            const Padding(padding: EdgeInsets.only(top: 80),
+             Padding(padding: EdgeInsets.only(top: 80),
               child: Center(child: CircularProgressIndicator(color: AppColors.primary)))
           else ...[
             if (_tabIndex == 0) _buildDompetTab()
@@ -180,13 +180,13 @@ class _KazzScreenState extends State<KazzScreen> {
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Row(children: [
-            const Text('Saldo', style: TextStyle(
+             Text('Saldo', style: TextStyle(
               color: AppColors.textSecond, fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(width: 6),
             Icon(Icons.lock_outline, size: 14, color: AppColors.textMuted),
           ]),
           Text('Rp ${formatAmount(_totalSaldo)}',
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+            style:  TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
         ]),
       ),
       const SizedBox(height: 12),
@@ -203,7 +203,7 @@ class _KazzScreenState extends State<KazzScreen> {
 
       // Wallet cards grid
       if (_wallets.isEmpty)
-        const Center(child: Padding(padding: EdgeInsets.only(top: 40),
+         Center(child: Padding(padding: EdgeInsets.only(top: 40),
           child: Text('Belum ada dompet', style: TextStyle(color: AppColors.textMuted))))
       else
         GridView.count(
@@ -238,7 +238,7 @@ class _KazzScreenState extends State<KazzScreen> {
     ),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       if (active) ...[
-        Container(width: 6, height: 6, decoration: const BoxDecoration(
+        Container(width: 6, height: 6, decoration:  BoxDecoration(
           color: AppColors.primary, shape: BoxShape.circle)),
         const SizedBox(width: 6),
       ],
@@ -284,7 +284,7 @@ class _KazzScreenState extends State<KazzScreen> {
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               if (_budgetFilter == 'Aktif') ...[
-                Container(width: 6, height: 6, decoration: const BoxDecoration(
+                Container(width: 6, height: 6, decoration:  BoxDecoration(
                   color: AppColors.success, shape: BoxShape.circle)),
                 const SizedBox(width: 6),
               ],
@@ -299,7 +299,7 @@ class _KazzScreenState extends State<KazzScreen> {
       ]),
       const SizedBox(height: 12),
 
-      const Text(
+       Text(
         'Tetapkan batas bulanan untuk setiap kategori — dapat pengingat sebelum kebablasan.',
         style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.4),
       ),
@@ -327,7 +327,7 @@ class _KazzScreenState extends State<KazzScreen> {
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
       )),
       const SizedBox(height: 8),
-      const Center(child: Text(
+       Center(child: Text(
         'Budget bisa diedit, dijeda, atau dihapus kapan saja.',
         style: TextStyle(color: AppColors.textMuted, fontSize: 11),
       )),
@@ -355,11 +355,11 @@ class _KazzScreenState extends State<KazzScreen> {
               child: Center(child: Text(kat.icon, style: const TextStyle(fontSize: 16)))),
             const SizedBox(width: 12),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(a.kategori, style: const TextStyle(
+              Text(a.kategori, style:  TextStyle(
                 color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
               Row(children: [
                 CurrencyText(a.terpakai, short: true, color: AppColors.textMuted, fontSize: 11),
-                const Text(' / ', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                 Text(' / ', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                 CurrencyText(a.batas, short: true, color: AppColors.textMuted, fontSize: 11),
               ]),
             ]),
@@ -369,7 +369,7 @@ class _KazzScreenState extends State<KazzScreen> {
               onTap: () => _showAddBudgetModal(edit: a),
               child: Container(padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(color: AppColors.bgElevated, borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.textMuted))),
+                child:  Icon(Icons.edit_outlined, size: 14, color: AppColors.textMuted))),
             const SizedBox(width: 6),
             GestureDetector(
               onTap: () async {
@@ -378,7 +378,7 @@ class _KazzScreenState extends State<KazzScreen> {
               },
               child: Container(padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(color: AppColors.danger.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.delete_outline, size: 14, color: AppColors.danger))),
+                child:  Icon(Icons.delete_outline, size: 14, color: AppColors.danger))),
           ]),
         ]),
         const SizedBox(height: 10),

@@ -5,13 +5,28 @@ import '../models/models.dart';
 class LocalDb {
   static Database? _db;
 
+  /// Path DB alternatif — dipakai pengujian supaya tidak menyentuh DB asli.
+  static String? _pathOverride;
+
+  /// Arahkan LocalDb ke file DB lain (dipakai test).
+  static void overridePathForTest(String path) {
+    _pathOverride = path;
+    _db = null;
+  }
+
+  /// Tutup DB (dipakai test untuk membersihkan).
+  static Future<void> closeForTest() async {
+    await _db?.close();
+    _db = null;
+  }
+
   static Future<Database> get db async {
     _db ??= await _open();
     return _db!;
   }
 
   static Future<Database> _open() async {
-    final path = join(await getDatabasesPath(), 'mengfin.db');
+    final path = _pathOverride ?? join(await getDatabasesPath(), 'mengfin.db');
     return openDatabase(
       path,
       version: 2,
@@ -118,10 +133,18 @@ class LocalDb {
   }
 
   // ── Transaksi ──────────────────────────────────────────────────────────────
-  static Future<List<Transaksi>> getTransaksi({String? jenis, int limit = 100}) async {
+  static Future<List<Transaksi>> getTransaksi({
+    String? jenis, int limit = 100, bool hanyaBelumSync = false,
+  }) async {
     final d = await db;
-    String where = jenis != null && jenis != 'semua' ? 'WHERE jenis = ?' : '';
-    List<Object?> args = jenis != null && jenis != 'semua' ? [jenis] : [];
+    final clauses = <String>[];
+    final args = <Object?>[];
+    if (jenis != null && jenis != 'semua') {
+      clauses.add('jenis = ?');
+      args.add(jenis);
+    }
+    if (hanyaBelumSync) clauses.add('synced = 0');
+    final where = clauses.isEmpty ? '' : 'WHERE ${clauses.join(' AND ')}';
     final rows = await d.rawQuery(
       'SELECT * FROM transaksi $where ORDER BY tanggal DESC, id DESC LIMIT $limit',
       args,
