@@ -27,6 +27,18 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Auto-catat dari notifikasi: layanan bawaan notification_listener_service.
+             Tanpa blok ini, izin "akses notifikasi" tidak bisa diberikan. -->
+        <service
+            android:label="MengFin auto-catat"
+            android:name="notification.listener.service.NotificationListener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
     <queries>
         <intent>

@@ -47,6 +47,7 @@ dependencies:
   pdf: ^3.13.1
   share_plus: ^12.0.2
   path_provider: ^2.1.6
+  notification_listener_service: ^1.0.0
 
 dev_dependencies:
   flutter_test:

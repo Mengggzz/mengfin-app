@@ -552,6 +552,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.5.0"
+  notification_listener_service:
+    dependency: "direct main"
+    description:
+      name: notification_listener_service
+      sha256: "79cdf3e8b1eedc66aa0f3fce46f2f7bba5752f33d6566396bee7598882ac931d"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   objective_c:
     dependency: transitive
     description:
