@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
+import '../services/amount_expression.dart';
 import '../services/api_service.dart';
 import '../widgets/widgets.dart';
 
@@ -42,19 +43,40 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
 
   void _onNumKey(String key) {
     setState(() {
-      if (key == '000') {
-        if (_amount != '0') _amount += '000';
-      } else if (key == '+' || key == '-' || key == '×' || key == '÷') {
-        // Simple operator append — for display purpose
-        _amount += ' $key ';
+      if (AmountExpression.isOperator(key)) {
+        // Tidak ada yang bisa dioperasikan dari nol.
+        if (_amount == '0' || _amount.isEmpty) return;
+        // Operator yang menggantung digantikan, bukan ditumpuk —
+        // numpad ini tidak punya tanda kurung, jadi "25 + × 10" tidak
+        // mungkin dihitung. Digit yang diketik setelahnya menempel apa
+        // adanya dan dihitung saat "=" ditekan.
+        final dasar = AmountExpression.stripTrailingOperator(_amount);
+        _amount = '$dasar $key ';
       } else {
-        if (_amount == '0') {
-          _amount = key;
-        } else {
-          _amount += key;
-        }
+        _amount = AmountExpression.appendDigits(_amount, key);
       }
     });
+  }
+
+  /// Angka yang akan disimpan. Ekspresi yang belum sah tidak dipaksa jadi
+  /// angka: "25 +" tetap dibaca 25 supaya pengguna tidak menyimpan nominal
+  /// yang tidak pernah ia lihat (dulu "25 + 10" tersimpan sebagai 2510).
+  double _parseAmount() {
+    final exact = AmountExpression.evaluate(_amount);
+    if (exact != null) return exact;
+    if (AmountExpression.endsWithOperator(_amount)) {
+      return AmountExpression.lastNumber(_amount) ?? 0;
+    }
+    return AmountExpression.lastNumber(_amount) ?? 0;
+  }
+
+  /// Tombol "=" : hitung ekspresi yang sedang diketik dan jadikan hasilnya
+  /// isi input, supaya angka yang disimpan sama dengan yang dihitung.
+  void _onEquals() {
+    if (!AmountExpression.hasOperator(_amount)) return;
+    final hasil = AmountExpression.evaluate(_amount);
+    if (hasil == null) return; // ekspresi belum/tidak sah → biarkan apa adanya
+    setState(() => _amount = AmountExpression.formatNumber(hasil));
   }
 
   void _onDelete() {
@@ -66,12 +88,6 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
         if (_amount.isEmpty) _amount = '0';
       }
     });
-  }
-
-  double _parseAmount() {
-    // Remove spaces and operators, just get the numeric value
-    final cleaned = _amount.replaceAll(RegExp(r'[^0-9]'), '');
-    return double.tryParse(cleaned) ?? 0;
   }
 
   Future<void> _onConfirm() async {
@@ -238,21 +254,24 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
+              // Flexible: chip dompet dulu meluber 70px di layar 360dp ketika
+              // nama dompet panjang.
+              Flexible(child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: AppColors.bgElevated,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Row(children: [
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Text('💰', style: TextStyle(fontSize: 14)),
                   const SizedBox(width: 6),
-                  Text(_walletName,
-                    style:  TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500)),
+                  Flexible(child: Text(_walletName,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500))),
                   const SizedBox(width: 4),
                    Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.textMuted),
                 ]),
-              ),
+              )),
             ]),
             const SizedBox(height: 16),
 
@@ -265,12 +284,17 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                 Text('IDR ', style: TextStyle(
                   color: _isExpense ? AppColors.expense : AppColors.income,
                   fontSize: 16, fontWeight: FontWeight.w600)),
-                Text(
-                  formatAmount(_parseAmount()),
+                Flexible(child: Text(
+                  // Kalau sedang mengetik ekspresi ("25 + 10"), tampilkan apa
+                  // adanya supaya pengguna melihat persis yang ia ketik.
+                  AmountExpression.hasOperator(_amount)
+                      ? _amount.trimRight()
+                      : formatAmount(_parseAmount()),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: _isExpense ? AppColors.expense : AppColors.income,
                     fontSize: 36, fontWeight: FontWeight.w800),
-                ),
+                )),
               ]),
             ])),
             const SizedBox(height: 12),
@@ -338,8 +362,12 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           color: AppColors.numpadBg,
           child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-            Text('= ${formatAmount(_parseAmount())}',
-              style:  TextStyle(color: AppColors.textSecond, fontSize: 14)),
+            Flexible(child: Text(
+              // Hasil hitung sementara. Kalau ekspresi belum lengkap, yang
+              // ditampilkan angka terakhir yang sudah diketik.
+              '= ${formatAmount(_parseAmount())}',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: AppColors.textSecond, fontSize: 14))),
           ]),
         ),
 
@@ -348,7 +376,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
           onKey: _onNumKey,
           onDelete: _onDelete,
           onConfirm: _onConfirm,
-          onEquals: () {},
+          onEquals: _onEquals,
         ),
 
         SizedBox(height: MediaQuery.of(context).padding.bottom),

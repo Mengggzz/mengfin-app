@@ -574,14 +574,17 @@ class CalcNumpad extends StatelessWidget {
   final ValueChanged<String> onKey;
   final VoidCallback onDelete;
   final VoidCallback onConfirm;
-  final VoidCallback? onEquals;
+
+  /// Tombol "=". Wajib diisi — dulu opsional dengan default kosong, dan
+  /// pemanggil mengirim `() {}` sehingga tombolnya tidak bereaksi sama sekali.
+  final VoidCallback onEquals;
 
   const CalcNumpad({
     super.key,
     required this.onKey,
     required this.onDelete,
     required this.onConfirm,
-    this.onEquals,
+    required this.onEquals,
   });
 
   @override
@@ -596,22 +599,27 @@ class CalcNumpad extends StatelessWidget {
           _specialKey(Icons.backspace_outlined, AppColors.numpadDel, onDelete),
         ]),
         const SizedBox(height: 6),
-        // Row 2: 4, 5, 6, Operators
+        // Row 2: 4, 5, 6, +
         _row([
           _numKey('4'), _numKey('5'), _numKey('6'),
-          _opGroup(),
+          _opKey('+'),
         ]),
         const SizedBox(height: 6),
-        // Row 3: 7, 8, 9, Equals
+        // Row 3: 7, 8, 9, −
         _row([
           _numKey('7'), _numKey('8'), _numKey('9'),
-          _specialKey(Icons.drag_handle, AppColors.numpadEq, onEquals ?? () {}),
+          _opKey('-'),
         ]),
         const SizedBox(height: 6),
-        // Row 4: 0, 000, Confirm
+        // Row 4: 0, 000, ×, ÷
         _row([
-          _numKey('0'), _numKey('000'),
-          _confirmKey(),
+          _numKey('0'), _numKey('000'), _opKey('×'), _opKey('÷'),
+        ]),
+        const SizedBox(height: 6),
+        // Row 5: hitung (=) dan simpan (✓)
+        _row([
+          _wideKey(Icons.drag_handle, AppColors.numpadEq, onEquals),
+          _wideKey(Icons.check, AppColors.numpadOk, onConfirm),
         ]),
       ]),
     );
@@ -649,36 +657,34 @@ class CalcNumpad extends StatelessWidget {
     ),
   );
 
-  Widget _opGroup() => GestureDetector(
-    onTap: () {},
+  /// Tombol operator (+, −, ×, ÷) — satu tombol, satu aksi.
+  ///
+  /// Sebelumnya keempatnya dijejalkan dalam satu kotak `_opGroup()` yang
+  /// dibungkus `GestureDetector(onTap: () {})`: `+` dan `−` jalan, `×` dan `÷`
+  /// cuma teks hiasan, dan ketukan di sela-selanya ditelan oleh pembungkus mati.
+  Widget _opKey(String op) => GestureDetector(
+    onTap: () => onKey(op),
     child: Container(
       height: 52,
       decoration: BoxDecoration(
         color: AppColors.numpadOp.withOpacity(0.3),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-        _opBtn('+'), _opBtn('-'),
-         Text('×', style: TextStyle(color: AppColors.textSecond, fontSize: 14)),
-         Text('÷', style: TextStyle(color: AppColors.textSecond, fontSize: 14)),
-      ]),
+      child: Center(child: Text(op, style: TextStyle(
+        color: AppColors.textSecond, fontSize: 20, fontWeight: FontWeight.w700))),
     ),
   );
 
-  Widget _opBtn(String op) => GestureDetector(
-    onTap: () => onKey(op),
-    child: Text(op, style:  TextStyle(color: AppColors.textSecond, fontSize: 14, fontWeight: FontWeight.w600)),
-  );
-
-  Widget _confirmKey() => GestureDetector(
-    onTap: onConfirm,
+  /// Tombol aksi lebar (dipakai untuk "=" dan "✓").
+  Widget _wideKey(IconData icon, Color color, VoidCallback action) => GestureDetector(
+    onTap: action,
     child: Container(
       height: 52,
       decoration: BoxDecoration(
-        color: AppColors.numpadOk,
+        color: color,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Center(child: Icon(Icons.check, color: Colors.white, size: 28)),
+      child: Center(child: Icon(icon, color: Colors.white, size: 26)),
     ),
   );
 }
@@ -737,7 +743,11 @@ class TransactionTypeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
+    // Bisa digulir mendatar: tiga label Need/Want/Saving meluber 12px di
+    // layar 360dp.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: [
       ...transactionTypes.map((t) {
         final isActive = selected == t.type;
         return Padding(
@@ -772,6 +782,7 @@ class TransactionTypeSelector extends StatelessWidget {
           style:  TextStyle(color: AppColors.textMuted, fontSize: 10),
           maxLines: 2,
         )),
-    ]);
+      ]),
+    );
   }
 }

@@ -14,13 +14,17 @@ class UpdateFlow {
   /// Jalankan cek update dan tampilkan dialog yang sesuai.
   /// [silentWhenNoUpdate] = true → tidak menampilkan apa pun kalau sudah terbaru
   /// (dipakai untuk auto-check saat app dibuka, supaya tidak mengganggu).
+  /// [force] = true → abaikan cache, benar-benar tanya ulang ke GitHub.
+  /// Dipakai tombol "Cek pembaruan" manual; tanpa ini tombolnya hanya
+  /// memutar ulang jawaban lama.
   static Future<void> run(
     BuildContext context, {
     bool silentWhenNoUpdate = false,
+    bool force = false,
   }) async {
     if (!context.mounted) return;
 
-    final result = await UpdateService.instance.checkForUpdate();
+    final result = await UpdateService.instance.checkForUpdate(force: force);
     if (!context.mounted) return;
 
     if (result.hasUpdate && result.release != null) {

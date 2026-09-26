@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../constants/app_colors.dart';
 import '../services/auth_service.dart';
 import '../services/theme_service.dart';
+import '../widgets/update_dialog.dart';
 import 'ai_screen.dart';
 import 'goals_screen.dart';
 import 'settings_screen.dart';
@@ -92,8 +94,8 @@ class MoreScreen extends StatelessWidget {
             icon: Icons.info_outline,
             color: AppColors.textMuted,
             title: 'Tentang MengFin',
-            subtitle: 'Versi 3.0.0 · Personal Finance Manager',
-            onTap: () {},
+            subtitle: 'Personal Finance Manager',
+            onTap: () => _showTentang(context),
           ),
           _menuTile(
             icon: Icons.logout,
@@ -159,6 +161,17 @@ class MoreScreen extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _HomeSettingsSheet(),
+    );
+  }
+
+  // ── Tentang MengFin ──────────────────────────────────────────
+  void _showTentang(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => const _TentangSheet(),
     );
   }
 
@@ -298,4 +311,101 @@ class _HomeSettingsSheetState extends State<_HomeSettingsSheet> {
        Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
     ]),
   );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tentang MengFin — versi & jalan pintas cek pembaruan
+// ─────────────────────────────────────────────────────────────
+class _TentangSheet extends StatefulWidget {
+  const _TentangSheet();
+
+  @override
+  State<_TentangSheet> createState() => _TentangSheetState();
+}
+
+class _TentangSheetState extends State<_TentangSheet> {
+  String _versi = '…';
+  bool _cek = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _muatVersi();
+  }
+
+  /// Versi dibaca dari PackageInfo, bukan ditulis mati di dalam widget.
+  Future<void> _muatVersi() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() => _versi = '${info.version}+${info.buildNumber}');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _versi = 'Tidak diketahui');
+    }
+  }
+
+  Future<void> _cekPembaruan() async {
+    if (_cek) return;
+    setState(() => _cek = true);
+    try {
+      // force: true — tanpa ini pengecekan mengembalikan jawaban lama.
+      await UpdateFlow.run(context, force: true);
+    } finally {
+      if (mounted) setState(() => _cek = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 40, height: 4, decoration: BoxDecoration(
+          color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 20),
+        Container(
+          width: 64, height: 64,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Center(child: Text('💸', style: TextStyle(fontSize: 30))),
+        ),
+        const SizedBox(height: 12),
+        Text('MengFin', style: TextStyle(
+          color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text('Versi $_versi', style: TextStyle(
+          color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 2),
+        Text('Personal Finance Manager', style: TextStyle(
+          color: AppColors.textMuted, fontSize: 11)),
+        const SizedBox(height: 20),
+
+        SizedBox(width: double.infinity, child: ElevatedButton.icon(
+          onPressed: _cek ? null : _cekPembaruan,
+          icon: _cek
+              ? const SizedBox(width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.system_update_alt, size: 18),
+          label: Text(_cek ? 'Memeriksa…' : 'Cek pembaruan'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        )),
+        const SizedBox(height: 12),
+
+        GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Text('Tutup', style: TextStyle(
+            color: AppColors.textMuted, fontSize: 13, fontWeight: FontWeight.w600)),
+        ),
+        SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+      ]),
+    );
+  }
 }
