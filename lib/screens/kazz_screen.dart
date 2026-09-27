@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../services/app_events.dart';
 import '../services/export_service.dart';
 import '../services/kazz_filter.dart';
+import '../services/penyimpanan.dart';
 import '../widgets/kazz_illustrations.dart';
 import '../widgets/widgets.dart';
 import 'calendar_screen.dart';
@@ -136,8 +137,21 @@ class _KazzScreenState extends State<KazzScreen> {
           SizedBox(width: double.infinity, child: ElevatedButton(
             onPressed: () async {
               final b = double.tryParse(batas.replaceAll(RegExp(r'\D'), '')) ?? 0;
-              if (edit != null) { await ApiService.updateAnggaran(edit.id, b); }
-              else { await ApiService.createAnggaran(kategori, b, _budgetPeriode); }
+              final hasil = await Penyimpanan.simpan(() async {
+                if (edit != null) {
+                  await ApiService.updateAnggaran(edit.id, b);
+                } else {
+                  await ApiService.createAnggaran(kategori, b, _budgetPeriode);
+                }
+              });
+              if (!context.mounted) return;
+              if (hasil.gagal) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(hasil.pesan!),
+                  backgroundColor: AppColors.danger,
+                ));
+                return;
+              }
               Navigator.pop(context); _load();
             },
             style: ElevatedButton.styleFrom(

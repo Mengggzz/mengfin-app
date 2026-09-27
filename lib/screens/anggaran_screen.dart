@@ -3,6 +3,7 @@ import '../constants/app_colors.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
+import '../services/penyimpanan.dart';
 import '../widgets/widgets.dart';
 
 class AnggaranScreen extends StatefulWidget {
@@ -113,8 +114,21 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
           SizedBox(width: double.infinity, child: ElevatedButton(
             onPressed: () async {
               final b = double.tryParse(batas.replaceAll(RegExp(r'\D'), '')) ?? 0;
-              if (edit != null) { await ApiService.updateAnggaran(edit.id, b); }
-              else { await ApiService.createAnggaran(kategori, b, _periode); }
+              final hasil = await Penyimpanan.simpan(() async {
+                if (edit != null) {
+                  await ApiService.updateAnggaran(edit.id, b);
+                } else {
+                  await ApiService.createAnggaran(kategori, b, _periode);
+                }
+              });
+              if (!context.mounted) return;
+              if (hasil.gagal) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(hasil.pesan!),
+                  backgroundColor: AppColors.danger,
+                ));
+                return;
+              }
               Navigator.pop(context); _load();
             },
             style: ElevatedButton.styleFrom(

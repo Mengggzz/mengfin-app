@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
+import '../services/penyimpanan.dart';
 import '../widgets/widgets.dart';
 
 class GoalsScreen extends StatefulWidget {
@@ -76,7 +77,17 @@ class _GoalsScreenState extends State<GoalsScreen> {
           SizedBox(width: double.infinity, child: ElevatedButton(
             onPressed: () async {
               final t = double.tryParse(tambah.replaceAll(RegExp(r'\D'), '')) ?? 0;
-              await ApiService.updateProgres(g.id, t);
+              final hasil = await Penyimpanan.simpan(
+                () async => ApiService.updateProgres(g.id, t),
+              );
+              if (!context.mounted) return;
+              if (hasil.gagal) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(hasil.pesan!),
+                  backgroundColor: AppColors.danger,
+                ));
+                return;
+              }
               Navigator.pop(context); _load();
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white,
@@ -127,12 +138,24 @@ class _GoalsScreenState extends State<GoalsScreen> {
           SizedBox(width: double.infinity, child: ElevatedButton(
             onPressed: () async {
               if (nama.isEmpty || target.isEmpty) return;
-              await ApiService.createGoal({
-                'nama': nama, 'target': double.tryParse(target.replaceAll(RegExp(r'\D'), '')) ?? 0,
-                'nabung_per_bulan': double.tryParse(nabung.replaceAll(RegExp(r'\D'), '')) ?? 0,
-                if (deadline.isNotEmpty) 'deadline': deadline,
-                'prioritas': prioritas, 'catatan': catatan,
-              });
+              final hasil = await Penyimpanan.simpan(
+                () async => ApiService.createGoal({
+                  'nama': nama,
+                  'target': double.tryParse(target.replaceAll(RegExp(r'\D'), '')) ?? 0,
+                  'nabung_per_bulan': double.tryParse(nabung.replaceAll(RegExp(r'\D'), '')) ?? 0,
+                  if (deadline.isNotEmpty) 'deadline': deadline,
+                  'prioritas': prioritas,
+                  'catatan': catatan,
+                }),
+              );
+              if (!context.mounted) return;
+              if (hasil.gagal) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(hasil.pesan!),
+                  backgroundColor: AppColors.danger,
+                ));
+                return;
+              }
               Navigator.pop(context); _load();
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white,
