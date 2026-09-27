@@ -22,7 +22,25 @@ Cara kerja yang dipilih pengguna: kerjakan satu per satu, dicek dulu tiap selesa
 - 79ea311 — ekspresi numpad (25 + 10 = 35, dulu 2510), Tentang MengFin, ×/÷, overflow 360dp.
 - e048903 — notif_parser (18 tes) + app_prefs (6 tes) + notif_service + manifest listener.
 
-## Selesai SESI INI (working tree — lihat git log; cek dulu sebelum commit)
+## Selesai SESI INI (commit 8f7bf7e, sudah dipush; CI run sedang jalan)
+1. **Auto-kategorikan:** tombol `auto_fix_high` di layar input dulu ikon hiasan —
+   sekarang `KategoriOtomatis.tebak()` cari transaksi terakhir (≤30 hari) dengan
+   deskripsi mirip; 10 tes (`test/kategori_otomatis_test.dart`). Layar: loading +
+   snackbar hasil; kategori langsung berubah. Tidak ada tebakan kalau tak cocok.
+2. **Banner Premium dibuang:** teks "Scan All memerlukan Premium" diganti netral
+   tentang draft — tidak ada sistem premium di app ini.
+3. Bug tes: cache `SharedPreferences` singleton lintas-test → nilai awal lewat
+   `setMockInitialValues` saja bocor dari test sebelumnya; sekarang ditulis lewat
+   setter `AppPrefs`. Chip kata kunci di bawah lipatan → test scroll dulu.
+
+## Rilis
+- v20260927-1002 (CI sha 5f74f49, sukses): app-release.apk 63.7 MB, 1 download.
+  https://github.com/Mengggzz/mengfin-app/releases/tag/v20260927-1002
+- CI sha 8f7bf7e sedang berjalan saat file ini ditulis.
+
+## Verifikasi
+- `flutter analyze` 0 error; `flutter test` **101 lulus**; `flutter build web --release` OK.
+
 1. **Pengaturan benar-benar dipakai:**
    - `settings_screen.dart`: `muatAkun` injectable; Simpan → AppPrefs (dompet utama/tampil);
      toggle → `setNotifAktif` + `terapkanPreferensi` + alur izin; kata kunci +/× tersimpan
