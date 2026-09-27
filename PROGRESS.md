@@ -85,3 +85,41 @@ Cara kerja yang dipilih pengguna: kerjakan satu per satu, dicek dulu tiap selesa
 - Backend lokal: `cd backend && node src/index.js` (port 3000).
 - Flutter web: `flutter run -d web-server --web-port 8080 --web-hostname localhost`.
 - Windows/MSYS: kill via `MSYS_NO_PATHCONV=1 taskkill /F /PID <pid>` (pid dari `netstat -ano | grep :3000`).
+
+## 2026-09-27 — sinkronisasi online/offline dompet (commit 0d1f84d, CI sukses)
+**Akar masalah:** `sync_queue` dengan `table_name='akun'` tidak punya cabang di
+`SyncService.syncToServer()`. Kodenya:
+```
+for (final item in queue) { ... else if (method == 'DONE') {} ...
+  await LocalDb.removeFromQueue(id); }
+```
+Tidak ada `else if akun` → dompet offline jatuh ke "tanpa operasi", lalu
+**dihapus dari antrean padahal tidak pernah dikirim**. Dompet yang dibuat saat
+offline hilang permanen begitu online kembali. Kedua, dompet tidak pernah
+disimpan lokal sama sekali (tidak ada tabel `akun`), jadi pemilih dompet di
+input transaksi kosong saat offline.
+
+**Yang diperbaiki:**
+1. Schema SQLite v3: tabel `akun` baru (`id`, `local_id`, `nama`, `jenis`,
+   `saldo`, `warna`, `ikon`, `synced`). Migrasi lama (v1→v2, INTEGER→TEXT)
+   dijaga oleh `if (oldVersion < 3)`; `_createSchema` membuat semua tabel
+   sekaligus jadi v2→v3 hanya jalan sekali.
+2. `LocalDb`: `insertAkunLocal`, `replaceAkunLocalToServer`,
+   `updateAkunSaldoLocal`, `getAkunList` (gabungan lokal+server, urut nama),
+   `upsertAkunList`.
+3. `ApiService`: `createAkunRaw` + `updateAkunSaldoRaw` (dipakai SyncService);
+   `getAkunList()` sekarang cache-terpadu (web = server langsung; mobile =
+   simpan hasil server lalu kembalikan cache + dompet lokal belum sync);
+   `createAkun` & `updateAkunSaldo` menulis cache lokal supaya UI konsisten.
+4. `SyncService.syncToServer`: cabang `POST /akun` (ambil id server, ganti id
+   lokal) + `PUT /akun/:id`. Parameter opsional `kirim` untuk tes pengiriman.
+
+**Verifikasi:** `flutter analyze` 0 error; `flutter test` **113 lulus** (7 tes
+baru di `test/sync_offline_test.dart`: dompet offline tersimpan, id lokal
+ditimpa id server, saldo offline bisa diubah, daftar dompet gabungan, item
+antrean akun benar-benar dikirim, item gagal tetap di antrean, regresi id
+String pada delete/update transaksi); `flutter build web --release` OK;
+0 `localhost:3000` di `main.dart.js`. CI sukses untuk 0d1f84d.
+
+**Sisa:** uji auto-catat notifikasi di HP nyata (plugin Android belum pernah
+dijalankan di mesin ini). `flutter build apk` lokal tetap GAGAL (JDK/Gradle).
