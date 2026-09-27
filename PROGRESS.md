@@ -123,3 +123,42 @@ String pada delete/update transaksi); `flutter build web --release` OK;
 
 **Sisa:** uji auto-catat notifikasi di HP nyata (plugin Android belum pernah
 dijalankan di mesin ini). `flutter build apk` lokal tetap GAGAL (JDK/Gradle).
+
+## 2026-09-27 (2) — dua bug UI (commit 9b040d8, CI sukses)
+1. **Dialog "Sudah Versi Terbaru" muncul saat buka aplikasi.**
+   `DashboardScreen._autoCheckUpdate()` memanggil `UpdateFlow.run(context)`
+   TANPA `silentWhenNoUpdate: true`. Padahal `UpdateFlow.run` menampilkan
+   `InfoDialog` untuk SEMUA hasil cek (update / sudah terbaru / error) kecuali
+   flag itu diset. Jadi setiap kali app dibuka, dialog info muncul.
+   Fix: `UpdateFlow.run(context, silentWhenNoUpdate: true)` + hapus cek
+   ganda di dashboard. Tombol manual di MoreScreen tetap pakai default
+   (tampilkan info) karena pengguna memang ingin tahu hasilnya.
+2. **Pengaturan Kazz Utama tidak berdampak ke beranda.**
+   `SettingsScreen._simpan()` sudah benar menulis AppPrefs dan memancarkan
+   `AppEvents.akunBerubah()`, tapi `DashboardScreen` hanya memasang listener
+   pada `transaksi` & `anggaran` — tidak ada yang mendengarkan `akun`.
+   Akibatnya saldo "Dompet Saya" di beranda tetap pakai pilihan lama sampai
+   aplikasi dibuka ulang. Fix: pasang + lepas listener `akun` juga.
+   Catatan: layar yang sudah ada di IndexedStack (Home/Kazz/View/More)
+   mendapat listener masing-masing; anggaran & goals dibuka lewat
+   Navigator.push dan selalu `_load()` saat dibuka, jadi mereka selalu segar.
+
+## Analisis struktur — temuan
+Dipindai: TODO/FIXME (0), handler kosong (0), print debug di lib/ (8, di
+dashboard_screen & auth_service — tidak fatal tapi sebaiknya diganti logging),
+catch tanpa feedback di service (27 — sebagian besar sudah sengaja: offline
+path jatuh ke queue, dan `Penyimpanan` sudah membungkus save layar).
+
+Yang **OK** (bukan bug):
+- _load() ulang dipanggil setelah create/update/delete di anggaran, goals,
+  kazz, dashboard, transaksi, kalender.
+- IndexedStack di MainNav: instance layar baru per build sudah disengaja
+  supaya ganti mode tampilan langsung efektif (state tetap, tidak dibuat ulang).
+- Connectivity listener di MainNav tidak di-cancel: MainNav adalah root,
+  hidup seumur app — tidak ada leak yang berarti.
+
+Yang **masih perlu uji di HP** (tidak bisa diverifikasi di mesin ini):
+- Plugin Android notifikasi (auto-catat): belum pernah dijalankan.
+- Migrasi DB v1→v3 di perangkat yang sudah punya DB lama — baru diuji
+  dari skema baru (onCreate). Migrasi onUpgrade berjalan otomatis saat
+  versi DB naik, tapi tidak ada tes yang membuat DB v1 dulu.
