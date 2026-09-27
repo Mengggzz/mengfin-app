@@ -174,6 +174,35 @@ class NotifService {
   String? _paketSendiriCache;
   String get _paketSendiri => _paketSendiriCache ?? '';
 
+  /// Daftar nama paket aplikasi yang dipasang, buat pemilih "Aplikasi yang
+  /// dipantau". Hanya Android; di luar Android mengembalikan daftar kosong.
+  ///
+  /// Diberi batas waktu: tanpa plugin yang menjawab, Future MethodChannel
+  /// bisa menggantung selamanya dan membuat indikator loading berputar
+  /// terus (terbukti lewat tes widget).
+  Future<List<String>> daftarPaketTerpasang() async {
+    if (!tersedia) return const [];
+    try {
+      final hasil = await _invoke<List<dynamic>>('getInstalledApps')
+          .timeout(const Duration(seconds: 2));
+      if (hasil == null) return const [];
+      return hasil.map((e) => e.toString()).toList()..sort();
+    } on TimeoutException {
+      return const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Buka layar pengaturan izin akses notifikasi (di Android: pengaturan
+  /// Notification Listener). Kembali ke app setelah pengguna selesai.
+  Future<void> bukaPengaturanIzin() async {
+    if (!tersedia) return;
+    try {
+      await _invoke<void>('openNotificationSettings');
+    } catch (_) {}
+  }
+
   Future<void> muatPaketSendiri() async {
     if (!tersedia) return;
     try {

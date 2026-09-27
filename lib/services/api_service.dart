@@ -206,6 +206,35 @@ class ApiService {
 
   static Future<void> deleteTransaksiRaw(dynamic id) => _delete('/transaksi/$id');
 
+  /// Ubah transaksi yang sudah ada. Offline-aware seperti createTransaksi:
+  /// coba server dulu, kalau gagal antrekan PUT dan perbarui cache lokal
+  /// supaya UI langsung konsisten.
+  static Future<void> updateTransaksi(dynamic id, Map<String, dynamic> body) async {
+    if (kIsWeb) {
+      await updateTransaksiRaw(id, body);
+      AppEvents.instance.transaksiBerubah();
+      return;
+    }
+
+    // Perbarui baris lokal lebih dulu — perubahan terlihat walau upload gagal.
+    await LocalDb.updateTransaksiLocal(id, body);
+    AppEvents.instance.transaksiBerubah();
+
+    if (_online) {
+      try {
+        await updateTransaksiRaw(id, body);
+        return;
+      } catch (_) {}
+    }
+    await LocalDb.enqueue(
+      method: 'PUT', path: '/transaksi/$id',
+      body: jsonEncode(body), localId: 'upd_tx_$id', tableName: 'transaksi',
+    );
+  }
+
+  static Future<void> updateTransaksiRaw(dynamic id, Map<String, dynamic> body) =>
+      _put('/transaksi/$id', body);
+
   // ── Akun ───────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> getAkun() async => _get('/akun');
 

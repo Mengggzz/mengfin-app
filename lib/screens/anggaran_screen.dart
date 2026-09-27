@@ -33,7 +33,8 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
     _load();
   }
 
-  Future<void> _delete(int id) async {
+  // Id dari server berupa String ObjectId, bukan int — jangan dikunci int.
+  Future<void> _delete(dynamic id) async {
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       backgroundColor: AppColors.bgCard,
       title:  Text('Hapus Anggaran', style: TextStyle(color: AppColors.textPrimary)),
@@ -42,7 +43,17 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
         TextButton(onPressed: () => Navigator.pop(context, true), child:  Text('Hapus', style: TextStyle(color: AppColors.danger))),
       ],
     ));
-    if (ok == true) { await ApiService.deleteAnggaran(id); _load(); }
+    if (ok != true) return;
+    try {
+      await ApiService.deleteAnggaran(id);
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Gagal menghapus: $e'),
+        backgroundColor: AppColors.danger,
+      ));
+    }
   }
 
   void _showAddModal({Anggaran? edit}) {

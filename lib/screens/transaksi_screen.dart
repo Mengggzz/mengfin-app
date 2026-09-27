@@ -7,6 +7,7 @@ import '../services/app_events.dart';
 import '../widgets/widgets.dart';
 import 'calendar_screen.dart';
 import 'laporan_screen.dart';
+import 'transaction_input_screen.dart';
 
 import '../services/export_service.dart';
 import '../widgets/transaction_filter_dialog.dart';
@@ -128,7 +129,15 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
     }
   }
 
-  Future<void> _delete(int id) async {
+  void _editTransaksi(dynamic tx) {
+    Navigator.push(context, MaterialPageRoute(
+        builder: (_) => TransactionInputScreen(edit: tx as Transaksi)))
+        .then((changed) {
+      if (changed == true) _load();
+    });
+  }
+
+  Future<void> _delete(dynamic id) async {
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       backgroundColor: AppColors.bgCard,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -141,7 +150,17 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
           child:  Text('Hapus', style: TextStyle(color: AppColors.danger))),
       ],
     ));
-    if (ok == true) { await ApiService.deleteTransaksi(id); _load(); }
+    if (ok != true) return;
+    try {
+      await ApiService.deleteTransaksi(id);
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Gagal menghapus: $e'),
+        backgroundColor: AppColors.danger,
+      ));
+    }
   }
 
   // Group transaksi by date
@@ -262,6 +281,8 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
                         children: [
                           TransaksiTile(
                             tx: tx,
+                            // Ketuk = buka form edit (sebelumnya baris mati).
+                            onTap: () => _editTransaksi(tx),
                             onDelete: () => _delete(tx.id),
                           ),
                           if (!tx.synced)

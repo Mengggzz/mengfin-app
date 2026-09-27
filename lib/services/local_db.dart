@@ -203,6 +203,23 @@ class LocalDb {
     await d.delete('transaksi', where: 'id = ?', whereArgs: [id]);
   }
 
+  /// Terapkan perubahan body ke baris lokal yang id-nya [id].
+  static Future<void> updateTransaksiLocal(dynamic id, Map<String, dynamic> data) async {
+    final d = await db;
+    final updated = <String, dynamic>{};
+    if (data['tanggal'] != null) updated['tanggal'] = data['tanggal'];
+    if (data['jenis'] != null) updated['jenis'] = data['jenis'];
+    if (data['nominal'] != null) updated['nominal'] = data['nominal'];
+    if (data['kategori'] != null) updated['kategori'] = data['kategori'];
+    if (data['deskripsi'] != null) updated['deskripsi'] = data['deskripsi'];
+    if (data['metode_pembayaran'] != null) {
+      updated['metode_pembayaran'] = data['metode_pembayaran'];
+    }
+    if (data.containsKey('akun_id')) updated['akun_id'] = data['akun_id'];
+    if (updated.isEmpty) return;
+    await d.update('transaksi', updated, where: 'id = ?', whereArgs: [id]);
+  }
+
   static Future<void> replaceTransaksiLocalToServer(String localId, dynamic serverId) async {
     final d = await db;
     await d.rawUpdate(

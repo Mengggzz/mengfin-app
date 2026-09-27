@@ -4,6 +4,7 @@ import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../widgets/widgets.dart';
+import 'transaction_input_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -212,6 +213,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
         else
           ...selectedDayTx.map((tx) => TransaksiTile(
             tx: tx,
+            // Ketuk = buka form edit.
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => TransactionInputScreen(edit: tx as Transaksi)))
+                .then((changed) {
+              if (changed == true) _load();
+            }),
             onDelete: () => _hapusTransaksi(tx),
           )),
         const SizedBox(height: 24),

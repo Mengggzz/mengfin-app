@@ -4,12 +4,17 @@ import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/amount_expression.dart';
 import '../services/api_service.dart';
+import '../services/app_prefs.dart';
+import '../services/dompet_view.dart';
 import '../widgets/widgets.dart';
 
 class TransactionInputScreen extends StatefulWidget {
   final String? initialDeskripsi;
 
-  const TransactionInputScreen({super.key, this.initialDeskripsi});
+  /// Transaksi yang diedit. Null = input baru.
+  final Transaksi? edit;
+
+  const TransactionInputScreen({super.key, this.initialDeskripsi, this.edit});
   @override State<TransactionInputScreen> createState() => _TransactionInputScreenState();
 }
 
@@ -19,20 +24,54 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
   String _deskripsi = '';
   String _kategori = 'Makan & Minum';
   String _tanggal = currentTanggal();
-  String _walletName = 'Dompet Utama';
   TransactionType? _tipe;
   bool _saving = false;
 
+  // Dompet: diambil dari daftar akun asli (sebelumnya tulisan mati
+  // "Dompet Utama" dan transaksi tidak pernah tertaut ke akun mana pun).
+  List<Akun> _akunList = [];
+  dynamic _akunTerpilih;
+
   late final TextEditingController _deskripsiCtrl;
 
-  // Recent descriptions for suggestions
+  /// Recent descriptions for suggestions
   final _recentDescs = <String>['kopi', 'bensin', 'makan siang', 'grab', 'belanja'];
+
+  bool get _isEdit => widget.edit != null;
 
   @override
   void initState() {
     super.initState();
     _deskripsi = widget.initialDeskripsi ?? '';
     _deskripsiCtrl = TextEditingController(text: _deskripsi);
+    final edit = widget.edit;
+    if (edit != null) {
+      // Isi form dari transaksi yang ada supaya bisa dikoreksi.
+      _isExpense = edit.jenis == 'pengeluaran';
+      _amount = AmountExpression.formatNumber(edit.nominal);
+      _deskripsi = edit.deskripsi;
+      _deskripsiCtrl.text = _deskripsi;
+      _tanggal = edit.tanggal.length > 10 ? edit.tanggal.substring(0, 10) : edit.tanggal;
+      if (edit.kategori.isNotEmpty) _kategori = edit.kategori;
+      _akunTerpilih = edit.akunId;
+    }
+    _muatAkun();
+  }
+
+  Future<void> _muatAkun() async {
+    try {
+      final list = await ApiService.getAkunList();
+      if (!mounted || list.isEmpty) return;
+      setState(() {
+        _akunList = list;
+        // Pilih: dompet dari transaksi yang diedit, lalu dompet utama
+        // dari pengaturan, lalu akun pertama.
+        _akunTerpilih ??= DompetView.dompetAwal(
+          list, AppPrefs.instance.dompetUtama)?.id;
+      });
+    } catch (_) {
+      // Tanpa daftar akun, input tetap bisa jalan (tanpa tertaut dompet).
+    }
   }
 
   @override
@@ -90,20 +129,72 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
     });
   }
 
+  String? _akunNama(dynamic id) {
+    for (final a in _akunList) {
+      if (AppPrefs.idKeTeks(a.id) == AppPrefs.idKeTeks(id)) return a.nama;
+    }
+    return null;
+  }
+
+  Future<void> _pilihDompet() async {
+    final terpilih = await showModalBottomSheet<dynamic>(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text('Pilih dompet', style: TextStyle(
+              color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+          ),
+          Flexible(child: ListView(
+            shrinkWrap: true,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.account_balance_wallet_outlined),
+                title: const Text('Semua dompet'),
+                trailing: _akunTerpilih == null
+                    ? Icon(Icons.check, color: AppColors.primary) : null,
+                onTap: () => Navigator.pop(context, null),
+              ),
+              ..._akunList.map((a) => ListTile(
+                title: Text(a.nama),
+                subtitle: Text('Rp ${formatAmount(a.saldo.abs())}'),
+                trailing: AppPrefs.idKeTeks(a.id) == AppPrefs.idKeTeks(_akunTerpilih)
+                    ? Icon(Icons.check, color: AppColors.primary) : null,
+                onTap: () => Navigator.pop(context, a.id),
+              )),
+            ],
+          )),
+        ]),
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _akunTerpilih = terpilih);
+  }
+
   Future<void> _onConfirm() async {
     final nominal = _parseAmount();
     if (nominal <= 0 || _saving) return;
 
     setState(() => _saving = true);
+    final body = <String, dynamic>{
+      'tanggal': _tanggal,
+      'jenis': _isExpense ? 'pengeluaran' : 'pemasukan',
+      'nominal': nominal,
+      'kategori': _kategori,
+      'deskripsi': _deskripsi,
+      'metode_pembayaran': 'tunai',
+      if (_akunTerpilih != null) 'akun_id': _akunTerpilih,
+    };
     try {
-      await ApiService.createTransaksi({
-        'tanggal': _tanggal,
-        'jenis': _isExpense ? 'pengeluaran' : 'pemasukan',
-        'nominal': nominal,
-        'kategori': _kategori,
-        'deskripsi': _deskripsi,
-        'metode_pembayaran': 'tunai',
-      });
+      if (_isEdit) {
+        await ApiService.updateTransaksi(widget.edit!.id, body);
+      } else {
+        await ApiService.createTransaksi(body);
+      }
 
       if (_isExpense && mounted) {
         // Smart Budgeting Check
@@ -188,7 +279,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
           icon:  Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title:  Text('Transaksi', style: TextStyle(
+        title:  Text(_isEdit ? 'Edit Transaksi' : 'Transaksi', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         centerTitle: true,
       ),
@@ -255,22 +346,33 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
               ),
               const SizedBox(width: 8),
               // Flexible: chip dompet dulu meluber 70px di layar 360dp ketika
-              // nama dompet panjang.
-              Flexible(child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.bgElevated,
-                  borderRadius: BorderRadius.circular(20),
+              // nama dompet panjang. Ketuk → pilih dompet dari daftar akun
+              // asli (dulu tulisan mati "Dompet Utama").
+              Flexible(child: InkWell(
+                onTap: _akunList.isEmpty ? null : _pilihDompet,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgElevated,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('💰', style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 6),
+                    Flexible(child: Text(
+                      _akunList.isEmpty
+                          ? 'Dompet'
+                          : (_akunTerpilih == null
+                              ? 'Semua dompet'
+                              : (_akunNama(_akunTerpilih) ?? 'Dompet'))
+                              .toString(),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500))),
+                    const SizedBox(width: 4),
+                     Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.textMuted),
+                  ]),
                 ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Text('💰', style: TextStyle(fontSize: 14)),
-                  const SizedBox(width: 6),
-                  Flexible(child: Text(_walletName,
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500))),
-                  const SizedBox(width: 4),
-                   Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.textMuted),
-                ]),
               )),
             ]),
             const SizedBox(height: 16),

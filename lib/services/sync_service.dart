@@ -83,6 +83,8 @@ class SyncService {
             if (serverId != null && serverId.isNotEmpty) {
               await LocalDb.replaceTransaksiLocalToServer(localId, serverId);
             }
+          } else if (method == 'PUT' && tableName == 'transaksi') {
+            if (hasPathId) await ApiService.updateTransaksiRaw(pathId, body);
           } else if (method == 'DELETE' && tableName == 'transaksi') {
             if (hasPathId) await ApiService.deleteTransaksiRaw(pathId);
           } else if (method == 'POST' && tableName == 'anggaran') {

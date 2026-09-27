@@ -20,6 +20,8 @@ import 'services/sync_service.dart';
 import 'services/local_db.dart';
 import 'services/theme_service.dart';
 import 'services/update_service.dart';
+import 'services/app_prefs.dart';
+import 'services/notif_service.dart';
 import 'widgets/update_dialog.dart';
 
 /// Warna status bar & navigation bar Android harus ikut mode tampilan —
@@ -47,6 +49,17 @@ void main() async {
 
   // Baca preferensi mode tampilan (Sistem / Terang / Gelap)
   await ThemeService.instance.init();
+
+  // Baca preferensi pengguna: dompet utama/tampil, toggle auto-notif,
+  // kata kunci, aplikasi yang dipantau. Harus selesai sebelum runApp —
+  // layar pertama membacanya.
+  await AppPrefs.instance.init();
+
+  // Nama paket sendiri (Android): supaya pembaca notifikasi tidak ikut
+  // membaca notifikasi milik aplikasi ini sendiri. Tidak perlu blocking.
+  NotifService.instance.muatPaketSendiri();
+  // Nyalakan listener kalau pengguna pernah mengaktifkan togglenya.
+  NotifService.instance.terapkanPreferensi();
 
   // Init update service (baca versi app dari PackageInfo)
   if (!kIsWeb) {

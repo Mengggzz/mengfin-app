@@ -137,7 +137,7 @@ class DashboardData {
   final String prediksiStatus;
 
   DashboardData({
-    required this.saldoTotal, required this.pemasukanBulanIni,
+    this.saldoTotal = 0, required this.pemasukanBulanIni,
     required this.pengeluaranBulanIni, required this.bulanIni,
     required this.health, required this.rataHarian,
     required this.mingguIniPengeluaran, required this.kenaikanPersen,
@@ -147,7 +147,7 @@ class DashboardData {
   });
 
   factory DashboardData.fromJson(Map<String, dynamic> j) => DashboardData(
-    saldoTotal: (j['saldoTotal'] as num).toDouble(),
+    saldoTotal: (j['saldoTotal'] as num? ?? 0).toDouble(),
     pemasukanBulanIni: (j['bulanIni']?['pemasukan'] as num? ?? 0).toDouble(),
     pengeluaranBulanIni: (j['bulanIni']?['pengeluaran'] as num? ?? 0).toDouble(),
     bulanIni: j['bulanIni']?['bulan'] ?? '',

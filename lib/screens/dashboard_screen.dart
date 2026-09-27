@@ -7,7 +7,9 @@ import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/app_events.dart';
+import '../services/app_prefs.dart';
 import '../services/auth_service.dart';
+import '../services/dompet_view.dart';
 import '../services/local_db.dart';
 import '../services/update_service.dart';
 import '../widgets/widgets.dart';
@@ -18,6 +20,7 @@ import 'calendar_screen.dart';
 import 'laporan_screen.dart';
 import 'scan_screen.dart';
 import 'settings_screen.dart';
+import 'transaction_input_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -26,6 +29,9 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   DashboardData? _data;
+  // Saldo "Dompet Saya" mengikuti pilihan dompet di pengaturan
+  // (DompetView), bukan selalu saldoTotal dari server.
+  double _saldoDompet = 0;
   List<dynamic> _recentTx = [];
   bool _loading = true;
   bool _isOfflineData = false;
@@ -116,6 +122,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ApiService.getDashboard(),
         ApiService.getTransaksi(limit: 200),
       ]);
+      // Daftar akun ikut diambil supaya saldo "Dompet Saya" mengikuti
+      // pilihan dompet di pengaturan (sebelumnya selalu saldoTotal server,
+      // jadi pengaturan dompet tidak ada efeknya ke beranda).
+      List<Akun> akun = const [];
+      try {
+        akun = await ApiService.getAkunList();
+      } catch (_) {}
       final prefs = await SharedPreferences.getInstance();
       final savedBudget = prefs.getDouble('budget_harian') ?? 0;
 
@@ -178,6 +191,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       setState(() {
         _data = results[0] as DashboardData;
+        _saldoDompet = DompetView.saldoTampil(
+          akun: akun,
+          dompetUtama: AppPrefs.instance.dompetUtama,
+          dompetTampil: AppPrefs.instance.dompetTampil,
+          saldoServer: (results[0] as DashboardData).saldoTotal,
+        );
         _recentTx = allTx.take(10).toList();
         _kategoriBreakdown = katList;
         _loading = false;
@@ -207,6 +226,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final pemasukan = localStats['pemasukan'] ?? 0;
         final pengeluaran = localStats['pengeluaran'] ?? 0;
         setState(() {
+          _saldoDompet = saldo.toDouble();
           _data = DashboardData(
             saldoTotal: saldo,
             pemasukanBulanIni: pemasukan,
@@ -295,8 +315,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildContent() {
     final d = _data!;
+    final saldo = _saldoDompet;
     final totalFlow = d.pemasukanBulanIni + d.pengeluaranBulanIni;
-    final saldoPersen = totalFlow > 0 ? (d.saldoTotal.abs() / totalFlow * 100).clamp(0.0, 100.0) : 0.0;
+    final saldoPersen = totalFlow > 0 ? (saldo.abs() / totalFlow * 100).clamp(0.0, 100.0) : 0.0;
     final pengeluaranPersen = totalFlow > 0 ? (d.pengeluaranBulanIni / totalFlow * 100) : 0.0;
 
     // Group recent transactions by date
@@ -344,9 +365,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ]),
               const SizedBox(height: 6),
               Text(
-                '${d.saldoTotal < 0 ? '-' : ''}Rp ${formatAmount(d.saldoTotal.abs())}',
+                '${saldo < 0 ? '-' : ''}Rp ${formatAmount(saldo.abs())}',
                 style: TextStyle(
-                  color: d.saldoTotal < 0 ? AppColors.expense : AppColors.income,
+                  color: saldo < 0 ? AppColors.expense : AppColors.income,
                   fontSize: 22, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 4),
@@ -483,6 +504,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               ...entry.value.map((tx) => TransaksiTile(
                 tx: tx,
+                // Ketuk = buka form edit.
+                onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => TransactionInputScreen(edit: tx as Transaksi)))
+                    .then((changed) {
+                  if (changed == true) _load();
+                }),
                 onDelete: () => _hapusTransaksi(tx),
               )),
             ],
@@ -1232,7 +1259,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 8),
         _chartLegend('Pengeluaran', '${pengeluaranPersen.toStringAsFixed(0)}%',
           'Rp ${formatAmount(d.pengeluaranBulanIni)}', AppColors.expense),
-        if (d.pengeluaranBulanIni > d.saldoTotal.abs() && d.saldoTotal < 0) ...[
+        if (d.pengeluaranBulanIni > _saldoDompet.abs() && _saldoDompet < 0) ...[
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
