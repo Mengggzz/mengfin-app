@@ -6,6 +6,7 @@ import '../services/amount_expression.dart';
 import '../services/api_service.dart';
 import '../services/app_prefs.dart';
 import '../services/dompet_view.dart';
+import '../services/kategori_otomatis.dart';
 import '../widgets/widgets.dart';
 
 class TransactionInputScreen extends StatefulWidget {
@@ -56,6 +57,56 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
       _akunTerpilih = edit.akunId;
     }
     _muatAkun();
+  }
+
+  bool _mencariKategori = false;
+
+  /// Ambil kategori dari transaksi terakhir dengan deskripsi mirip.
+  /// Tombol ini dulu tidak melakukan apa-apa walau tertulis seolah-olah
+  /// otomatis — sekarang beneran mencari.
+  Future<void> _autoKategorikan() async {
+    if (_mencariKategori) return;
+    final deskripsi = _deskripsi.trim();
+    if (deskripsi.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Isi deskripsi dulu, biar dicari transaksi serupa.'),
+        backgroundColor: AppColors.warning,
+        duration: const Duration(seconds: 2),
+      ));
+      return;
+    }
+    setState(() => _mencariKategori = true);
+    try {
+      final riwayat = await ApiService.getTransaksi(limit: 50);
+      final tebakan = KategoriOtomatis.tebak(
+        deskripsi: deskripsi, riwayat: riwayat);
+      if (!mounted) return;
+      if (tebakan == null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Belum ada transaksi sebelumnya dengan deskripsi "$deskripsi".'),
+          backgroundColor: AppColors.textMuted,
+          duration: const Duration(seconds: 2),
+        ));
+        return;
+      }
+      setState(() => _kategori = tebakan);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Kategori diatur ke "$tebakan".'),
+        backgroundColor: AppColors.primary,
+        duration: const Duration(seconds: 2),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Gagal mengambil riwayat: $e'),
+        backgroundColor: AppColors.danger,
+        duration: const Duration(seconds: 3),
+      ));
+    } finally {
+      if (mounted) setState(() => _mencariKategori = false);
+    }
   }
 
   Future<void> _muatAkun() async {
@@ -422,15 +473,29 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                   onChanged: (v) => _deskripsi = v,
                 )),
                 const SizedBox(width: 8),
-                Container(
-                  width: 42, height: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
+                GestureDetector(
+                  // Tombol ini dulu cuma ikon hiasan. Sekarang baca kategori
+                  // dari transaksi terakhir yang deskripsinya mirip.
+                  onTap: _autoKategorikan,
+                  child: Container(
+                    width: 42, height: 42,
+                    decoration: BoxDecoration(
+                      color: _mencariKategori
+                          ? AppColors.primary.withOpacity(0.3)
+                          : AppColors.primary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: _mencariKategori
+                        ? Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2, color: AppColors.primary),
+                          )
+                        : Icon(Icons.auto_fix_high,
+                            color: AppColors.primary, size: 18),
                   ),
-                  child:  Icon(Icons.auto_fix_high, color: AppColors.primary, size: 18),
                 ),
-              ]),
+                ]),
               const SizedBox(height: 4),
                Text('✦ Otomatis kategorikan dari transaksi terakhir',
                 style: TextStyle(color: AppColors.textHint, fontSize: 10)),

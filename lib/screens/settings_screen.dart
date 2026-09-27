@@ -350,7 +350,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(width: 10),
              Expanded(child: Text(
               'Aktifkan dan lihat seberapa efektif fitur ini menangkap transaksimu. '
-              'Tetapi mengubah draft menjadi transaksi (Scan All) memerlukan Premium.',
+              'Hasil bacaan disimpan sebagai draft dulu — kamu yang memutuskan '
+              'mana yang benar-benar dicatat.',
               style: TextStyle(color: AppColors.textSecond, fontSize: 12, height: 1.4))),
           ]),
         ),
