@@ -49,11 +49,16 @@ class SyncService {
 
   /// Kirim semua item dari sync_queue ke server.
   ///
+  /// [kirim] opsional untuk mengganti jalur pengiriman (dipakai tes).
+  /// Produksi memakai [_kirimKeServer].
+  ///
   /// PENTING: id server sekarang String (ObjectId MongoDB), bukan int.
   /// Sebelumnya kode memakai `int.tryParse` sehingga id ObjectId selalu
   /// gagal di-parse → operasi UPDATE/DELETE diam-diam tidak pernah
   /// terkirim, padahal item tetap dihapus dari antrean.
-  Future<SyncResult> syncToServer() async {
+  Future<SyncResult> syncToServer({
+    Future<bool> Function(Map<String, dynamic> item)? kirim,
+  }) async {
     if (_syncing) return const SyncResult();
     _syncing = true;
 
@@ -77,7 +82,12 @@ class SyncService {
         try {
           final body = jsonDecode(bodyStr) as Map<String, dynamic>;
 
-          if (method == 'POST' && tableName == 'transaksi') {
+          if (kirim != null) {
+            // Jalur tes: kirim ke objek palsu, lalu hapus dari antrean
+            // jika berhasil. Jika false, tetap di antrean untuk dicoba lagi.
+            final ok = await kirim({...item, 'body': body});
+            if (!ok) throw Exception('gagal');
+          } else if (method == 'POST' && tableName == 'transaksi') {
             final result = await ApiService.createTransaksiRaw(body);
             final serverId = result['data']?['id']?.toString();
             if (serverId != null && serverId.isNotEmpty) {
@@ -104,6 +114,18 @@ class SyncService {
             }
           } else if (method == 'DELETE' && tableName == 'goals') {
             if (hasPathId) await ApiService.deleteGoalRaw(pathId);
+          } else if (method == 'POST' && tableName == 'akun') {
+            // Sebelumnya tidak ada cabang 'akun' → item dihapus dari antrean
+            // tanpa pernah dikirim; dompet yang dibuat saat offline hilang.
+            final result = await ApiService.createAkunRaw(body);
+            final serverId = result['data']?['id']?.toString();
+            if (serverId != null && serverId.isNotEmpty) {
+              await LocalDb.replaceAkunLocalToServer(localId, serverId);
+            }
+          } else if (method == 'PUT' && tableName == 'akun') {
+            if (hasPathId) {
+              await ApiService.updateAkunSaldoRaw(pathId, (body['saldo'] as num).toDouble());
+            }
           } else if (method == 'DONE') {
             // penanda lokal saja — tidak ada yang perlu dikirim
           }

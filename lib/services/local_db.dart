@@ -29,25 +29,19 @@ class LocalDb {
     final path = _pathOverride ?? join(await getDatabasesPath(), 'mengfin.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, _) async {
         await _createSchema(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        // v1 menyimpan `id` sebagai INTEGER (era backend SQLite).
-        // Backend sekarang MongoDB, id-nya String (ObjectId), sehingga id
-        // server tidak bisa disimpan di kolom INTEGER → data dari server
-        // gagal masuk cache dan penandaan "synced" kacau.
-        //
-        // Migrasi v1 → v2: bangun ulang tabel dengan id TEXT, lalu SALIN
-        // semua baris (id lama dikonversi ke TEXT). Data lokal tidak
-        // dibuang supaya transaksi yang belum terkirim (synced = 0) dan
-        // antrean sync_queue tetap utuh.
-        for (final t in ['transaksi', 'anggaran', 'goals']) {
-          await db.execute('ALTER TABLE $t RENAME TO ${t}_v1');
-        }
-        await _createSchema(db);
-        await db.execute('''
+        // v1 → v2: id INTEGER (era backend SQLite) → id TEXT (MongoDB ObjectId).
+        // v2 → v3: tambah tabel 'akun' (dompet) ke schema.
+        if (oldVersion < 3) {
+          for (final t in ['transaksi', 'anggaran', 'goals']) {
+            await db.execute('ALTER TABLE $t RENAME TO ${t}_v1');
+          }
+          await _createSchema(db);
+          await db.execute('''
           INSERT INTO transaksi (id, local_id, tanggal, jenis, nominal, kategori,
             deskripsi, metode_pembayaran, akun_id, akun_nama, synced)
           SELECT CAST(id AS TEXT), local_id, tanggal, jenis, nominal, kategori,
@@ -68,8 +62,9 @@ class LocalDb {
             prioritas, nabung_per_bulan, catatan, synced
           FROM goals_v1
         ''');
-        for (final t in ['transaksi', 'anggaran', 'goals']) {
-          await db.execute('DROP TABLE ${t}_v1');
+          for (final t in ['transaksi', 'anggaran', 'goals']) {
+            await db.execute('DROP TABLE ${t}_v1');
+          }
         }
       },
     );
@@ -117,6 +112,16 @@ class LocalDb {
         synced INTEGER DEFAULT 1
       )
     ''');
+    await db.execute('''CREATE TABLE IF NOT EXISTS akun (
+      id TEXT PRIMARY KEY,
+      local_id TEXT UNIQUE,
+      nama TEXT,
+      jenis TEXT,
+      saldo REAL DEFAULT 0,
+      warna TEXT DEFAULT '#2563EB',
+      ikon TEXT DEFAULT 'bank',
+      synced INTEGER DEFAULT 1
+    )''');
     // sync_queue.id tetap INTEGER AUTOINCREMENT — itu nomor antrean lokal,
     // bukan id server, jadi tidak terpengaruh migrasi ke MongoDB.
     await db.execute('''
@@ -349,6 +354,77 @@ class LocalDb {
   }
 
   // ── Sync Queue ─────────────────────────────────────────────────────────────
+  // ── Akun (dompet) ──────────────────────────────────────────────────────────
+  /// Simpan dompet yang dibuat saat offline. `localId` menjadi id baris
+  /// sampai server memberi id asli (lihat [replaceAkunLocalToServer]).
+  static Future<void> insertAkunLocal(
+      Map<String, dynamic> data, String localId) async {
+    final d = await db;
+    await d.insert('akun', {
+      'id': localId,
+      'local_id': localId,
+      'nama': data['nama'],
+      'jenis': data['jenis'],
+      'saldo': data['saldo'] ?? 0,
+      'warna': data['warna'] ?? '#2563EB',
+      'ikon': data['ikon'] ?? 'bank',
+      'synced': 0,
+    });
+  }
+
+  /// Ganti id lokal dengan id server setelah POST /akun berhasil.
+  static Future<void> replaceAkunLocalToServer(
+      String localId, String serverId) async {
+    final d = await db;
+    await d.update(
+      'akun',
+      {'id': serverId, 'synced': 1},
+      where: 'id = ? OR local_id = ?',
+      whereArgs: [localId, localId],
+    );
+  }
+
+  /// Ubah saldo dompet offline (mis. setelah transaksi tercatat).
+  static Future<void> updateAkunSaldoLocal(String id, double saldo) async {
+    final d = await db;
+    await d.rawUpdate(
+      'UPDATE akun SET saldo = ?, synced = 0 WHERE id = ? OR local_id = ?',
+      [saldo, id, id],
+    );
+  }
+
+  /// Ambil semua dompet: gabungan lokal (belum sync) + server.
+  /// Saat offline, pemilih dompet di input transaksi tetap terisi.
+  static Future<List<Akun>> getAkunList() async {
+    final d = await db;
+    final rows = await d.query('akun', orderBy: 'nama ASC');
+    return rows.map((r) => Akun(
+          id: r['id']?.toString() ?? '',
+          nama: (r['nama'] as String?) ?? '',
+          jenis: (r['jenis'] as String?) ?? 'cash',
+          saldo: (r['saldo'] as num? ?? 0).toDouble(),
+          warna: (r['warna'] as String?) ?? '#2563EB',
+          ikon: (r['ikon'] as String?) ?? 'bank',
+        )).toList();
+  }
+
+  /// Simpan daftar dompet dari server ke cache lokal.
+  static Future<void> upsertAkunList(List<Akun> list) async {
+    final d = await db;
+    for (final a in list) {
+      await d.insert('akun', {
+        'id': a.id?.toString(),
+        'local_id': null,
+        'nama': a.nama,
+        'jenis': a.jenis,
+        'saldo': a.saldo,
+        'warna': a.warna,
+        'ikon': a.ikon,
+        'synced': 1,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+  }
+
   static Future<void> enqueue({
     required String method,
     required String path,

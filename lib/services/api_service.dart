@@ -182,6 +182,15 @@ class ApiService {
   static Future<Map<String, dynamic>> createTransaksiRaw(Map<String, dynamic> body) =>
       _post('/transaksi', body);
 
+  /// POST /akun versi mentah — dipakai SyncService saat mengirim antrean.
+  /// Mengembalikan body respons supaya id server bisa diambil dan disimpan.
+  static Future<Map<String, dynamic>> createAkunRaw(Map<String, dynamic> body) =>
+      _post('/akun', body);
+
+  /// PUT /akun/:id versi mentah — dipakai SyncService.
+  static Future<void> updateAkunSaldoRaw(dynamic id, double saldo) =>
+      _put('/akun/$id', {'saldo': saldo});
+
   static Future<void> deleteTransaksi(dynamic id) async {
     if (kIsWeb) {
       if (id != null) await deleteTransaksiRaw(id);
@@ -245,6 +254,7 @@ class ApiService {
     double saldo = 0,
     String warna = '#2563EB',
   }) async {
+    final localId = 'akun_${DateTime.now().millisecondsSinceEpoch}';
     final body = {
       'nama': nama,
       'jenis': jenis,
@@ -256,13 +266,20 @@ class ApiService {
     if (_online) {
       try {
         await _post('/akun', body);
-      } catch (e) {
-        // Jangan diamkan kegagalan: layar perlu tahu supaya tidak
-        // menampilkan "berhasil" padahal data tidak tersimpan.
         if (!kIsWeb) {
+          // Simpan langsung ke cache; getAkunList() mengambilnya dari sana.
+          await LocalDb.insertAkunLocal(body, localId);
+        }
+        AppEvents.instance.akunBerubah();
+        return;
+      } catch (e) {
+        if (!kIsWeb) {
+          // Server gagal → simpan lokal supaya dompet tetap muncul,
+          // dan antrekan untuk dikirim nanti.
+          await LocalDb.insertAkunLocal(body, localId);
           await LocalDb.enqueue(
             method: 'POST', path: '/akun',
-            body: jsonEncode(body), localId: 'akun_${DateTime.now().millisecondsSinceEpoch}',
+            body: jsonEncode(body), localId: localId,
             tableName: 'akun',
           );
         } else {
@@ -272,9 +289,11 @@ class ApiService {
     } else if (kIsWeb) {
       throw Exception('Tidak ada koneksi ke server.');
     } else {
+      // Offline → simpan lokal, antrekan untuk dikirim nanti.
+      await LocalDb.insertAkunLocal(body, localId);
       await LocalDb.enqueue(
         method: 'POST', path: '/akun',
-        body: jsonEncode(body), localId: 'akun_${DateTime.now().millisecondsSinceEpoch}',
+        body: jsonEncode(body), localId: localId,
         tableName: 'akun',
       );
     }
@@ -287,11 +306,13 @@ class ApiService {
     if (_online) {
       try {
         await _put('/akun/$id', {'saldo': saldo});
+        if (!kIsWeb) await LocalDb.updateAkunSaldoLocal(id.toString(), saldo);
         AppEvents.instance.akunBerubah();
         return;
       } catch (_) {}
     }
     if (kIsWeb) throw Exception('Tidak ada koneksi ke server.');
+    if (!kIsWeb) await LocalDb.updateAkunSaldoLocal(id.toString(), saldo);
     await LocalDb.enqueue(
       method: 'PUT', path: '/akun/$id',
       body: jsonEncode({'saldo': saldo}), localId: 'upd_akun_$id',
@@ -318,9 +339,28 @@ class ApiService {
   }
 
   static Future<List<Akun>> getAkunList() async {
-    if (!_online) return [];
-    final data = await _get('/akun');
-    return (data['data'] as List).map((j) => Akun.fromJson(j)).toList();
+    if (kIsWeb) {
+      // Web tidak punya cache lokal — ambil langsung dari server.
+      if (!_online) return [];
+      final data = await _get('/akun');
+      return (data['data'] as List).map((j) => Akun.fromJson(j)).toList();
+    }
+
+    // Mobile/desktop: simpan hasil server ke cache, lalu gabung dengan
+    // dompet lokal yang belum tersinkron supaya pemilih dompet tidak
+    // kosong saat sebagian operasi masih ada di antrean.
+    if (_online) {
+      try {
+        final data = await _get('/akun');
+        final list = (data['data'] as List)
+            .map((j) => Akun.fromJson(j))
+            .toList();
+        await LocalDb.upsertAkunList(list);
+      } catch (_) {
+        // Server gagal → pakai cache saja di bawah
+      }
+    }
+    return LocalDb.getAkunList();
   }
 
   // ── Anggaran (offline-aware) ───────────────────────────────────────────────
