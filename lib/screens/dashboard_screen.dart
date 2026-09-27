@@ -57,9 +57,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _load();
     _autoCheckUpdate();
     // Data baru (hasil scan struk, input manual, voice, hapus) langsung
-    // menyegarkan layar ini tanpa perlu pull-to-refresh.
+    // menyegarkan layar ini tanpa pull-to-refresh.
     AppEvents.instance.transaksi.addListener(_onDataBerubah);
     AppEvents.instance.anggaran.addListener(_onDataBerubah);
+    // Dompet berubah (mis. pengaturan Kazz utama disimpan) harus ikut
+    // menyegarkan saldo "Dompet Saya" — sebelumnya perubahan dompet
+    // tampil tidak terlihat di beranda sampai aplikasi dibuka ulang.
+    AppEvents.instance.akun.addListener(_onDataBerubah);
   }
 
   void _onDataBerubah() {
@@ -68,15 +72,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Cek update saat app dibuka — hanya beri tahu, tidak memaksa.
-  /// Diam total kalau sudah versi terbaru.
+  /// Diam total kalau sudah versi terbaru (silentWhenNoUpdate: true).
+  /// Sebelumnya dialog "Sudah Versi Terbaru" muncul setiap kali aplikasi
+  /// dibuka karena flag ini tidak diset.
   Future<void> _autoCheckUpdate() async {
     try {
-      final r = await UpdateService.instance.checkForUpdate();
-      if (!mounted) return;
-      setState(() => _hasUpdate = r.hasUpdate);
-      if (r.hasUpdate) {
-        await UpdateFlow.run(context);
-      }
+      await UpdateFlow.run(context, silentWhenNoUpdate: true);
     } catch (_) {}
   }
 
@@ -84,6 +85,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
     AppEvents.instance.transaksi.removeListener(_onDataBerubah);
     AppEvents.instance.anggaran.removeListener(_onDataBerubah);
+    AppEvents.instance.akun.removeListener(_onDataBerubah);
     _insightPageCtrl?.dispose();
     super.dispose();
   }

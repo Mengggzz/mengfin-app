@@ -21,10 +21,15 @@ class UpdateFlow {
     BuildContext context, {
     bool silentWhenNoUpdate = false,
     bool force = false,
+    /// Suntikan fungsi cek untuk pengujian. Produksi memakai
+    /// `UpdateService.instance.checkForUpdate`.
+    Future<UpdateCheckResult> Function({bool force})? cek,
   }) async {
     if (!context.mounted) return;
 
-    final result = await UpdateService.instance.checkForUpdate(force: force);
+    final result = cek != null
+        ? await cek(force: force)
+        : await UpdateService.instance.checkForUpdate(force: force);
     if (!context.mounted) return;
 
     if (result.hasUpdate && result.release != null) {
