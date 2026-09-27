@@ -42,6 +42,10 @@ class SyncService {
           await LocalDb.upsertAnggaran(a, synced: true);
         }
       }
+
+      // Pull akun (dompet) — saldo di server berubah oleh transaksi yang
+      // baru saja disinkronkan; tanpa ini menu Kazz tetap pakai saldo lama.
+      await ApiService.pullAkun();
     } catch (_) {
       // Abaikan error pull — data lokal tetap tersedia
     }

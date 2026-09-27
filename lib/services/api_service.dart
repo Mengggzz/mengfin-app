@@ -158,6 +158,9 @@ class ApiService {
         final result = await createTransaksiRaw(body);
         final tx = Transaksi.fromJson(result['data']);
         await LocalDb.replaceTransaksiLocalToServer(localId, tx.id);
+        // Backend mengubah saldo akun di server — tarik ulang supaya
+        // menu Kazz & beranda langsung konsisten.
+        await pullAkun();
         AppEvents.instance.transaksiBerubah();
         return tx;
       } catch (_) {}
@@ -202,6 +205,7 @@ class ApiService {
     if (_online) {
       try {
         if (id != null) await deleteTransaksiRaw(id);
+        await pullAkun();
         return;
       } catch (_) {}
     }
@@ -227,6 +231,9 @@ class ApiService {
 
     // Perbarui baris lokal lebih dulu — perubahan terlihat walau upload gagal.
     await LocalDb.updateTransaksiLocal(id, body);
+    // Backend menyesuaikan saldo akun (membalik transaksi lama, menerapkan
+    // yang baru). Tarik ulang supaya saldo dompet tetap benar.
+    await pullAkun();
     AppEvents.instance.transaksiBerubah();
 
     if (_online) {
@@ -336,6 +343,24 @@ class ApiService {
       );
     }
     AppEvents.instance.akunBerubah();
+  }
+
+  /// Tarik ulang daftar akun (dompet) dari server dan simpan ke cache.
+  /// Dipakai setelah operasi transaksi, karena backend mengubah saldo
+  /// akun di sisi server — app harus tahu saldo barunya.
+  static Future<void> pullAkun() async {
+    if (kIsWeb) return;
+    if (!ConnectivityService.instance.isOnline) return;
+    try {
+      final data = await _get('/akun');
+      final list = (data['data'] as List).map((j) => Akun.fromJson(j)).toList();
+      await LocalDb.upsertAkunList(list);
+      // Menu Kazz & beranda mendengarkan AppEvents.akun, jadi beri tahu
+      // bahwa saldo dompet sudah berubah.
+      AppEvents.instance.akunBerubah();
+    } catch (_) {
+      // Server gagal → cache lama tetap dipakai
+    }
   }
 
   static Future<List<Akun>> getAkunList() async {
