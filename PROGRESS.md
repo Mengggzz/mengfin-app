@@ -162,3 +162,22 @@ Yang **masih perlu uji di HP** (tidak bisa diverifikasi di mesin ini):
 - Migrasi DB v1→v3 di perangkat yang sudah punya DB lama — baru diuji
   dari skema baru (onCreate). Migrasi onUpgrade berjalan otomatis saat
   versi DB naik, tapi tidak ada tes yang membuat DB v1 dulu.
+
+## 2026-09-27 — sinkronisasi saldo dompet (commit c4cab2b, CI sukses)
+**Bug:** menu Kazz & beranda menampilkan saldo tidak berubah setelah transaksi
+create/update/delete. Penyebab: backend mengubah saldo akun di server, tapi app
+tidak pernah menarik ulang daftar akun → cache stale sampai restart.
+
+**Perbaikan:**
+1. ApiService.pullAkun (baru): GET `/akun` dari server, simpan ke lokal,
+   lalu `AppEvents.akunBerubah()` agar Kazz/beranda menyegarkan diri.
+2. createTransaksi/updateTransaksi/deleteTransaksi online: panggil pullAkun
+   setelah operasi server sukses.
+3. SyncService.pullFromServer: tarik akun sesudah sync queue selesai
+   (offline batch flush).
+4. Tes baru: test/saldo_sync_test.dart (4 tes integrasi).
+
+## 2026-09-28 — migrasi DB v1→v3 teruji (commit berikutnya)
+Tulis tes yang benar-benar membangun database versi 1 (`id INTEGER`) dan
+menaikkan ke v3 (`id TEXT`, tambah tabel `akun`). Jalur `onUpgrade` yang sebelumnya
+tidak pernah diuji kini aman.
