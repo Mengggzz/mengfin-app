@@ -399,6 +399,8 @@ class ApiService {
         await LocalDb.upsertAkunList(list);
       } catch (_) {
         // Server gagal → pakai cache saja di bawah
+      } finally {
+        AppEvents.instance.akunBerubah();
       }
     }
     return LocalDb.getAkunList();

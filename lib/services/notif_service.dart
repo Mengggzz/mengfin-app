@@ -153,6 +153,7 @@ class NotifService {
       terakhir.value = t;
       jumlahTercatat.value = jumlahTercatat.value + 1;
       AppEvents.instance.transaksiBerubah();
+      AppEvents.instance.akunBerubah();
       return true;
     } catch (e) {
       debugPrint('NotifService gagal simpan: $e');
