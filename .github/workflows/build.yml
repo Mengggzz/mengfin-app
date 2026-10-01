@@ -48,7 +48,7 @@ jobs:
         run: echo "VERSION=v$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
 
       - name: Build release APK
-        run: flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --dart-define=APP_BUILD_TAG=${{ steps.version.outputs.VERSION }}
+        run: flutter build apk --release --android-skip-build-dependency-validation --dart-define=APP_BUILD_TAG=${{ steps.version.outputs.VERSION }}
 
       - name: Print SHA-1 dari APK (untuk verifikasi)
         run: |
