@@ -36,6 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _loading = true;
   bool _isOfflineData = false;
   bool _error = false;
+  bool _loadInProgress = false;
 
   // Budget harian state
   double _budgetHarian = 0;
@@ -68,7 +69,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _onDataBerubah() {
     if (!mounted) return;
-    _load();
+    if (_loadInProgress) return;
+    _loadInProgress = true;
+    // Pastikan _load() dipanggil di frame berikutnya untuk hindari setState error
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _loadInProgress = false;
+        return;
+      }
+      _load().whenComplete(() {
+        _loadInProgress = false;
+      });
+    });
   }
 
   /// Cek update saat app dibuka — hanya beri tahu, tidak memaksa.
