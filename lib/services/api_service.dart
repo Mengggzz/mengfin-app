@@ -364,16 +364,26 @@ class ApiService {
   /// Tarik ulang daftar akun (dompet) dari server dan simpan ke cache.
   /// Dipakai setelah operasi transaksi, karena backend mengubah saldo
   /// akun di sisi server — app harus tahu saldo barunya.
+  /// Hanya picu AppEvents.akunBerubah() jika data benar-benar berubah.
   static Future<void> pullAkun() async {
     if (kIsWeb) return;
     if (!ConnectivityService.instance.isOnline) return;
     try {
       final data = await _get('/akun');
-      final list = (data['data'] as List).map((j) => Akun.fromJson(j)).toList();
-      await LocalDb.upsertAkunList(list);
-      // Menu Kazz & beranda mendengarkan AppEvents.akun, jadi beri tahu
-      // bahwa saldo dompet sudah berubah.
-      AppEvents.instance.akunBerubah();
+      final newList = (data['data'] as List).map((j) => Akun.fromJson(j)).toList();
+      
+      // Ambil daftar akun lama sebelum upsert
+      final oldList = await LocalDb.getAkunList();
+      
+      // Upsert ke cache lokal
+      await LocalDb.upsertAkunList(newList);
+      
+      // Bandingkan apakah ada perubahan signifikan
+      if (_akunListChanged(oldList, newList)) {
+        // Menu Kazz & beranda mendengarkan AppEvents.akun, jadi beri tahu
+        // bahwa saldo dompet sudah berubah.
+        AppEvents.instance.akunBerubah();
+      }
     } catch (_) {
       // Server gagal → cache lama tetap dipakai
     }
@@ -393,14 +403,22 @@ class ApiService {
     if (_online) {
       try {
         final data = await _get('/akun');
-        final list = (data['data'] as List)
+        final newList = (data['data'] as List)
             .map((j) => Akun.fromJson(j))
             .toList();
-        await LocalDb.upsertAkunList(list);
+        
+        // Ambil daftar akun lama sebelum upsert
+        final oldList = await LocalDb.getAkunList();
+        
+        await LocalDb.upsertAkunList(newList);
+        
+        // Hanya trigger event jika ada perubahan
+        if (_akunListChanged(oldList, newList)) {
+          AppEvents.instance.akunBerubah();
+        }
       } catch (_) {
         // Server gagal → pakai cache saja di bawah
-      } finally {
-        AppEvents.instance.akunBerubah();
+        // Tidak perlu trigger event karena data tidak berubah
       }
     }
     return LocalDb.getAkunList();
@@ -626,4 +644,35 @@ class ApiService {
   // ── Update checker (via backend, terintegrasi GitHub) ──────────────────────
   // ── Trigger sync ───────────────────────────────────────────────────────────
   static Future<void> triggerSync() => SyncService.instance.syncToServer();
+
+  // ── Helper: deteksi perubahan daftar akun ──────────────────────────────────
+  /// Bandingkan dua daftar akun, return true jika ada perubahan signifikan:
+  /// - Jumlah item berbeda
+  /// - Saldo berubah > 0.01
+  /// - Nama atau jenis berubah
+  static bool _akunListChanged(List<Akun> oldList, List<Akun> newList) {
+    final oldMap = {for (var a in oldList) a.id ?? '' : a};
+    final newMap = {for (var a in newList) a.id ?? '' : a};
+    
+    // Cek perubahan jumlah item
+    if (oldMap.length != newMap.length) {
+      return true;
+    }
+    
+    // Cek setiap item untuk perubahan
+    for (final id in oldMap.keys) {
+      if (!newMap.containsKey(id)) {
+        return true;
+      }
+      final oldAkun = oldMap[id]!;
+      final newAkun = newMap[id]!;
+      if ((oldAkun.saldo - newAkun.saldo).abs() > 0.01 ||
+          oldAkun.nama != newAkun.nama ||
+          oldAkun.jenis != newAkun.jenis) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
 }

@@ -16,6 +16,7 @@ class SyncService {
   static final SyncService instance = SyncService._();
 
   bool _syncing = false;
+  DateTime? _lastSyncTime;
 
   /// Pull data terbaru dari server ke SQLite lokal
   Future<void> pullFromServer() async {
@@ -64,6 +65,19 @@ class SyncService {
     Future<bool> Function(Map<String, dynamic> item)? kirim,
   }) async {
     if (_syncing) return const SyncResult();
+    
+    // Cegah sync terlalu sering (minimal 10 detik antar sync)
+    // Kecuali saat tes (kirim != null) karena tes perlu kontrol penuh
+    if (kirim == null) {
+      final now = DateTime.now();
+      if (_lastSyncTime != null) {
+        final diff = now.difference(_lastSyncTime!);
+        if (diff.inSeconds < 10) {
+          return const SyncResult();
+        }
+      }
+    }
+    
     _syncing = true;
 
     var terkirim = 0;
@@ -150,6 +164,10 @@ class SyncService {
       if (gagal == 0) await pullFromServer();
     } finally {
       _syncing = false;
+      if (terkirim > 0 || gagal > 0) {
+        // Update waktu sync terakhir hanya jika benar-benar ada aktivitas
+        _lastSyncTime = DateTime.now();
+      }
     }
 
     return SyncResult(terkirim: terkirim, gagal: gagal, adaGagal: gagal > 0);
