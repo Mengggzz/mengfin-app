@@ -258,7 +258,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 // Beri tanda jelas dompet mana yang jadi utama.
-                color: _primaryWalletId == w.id
+                // Bandingkan sebagai teks agar int (lokal) == String (server).
+                color: AppPrefs.idKeTeks(_primaryWalletId) == AppPrefs.idKeTeks(w.id)
                     ? AppColors.primary.withOpacity(0.6)
                     : AppColors.glassBorder,
               ),
@@ -283,24 +284,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: w.saldo < 0 ? AppColors.expense : AppColors.textMuted,
                     fontSize: 12)),
               ])),
-              // Utama radio
-              if (_primaryWalletId == w.id)
+              // Utama radio — pakai String agar kompatibel dengan id int maupun
+              // ObjectId String dari server.
+              if (AppPrefs.idKeTeks(_primaryWalletId) == AppPrefs.idKeTeks(w.id))
                 Row(children: [
-                  Radio<int>(
-                    value: w.id,
-                    groupValue: _primaryWalletId,
-                    onChanged: (v) => setState(() => _primaryWalletId = v),
+                  Radio<String>(
+                    value: AppPrefs.idKeTeks(w.id),
+                    groupValue: AppPrefs.idKeTeks(_primaryWalletId),
+                    onChanged: (_) => setState(() => _primaryWalletId = w.id),
                     activeColor: AppColors.primary,
                   ),
                    Text('Utama', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                 ]),
               const SizedBox(width: 4),
-              // Checkbox
+              // Checkbox — bandingkan via idKeTeks agar konsisten.
               Checkbox(
-                value: _selectedWallets.contains(w.id),
+                value: _selectedWallets.any((id) =>
+                    AppPrefs.idKeTeks(id) == AppPrefs.idKeTeks(w.id)),
                 onChanged: (v) => setState(() {
+                  _selectedWallets.removeWhere((id) =>
+                      AppPrefs.idKeTeks(id) == AppPrefs.idKeTeks(w.id));
                   if (v == true) _selectedWallets.add(w.id);
-                  else _selectedWallets.remove(w.id);
                 }),
                 activeColor: AppColors.primary,
                 side:  BorderSide(color: AppColors.textMuted),

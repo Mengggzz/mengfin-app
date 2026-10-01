@@ -409,6 +409,14 @@ class LocalDb {
   }
 
   /// Simpan daftar dompet dari server ke cache lokal.
+  ///
+  /// Sebelumnya ConflictAlgorithm.replace hanya menangani konflik pada
+  /// PRIMARY KEY (id). Akun lokal sementara (local_id != null, id = 'akun_xxx')
+  /// tidak terhapus saat server mengirim id asli — hasilnya duplikat di UI.
+  ///
+  /// Sekarang: untuk setiap akun server, hapus baris lokal sementara yang
+  /// bisa saja mewakili akun yang sama (berdasarkan nama + jenis + saldo)
+  /// sebelum melakukan upsert.
   static Future<void> upsertAkunList(List<Akun> list) async {
     final d = await db;
     for (final a in list) {

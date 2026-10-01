@@ -206,6 +206,7 @@ class ApiService {
       try {
         if (id != null) await deleteTransaksiRaw(id);
         await pullAkun();
+        AppEvents.instance.transaksiBerubah();
         return;
       } catch (_) {}
     }
@@ -231,14 +232,15 @@ class ApiService {
 
     // Perbarui baris lokal lebih dulu — perubahan terlihat walau upload gagal.
     await LocalDb.updateTransaksiLocal(id, body);
-    // Backend menyesuaikan saldo akun (membalik transaksi lama, menerapkan
-    // yang baru). Tarik ulang supaya saldo dompet tetap benar.
-    await pullAkun();
     AppEvents.instance.transaksiBerubah();
 
     if (_online) {
       try {
         await updateTransaksiRaw(id, body);
+        // Backend menyesuaikan saldo akun setelah update — tarik ulang
+        // supaya saldo dompet langsung konsisten.
+        await pullAkun();
+        AppEvents.instance.transaksiBerubah();
         return;
       } catch (_) {}
     }
@@ -272,10 +274,24 @@ class ApiService {
 
     if (_online) {
       try {
-        await _post('/akun', body);
+        final result = await _post('/akun', body);
+        final serverId = result['data']?['id']?.toString() ??
+            result['_id']?.toString();
         if (!kIsWeb) {
-          // Simpan langsung ke cache; getAkunList() mengambilnya dari sana.
-          await LocalDb.insertAkunLocal(body, localId);
+          if (serverId != null && serverId.isNotEmpty) {
+            // Simpan dengan id server langsung — tidak perlu baris lokal sementara.
+            await LocalDb.upsertAkunList([Akun(
+              id: serverId,
+              nama: body['nama'] as String,
+              jenis: body['jenis'] as String,
+              saldo: (body['saldo'] as num? ?? 0).toDouble(),
+              warna: body['warna'] as String? ?? '#2563EB',
+              ikon: body['ikon'] as String? ?? 'bank',
+            )]);
+          } else {
+            // Server tidak mengembalikan id — simpan lokal sementara.
+            await LocalDb.insertAkunLocal(body, localId);
+          }
         }
         AppEvents.instance.akunBerubah();
         return;
