@@ -245,5 +245,5 @@ class NotifService {
   }
 
   /// Warna indikator di UI (dipakai layar pengaturan).
-  static int get warnaAktif => AppColors.primary.value;
+  static int get warnaAktif => AppColors.primary.toARGB32();
 }

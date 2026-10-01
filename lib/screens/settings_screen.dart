@@ -50,8 +50,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Auto-notif state
   bool _notifEnabled = false;
   List<String> _keywords = List.of(AppPrefs.kKataKunciBawaan);
+  // Dipakai _pastikanIzin() untuk melacak status izin notifikasi.
   bool _izinNotif = false;
-  bool _cekIzin = true;
 
   late final TextEditingController _kataCtrl;
 

@@ -373,7 +373,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   fontSize: 22, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 4),
-               Text('1 dompet · ketuk untuk kelola',
+               Text('ketuk untuk kelola',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
               const SizedBox(height: 4),
               Container(

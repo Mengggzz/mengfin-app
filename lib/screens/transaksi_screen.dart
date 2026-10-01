@@ -20,6 +20,8 @@ class TransaksiScreen extends StatefulWidget {
 class _TransaksiScreenState extends State<TransaksiScreen> {
   List<Transaksi> _list = [];
   List<Transaksi> _filteredList = [];
+  // Hasil filter tanpa search — basis bagi _applySearch agar search bisa mundur.
+  List<Transaksi> _baseFiltered = [];
   bool _loading = true;
   TransactionFilter _currentFilter = TransactionFilter();
   final TextEditingController _searchController = TextEditingController();
@@ -75,34 +77,21 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
       }).toList();
     }
 
+    _baseFiltered = filtered;
     _filteredList = filtered;
     _applySearch();
   }
 
   void _applySearch() {
     final query = _searchController.text.toLowerCase();
-    setState(() {
-      if (query.isEmpty) {
-        _filteredList = _filteredList; // This logic needs careful state management
-        // Re-run apply filters to get base filtered list
-        List<Transaksi> base = _list;
-        if (_currentFilter.jenis != null) base = base.where((tx) => tx.jenis == _currentFilter.jenis).toList();
-        if (_currentFilter.kategori != null) base = base.where((tx) => tx.kategori == _currentFilter.kategori).toList();
-        if (_currentFilter.startDate != null && _currentFilter.endDate != null) {
-          base = base.where((tx) {
-            DateTime txDate = DateTime.parse(tx.tanggal);
-            return txDate.isAfter(_currentFilter.startDate!.subtract(const Duration(days: 1))) &&
-                   txDate.isBefore(_currentFilter.endDate!.add(const Duration(days: 1)));
-          }).toList();
-        }
-        _filteredList = base;
-      } else {
-        _filteredList = _filteredList.where((tx) => 
-          tx.deskripsi.toLowerCase().contains(query) || 
-          tx.kategori.toLowerCase().contains(query)
-        ).toList();
-      }
-    });
+    // Selalu mulai dari _baseFiltered supaya search bisa mundur (hapus ketikan
+    // kembali ke hasil filter, bukan makin menyempit tanpa bisa balik).
+    final List<Transaksi> hasil = query.isEmpty
+        ? _baseFiltered
+        : _baseFiltered.where((tx) =>
+            tx.deskripsi.toLowerCase().contains(query) ||
+            tx.kategori.toLowerCase().contains(query)).toList();
+    setState(() => _filteredList = hasil);
   }
 
   Future<void> _openFilter() async {
@@ -166,7 +155,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
   // Group transaksi by date
   Map<String, List<Transaksi>> get _grouped {
     final map = <String, List<Transaksi>>{};
-    for (final tx in _list) {
+    for (final tx in _filteredList) {
       final date = tx.tanggal.length > 10 ? tx.tanggal.substring(0, 10) : tx.tanggal;
       map.putIfAbsent(date, () => []).add(tx);
     }
@@ -243,7 +232,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(children: [
-            _filterBtn('Buka filter', Icons.tune, () {}),
+            _filterBtn('Buka filter', Icons.tune, _openFilter),
             const Spacer(),
             // Type filter circles
             _typeCircle('semua', Icons.receipt_long, AppColors.primary),
@@ -262,9 +251,12 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
           child: RefreshIndicator(
             color: AppColors.primary, backgroundColor: AppColors.bgCard,
             onRefresh: _load,
-            child: _list.isEmpty
+            child: _filteredList.isEmpty && _list.isEmpty
               ?  Center(child: Text('Belum ada transaksi',
                   style: TextStyle(color: AppColors.textMuted)))
+              : _filteredList.isEmpty
+              ?  Center(child: Text('Tidak ada transaksi yang cocok dengan filter',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13)))
               : ListView(padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: _grouped.entries.map((e) => Column(
                     crossAxisAlignment: CrossAxisAlignment.start, children: [
