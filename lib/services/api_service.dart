@@ -162,6 +162,7 @@ class ApiService {
         // menu Kazz & beranda langsung konsisten.
         await pullAkun();
         AppEvents.instance.transaksiBerubah();
+        AppEvents.instance.akunBerubah();
         return tx;
       } catch (_) {}
     }
@@ -207,6 +208,7 @@ class ApiService {
         if (id != null) await deleteTransaksiRaw(id);
         await pullAkun();
         AppEvents.instance.transaksiBerubah();
+        AppEvents.instance.akunBerubah();
         return;
       } catch (_) {}
     }
@@ -241,6 +243,7 @@ class ApiService {
         // supaya saldo dompet langsung konsisten.
         await pullAkun();
         AppEvents.instance.transaksiBerubah();
+        AppEvents.instance.akunBerubah();
         return;
       } catch (_) {}
     }
