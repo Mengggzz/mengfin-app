@@ -81,7 +81,9 @@ class _KazzScreenState extends State<KazzScreen> {
 
   void _showAddBudgetModal({Anggaran? edit}) {
     String kategori = edit?.kategori ?? 'Makan & Minum';
-    String batas = edit != null ? edit.batas.toStringAsFixed(0) : '';
+    // Controller dibuat di luar builder agar tidak direset saat keyboard muncul.
+    final batasCtrl = TextEditingController(
+        text: edit != null ? edit.batas.toStringAsFixed(0) : '');
 
     showModalBottomSheet(
       context: context, isScrollControlled: true, backgroundColor: AppColors.bgCard,
@@ -121,7 +123,7 @@ class _KazzScreenState extends State<KazzScreen> {
            Text('BATAS ANGGARAN (Rp)', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
-            controller: TextEditingController(text: batas),
+            controller: batasCtrl,
             keyboardType: TextInputType.number,
             style:  TextStyle(color: AppColors.textPrimary),
             decoration: InputDecoration(
@@ -131,12 +133,11 @@ class _KazzScreenState extends State<KazzScreen> {
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
                 borderSide:  BorderSide(color: AppColors.primary)),
             ),
-            onChanged: (v) => batas = v,
           ),
           const SizedBox(height: 16),
           SizedBox(width: double.infinity, child: ElevatedButton(
             onPressed: () async {
-              final b = double.tryParse(batas.replaceAll(RegExp(r'\D'), '')) ?? 0;
+              final b = double.tryParse(batasCtrl.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
               final hasil = await Penyimpanan.simpan(() async {
                 if (edit != null) {
                   await ApiService.updateAnggaran(edit.id, b);

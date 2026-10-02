@@ -323,6 +323,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
     }
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: AppColors.bg,
@@ -337,7 +338,9 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
       body: Column(children: [
         // Scrollable top section
         Expanded(child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.only(
+            left: 16, right: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             // ── Expense / Income Toggle ──────────────────────
             Row(children: [
