@@ -118,8 +118,19 @@ class TransaksiTile extends StatelessWidget {
   final dynamic tx;
   final VoidCallback? onDelete;
   final VoidCallback? onTap;
+  final bool selectable;
+  final bool isSelected;
+  final ValueChanged<bool?>? onSelectChanged;
 
-  const TransaksiTile({super.key, required this.tx, this.onDelete, this.onTap});
+  const TransaksiTile({
+    super.key,
+    required this.tx,
+    this.onDelete,
+    this.onTap,
+    this.selectable = false,
+    this.isSelected = false,
+    this.onSelectChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -128,17 +139,30 @@ class TransaksiTile extends StatelessWidget {
     final katColor = Color(kat.color);
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: selectable ? () => onSelectChanged?.call(!isSelected) : onTap,
       onLongPress: onDelete,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.bgCard,
+          color: isSelected ? AppColors.primary.withOpacity(0.12) : AppColors.bgCard,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.glassBorder),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.glassBorder,
+            width: isSelected ? 1.5 : 1,
+          ),
         ),
         child: Row(children: [
+          if (selectable) ...[
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Icon(
+                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: isSelected ? AppColors.primary : AppColors.textMuted,
+                size: 22,
+              ),
+            ),
+          ],
           // Category icon
           Container(
             width: 42, height: 42,

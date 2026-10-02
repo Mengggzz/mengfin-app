@@ -150,6 +150,12 @@ Perbaikan Bug Komprehensif:
     - `lib/screens/dashboard_screen.dart`: Kartu "Dompet Saya" interaktif dengan bottom sheet switch dompet aktif / Semua Dompet, shortcut Tambah Dompet (`TambahKazzScreen`) dan Kelola Dompet (`KazzScreen`), serta sinkronisasi saldo dinamis.
     - `lib/screens/transaction_input_screen.dart`: Menyediakan selector dompet untuk transaksi pemasukan (otomatis masuk ke dompet tujuan), konfirmasi pemilihan dompet jika belum ditentukan, dan integrasi cerdas `KategoriOtomatis.tebakKamus` saat user mengetik deskripsi pengeluaran (contoh: "kopi" otomatis memilih kategori "Makan & Minum", "bensin" -> "Transportasi", dsb).
     - `lib/services/kategori_otomatis.dart`: Penambahan `tebakKamus` pemetaan ratusan kata kunci transaksi lokal Indonesia dan fallback machine learning / frekuensi riwayat.
+21. Implementasi 3 Fitur Baru (Hapus Transaksi Bulk/Pilih, Mutasi Saldo Pemasukan Kazz, Log Sinkronisasi Database):
+    - `lib/widgets/widgets.dart` & `lib/screens/transaksi_screen.dart`: Menambahkan fitur Hapus Semua Transaksi (bulk clear database lokal + cloud), Mode Seleksi Multi-Pilih (`selectable`, `isSelected`, `_selectedIds`, `_deleteSelected`), dan opsi hapus individual / long-press pada daftar transaksi.
+    - `lib/services/local_db.dart` & `lib/services/api_service.dart`: Memperbaiki mutasi saldo instan di tabel `akun` SQLite lokal pada `insertTransaksiLocal` (`+` untuk pemasukan, `-` untuk pengeluaran) dan menembakkan `AppEvents.fireAkunBerubah()` saat transaksi dibuat agar saldo di menu Kazz langsung bertambah real-time.
+    - `lib/screens/transaction_input_screen.dart`: Menyediakan dialog & bottom sheet pemilihan dompet tujuan saat input pemasukan ("Saldo Masuk ke Dompet Mana?") dengan integrasi pembuatan dompet baru jika daftar akun kosong.
+    - `lib/services/sync_service.dart`: Menambahkan kelas `SyncLogEntry`, in-memory log buffer, method `triggerManualSync()`, serta pencatatan terperinci proses push offline queue & pull cloud database.
+    - `lib/screens/more_screen.dart`: Menambahkan menu "Sinkronisasi Akun & Database" dengan bottom sheet `_SyncLogSheet` yang menampilkan indikator "Otomatis Aktif", status koneksi, jumlah antrean offline, waktu sync terakhir, daftar riwayat log sinkronisasi terperinci, dan tombol manual sync.
 
 ## Analisis struktur (28 Sep 2026)
 Dipindai: TODO/FIXME (0), handler kosong (0), kontrol mati (0).

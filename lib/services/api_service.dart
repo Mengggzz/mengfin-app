@@ -142,15 +142,18 @@ class ApiService {
     // Di web: langsung kirim ke server
     if (kIsWeb) {
       final result = await createTransaksiRaw(body);
+      await pullAkun();
       AppEvents.instance.transaksiBerubah();
+      AppEvents.instance.akunBerubah();
       return Transaksi.fromJson(result['data']);
     }
 
     final localId = 'tx_${DateTime.now().millisecondsSinceEpoch}';
     await LocalDb.insertTransaksiLocal(body, localId);
     // Baris lokal sudah tersimpan → beri tahu layar lain sekarang juga,
-    // supaya transaksi tampil walau upload ke server belum selesai/gagal.
+    // supaya transaksi dan dompet tampil walau upload ke server belum selesai/gagal.
     AppEvents.instance.transaksiBerubah();
+    AppEvents.instance.akunBerubah();
 
     if (_online) {
       try {
@@ -161,6 +164,7 @@ class ApiService {
         // menu Kazz & beranda langsung konsisten.
         await pullAkun();
         AppEvents.instance.transaksiBerubah();
+        AppEvents.instance.akunBerubah();
         return tx;
       } catch (_) {}
     }
@@ -177,6 +181,7 @@ class ApiService {
       nominal: (body['nominal'] as num? ?? 0).toDouble(),
       kategori: body['kategori'] ?? '', deskripsi: body['deskripsi'] ?? '',
       metodePembayaran: body['metode_pembayaran'] ?? 'tunai',
+      akunId: body['akun_id']?.toString(),
       synced: false,
     );
   }
@@ -196,16 +201,20 @@ class ApiService {
   static Future<void> deleteTransaksi(dynamic id) async {
     if (kIsWeb) {
       if (id != null) await deleteTransaksiRaw(id);
+      await pullAkun();
       AppEvents.instance.transaksiBerubah();
+      AppEvents.instance.akunBerubah();
       return;
     }
     await LocalDb.deleteTransaksi(id);
     AppEvents.instance.transaksiBerubah();
+    AppEvents.instance.akunBerubah();
     if (_online) {
       try {
         if (id != null) await deleteTransaksiRaw(id);
         await pullAkun();
         AppEvents.instance.transaksiBerubah();
+        AppEvents.instance.akunBerubah();
         return;
       } catch (_) {}
     }
@@ -215,6 +224,38 @@ class ApiService {
         body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
       );
     }
+  }
+
+  /// Hapus semua transaksi dari lokal dan server.
+  static Future<void> deleteAllTransaksi() async {
+    if (kIsWeb) {
+      try {
+        final txs = await getTransaksi(limit: 500);
+        for (final t in txs) {
+          if (t.id != null) await deleteTransaksiRaw(t.id);
+        }
+      } catch (_) {}
+      await pullAkun();
+      AppEvents.instance.transaksiBerubah();
+      AppEvents.instance.akunBerubah();
+      return;
+    }
+
+    await LocalDb.deleteAllTransaksi();
+    AppEvents.instance.transaksiBerubah();
+    AppEvents.instance.akunBerubah();
+
+    if (_online) {
+      try {
+        final txs = await getTransaksiFromServer(limit: 500);
+        for (final t in txs) {
+          if (t.id != null) await deleteTransaksiRaw(t.id);
+        }
+      } catch (_) {}
+    }
+    await pullAkun();
+    AppEvents.instance.transaksiBerubah();
+    AppEvents.instance.akunBerubah();
   }
 
   static Future<void> deleteTransaksiRaw(dynamic id) => _delete('/transaksi/$id');

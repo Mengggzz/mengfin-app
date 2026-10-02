@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
 import '../services/auth_service.dart';
 import '../services/theme_service.dart';
+import '../services/sync_service.dart';
+import '../services/connectivity_service.dart';
+import '../services/local_db.dart';
 import '../widgets/update_dialog.dart';
 import 'ai_screen.dart';
 import 'goals_screen.dart';
@@ -88,6 +92,17 @@ class MoreScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
+          // ── Sync & Database ──────────────────────────────────
+          _sectionLabel('SINKRONISASI & DATABASE'),
+          _menuTile(
+            icon: Icons.sync,
+            color: AppColors.primary,
+            title: 'Sinkronisasi Akun & Database',
+            subtitle: 'Otomatis aktif · Log & riwayat database',
+            onTap: () => _showSyncLog(context),
+          ),
+          const SizedBox(height: 16),
+
           // ── Account ──────────────────────────────────────────
           _sectionLabel('AKUN'),
           _menuTile(
@@ -161,6 +176,17 @@ class MoreScreen extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _HomeSettingsSheet(),
+    );
+  }
+
+  void _showSyncLog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => const _SyncLogSheet(),
     );
   }
 
@@ -414,6 +440,247 @@ class _TentangSheetState extends State<_TentangSheet> {
         ),
         SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
       ]),
+    );
+  }
+}
+
+// ── Log Sinkronisasi & Database ─────────────────────────────────
+class _SyncLogSheet extends StatefulWidget {
+  const _SyncLogSheet();
+
+  @override
+  State<_SyncLogSheet> createState() => _SyncLogSheetState();
+}
+
+class _SyncLogSheetState extends State<_SyncLogSheet> {
+  bool _syncing = false;
+  int _queueCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadQueue();
+  }
+
+  Future<void> _loadQueue() async {
+    final count = await LocalDb.getQueueCount();
+    if (mounted) setState(() => _queueCount = count);
+  }
+
+  Future<void> _handleSync() async {
+    setState(() => _syncing = true);
+    await SyncService.instance.triggerManualSync();
+    await _loadQueue();
+    if (mounted) {
+      setState(() => _syncing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sinkronisasi database selesai'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final logs = SyncService.instance.logs;
+    final lastSync = SyncService.instance.lastSyncTime;
+    final lastSyncStr = lastSync == null
+        ? 'Belum ada riwayat'
+        : DateFormat('dd MMM yyyy, HH:mm:ss').format(lastSync);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scrollCtrl) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(children: [
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.textMuted.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Header
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.sync, color: AppColors.primary, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Sinkronisasi Database', style: TextStyle(
+                color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+              Text('Log aktivitas & sinkronisasi data', style: TextStyle(
+                color: AppColors.textMuted, fontSize: 11)),
+            ])),
+            IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: Icon(Icons.close, color: AppColors.textMuted, size: 20),
+            ),
+          ]),
+          const SizedBox(height: 16),
+
+          // Banner Status Sinkronisasi Otomatis
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.success.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.success.withOpacity(0.3)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  width: 8, height: 8,
+                  decoration: BoxDecoration(
+                    color: AppColors.success,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text('Sinkronisasi Otomatis: AKTIF', style: TextStyle(
+                  color: AppColors.success, fontSize: 13, fontWeight: FontWeight.w700)),
+              ]),
+              const SizedBox(height: 6),
+              Text(
+                'Data akun/dompet, transaksi, dan anggaran otomatis diselaraskan ke database cloud setiap kali perangkat terhubung ke internet.',
+                style: TextStyle(color: AppColors.textSecond, fontSize: 11, height: 1.4),
+              ),
+              const Divider(height: 16, thickness: 0.5),
+              Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Terakhir Sinkron:', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                  Text(lastSyncStr, style: TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w600)),
+                ])),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text('Antrean Offline:', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                  Text('$_queueCount pending', style: TextStyle(
+                    color: _queueCount > 0 ? AppColors.warning : AppColors.success,
+                    fontSize: 11, fontWeight: FontWeight.w700)),
+                ]),
+              ]),
+            ]),
+          ),
+          const SizedBox(height: 12),
+
+          // Action Buttons
+          Row(children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _syncing ? null : _handleSync,
+                icon: _syncing
+                    ? const SizedBox(width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.cloud_sync, size: 18),
+                label: Text(_syncing ? 'Menyinkronkan…' : 'Sinkronkan Sekarang'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: () {
+                SyncService.instance.clearLogs();
+                setState(() {});
+              },
+              icon: const Icon(Icons.cleaning_services, size: 16),
+              label: const Text('Bersihkan'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textMuted,
+                side: BorderSide(color: AppColors.glassBorder),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+
+          // Log List Header
+          Row(children: [
+            Text('LOG AKTIVITAS DATABASE', style: TextStyle(
+              color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+            const Spacer(),
+            Text('${logs.length} catatan', style: TextStyle(
+              color: AppColors.textMuted, fontSize: 10)),
+          ]),
+          const SizedBox(height: 8),
+
+          // Logs List
+          Expanded(
+            child: logs.isEmpty
+                ? Center(
+                    child: Text('Belum ada riwayat aktivitas sinkronisasi',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                  )
+                : ListView.separated(
+                    controller: scrollCtrl,
+                    itemCount: logs.length,
+                    separatorBuilder: (_, __) => const Divider(height: 12, thickness: 0.5),
+                    itemBuilder: (_, i) {
+                      final log = logs[i];
+                      final timeStr = DateFormat('HH:mm:ss').format(log.timestamp);
+                      final icon = log.isError
+                          ? Icons.error_outline
+                          : log.type == 'pull'
+                              ? Icons.cloud_download_outlined
+                              : log.type == 'push'
+                                  ? Icons.cloud_upload_outlined
+                                  : Icons.sync;
+                      final iconColor = log.isError
+                          ? AppColors.danger
+                          : log.type == 'pull'
+                              ? AppColors.info
+                              : log.type == 'push'
+                                  ? AppColors.warning
+                                  : AppColors.primary;
+
+                      return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Icon(icon, size: 16, color: iconColor),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Row(children: [
+                              Expanded(
+                                child: Text(log.title, style: TextStyle(
+                                  color: log.isError ? AppColors.danger : AppColors.textPrimary,
+                                  fontSize: 12, fontWeight: FontWeight.w600)),
+                              ),
+                              Text(timeStr, style: TextStyle(
+                                color: AppColors.textMuted, fontSize: 10)),
+                            ]),
+                            const SizedBox(height: 2),
+                            Text(log.message, style: TextStyle(
+                              color: AppColors.textSecond, fontSize: 11, height: 1.3)),
+                          ]),
+                        ),
+                      ]);
+                    },
+                  ),
+          ),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+        ]),
+      ),
     );
   }
 }

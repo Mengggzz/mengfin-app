@@ -2,6 +2,23 @@ import 'dart:convert';
 import 'api_service.dart';
 import 'local_db.dart';
 
+/// Catatan log sinkronisasi
+class SyncLogEntry {
+  final DateTime timestamp;
+  final String title;
+  final String message;
+  final bool isError;
+  final String type; // 'auto', 'manual', 'pull', 'push', 'info'
+
+  const SyncLogEntry({
+    required this.timestamp,
+    required this.title,
+    required this.message,
+    this.isError = false,
+    this.type = 'info',
+  });
+}
+
 /// Hasil satu kali sinkronisasi.
 class SyncResult {
   final int terkirim;
@@ -12,15 +29,52 @@ class SyncResult {
 }
 
 class SyncService {
-  SyncService._(); 
+  SyncService._() {
+    // Catatan log awal sinkronisasi otomatis
+    addLog(
+      'Sinkronisasi Otomatis Aktif',
+      'Data dompet, transaksi, dan anggaran otomatis diselaraskan ke database cloud saat online.',
+      type: 'auto',
+    );
+  }
   static final SyncService instance = SyncService._();
 
   bool _syncing = false;
   DateTime? _lastSyncTime;
+  final List<SyncLogEntry> _logs = [];
+
+  bool get isSyncing => _syncing;
+  DateTime? get lastSyncTime => _lastSyncTime;
+  List<SyncLogEntry> get logs => List.unmodifiable(_logs);
+
+  void addLog(String title, String message, {bool isError = false, String type = 'info'}) {
+    final entry = SyncLogEntry(
+      timestamp: DateTime.now(),
+      title: title,
+      message: message,
+      isError: isError,
+      type: type,
+    );
+    _logs.insert(0, entry);
+    if (_logs.length > 100) {
+      _logs.removeRange(100, _logs.length);
+    }
+  }
+
+  void clearLogs() {
+    _logs.clear();
+    addLog(
+      'Log Dibersihkan',
+      'Riwayat log sinkronisasi telah direset.',
+      type: 'info',
+    );
+  }
 
   /// Pull data terbaru dari server ke SQLite lokal
   Future<void> pullFromServer() async {
     try {
+      addLog('Menarik Data Cloud', 'Memperbarui transaksi, anggaran, dan dompet lokal...', type: 'pull');
+      
       // Pull transaksi
       final txList = await ApiService.getTransaksiFromServer(limit: 200);
       await LocalDb.upsertTransaksiBatch(txList, synced: true);
@@ -41,9 +95,33 @@ class SyncService {
       // Pull akun (dompet) — saldo di server berubah oleh transaksi yang
       // baru saja disinkronkan; tanpa ini menu Kazz tetap pakai saldo lama.
       await ApiService.pullAkun();
-    } catch (_) {
-      // Abaikan error pull — data lokal tetap tersedia
+      
+      addLog('Data Cloud Selaras', 'Transaksi (${txList.length}), Dompet, dan Anggaran up-to-date.', type: 'pull');
+    } catch (e) {
+      addLog('Gagal Menarik Data', 'Koneksi terputus / server offline: $e', isError: true, type: 'pull');
     }
+  }
+
+  /// Pemicu sinkronisasi manual lengkap dari UI
+  Future<SyncResult> triggerManualSync() async {
+    addLog('Sinkronisasi Manual Dimulai', 'Memeriksa antrean perubahan offline & server...', type: 'manual');
+    final res = await syncToServer(force: true);
+    await pullFromServer();
+    if (res.adaGagal) {
+      addLog(
+        'Sinkronisasi Parsial',
+        'Terkirim: ${res.terkirim}, Gagal: ${res.gagal}. Item gagal akan dicoba lagi otomatis.',
+        isError: true,
+        type: 'manual',
+      );
+    } else {
+      addLog(
+        'Sinkronisasi Selesai',
+        'Semua data berhasil diselaraskan ke database cloud (${res.terkirim} perubahan terkirim).',
+        type: 'manual',
+      );
+    }
+    return res;
   }
 
   /// Kirim semua item dari sync_queue ke server.
@@ -52,20 +130,15 @@ class SyncService {
   /// Produksi memakai [_kirimKeServer].
   ///
   /// PENTING: id server sekarang String (ObjectId MongoDB), bukan int.
-  /// Sebelumnya kode memakai `int.tryParse` sehingga id ObjectId selalu
-  /// gagal di-parse → operasi UPDATE/DELETE diam-diam tidak pernah
-  /// terkirim, padahal item tetap dihapus dari antrean.
   Future<SyncResult> syncToServer({
     Future<bool> Function(Map<String, dynamic> item)? kirim,
+    bool force = false,
   }) async {
     if (_syncing) return const SyncResult();
-    // Safe: Dart is single-threaded. _syncing is read and set to true
-    // synchronously before any await, so two callers cannot both see false
-    // in the same microtask — no Completer lock needed.
     
     // Cegah sync terlalu sering (minimal 10 detik antar sync)
-    // Kecuali saat tes (kirim != null) karena tes perlu kontrol penuh
-    if (kirim == null) {
+    // Kecuali saat tes (kirim != null) atau manual (force == true)
+    if (kirim == null && !force) {
       final now = DateTime.now();
       if (_lastSyncTime != null) {
         final diff = now.difference(_lastSyncTime!);
@@ -82,6 +155,10 @@ class SyncService {
 
     try {
       final queue = await LocalDb.getQueue();
+      if (queue.isNotEmpty) {
+        addLog('Mengunggah Perubahan', 'Mengirim ${queue.length} antrean data offline ke database...', type: 'push');
+      }
+
       for (final item in queue) {
         final id = item['id'] as int;
         final method = item['method'] as String;
@@ -98,8 +175,6 @@ class SyncService {
           final body = jsonDecode(bodyStr) as Map<String, dynamic>;
 
           if (kirim != null) {
-            // Jalur tes: kirim ke objek palsu, lalu hapus dari antrean
-            // jika berhasil. Jika false, tetap di antrean untuk dicoba lagi.
             final ok = await kirim({...item, 'body': body});
             if (!ok) throw Exception('gagal');
           } else if (method == 'POST' && tableName == 'transaksi') {
@@ -130,8 +205,6 @@ class SyncService {
           } else if (method == 'DELETE' && tableName == 'goals') {
             if (hasPathId) await ApiService.deleteGoalRaw(pathId);
           } else if (method == 'POST' && tableName == 'akun') {
-            // Sebelumnya tidak ada cabang 'akun' → item dihapus dari antrean
-            // tanpa pernah dikirim; dompet yang dibuat saat offline hilang.
             final result = await ApiService.createAkunRaw(body);
             final serverId = result['data']?['id']?.toString();
             if (serverId != null && serverId.isNotEmpty) {
@@ -142,19 +215,14 @@ class SyncService {
               await ApiService.updateAkunSaldoRaw(pathId, (body['saldo'] as num).toDouble());
             }
           } else if (method == 'DONE') {
-            // penanda lokal saja — tidak ada yang perlu dikirim
+            // penanda lokal saja
           }
 
           // Hapus dari antrean HANYA setelah operasi benar-benar berhasil.
           await LocalDb.removeFromQueue(id);
           terkirim++;
         } catch (_) {
-          // Item ini gagal — pertahankan di antrean supaya dicoba lagi nanti.
           gagal++;
-          // Skip item yang gagal dan lanjutkan ke item berikutnya.
-          // Hentikan pengiriman berikutnya hanya jika urutan operasi kritis
-          // (mis. POST harus sukses sebelum PUT/DELETE item yang sama).
-          // Dead-letter prevention: item yang gagal tidak memblokir seluruh antrean.
           continue;
         }
       }
@@ -163,8 +231,7 @@ class SyncService {
       if (gagal == 0) await pullFromServer();
     } finally {
       _syncing = false;
-      if (terkirim > 0 || gagal > 0) {
-        // Update waktu sync terakhir hanya jika benar-benar ada aktivitas
+      if (terkirim > 0 || gagal > 0 || force) {
         _lastSyncTime = DateTime.now();
       }
     }

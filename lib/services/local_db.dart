@@ -223,11 +223,39 @@ class LocalDb {
       'akun_nama': null,
       'synced': 0,
     });
+
+    if (data['akun_id'] != null) {
+      final nominal = (data['nominal'] as num? ?? 0).toDouble();
+      final delta = data['jenis'] == 'pemasukan' ? nominal : -nominal;
+      await d.rawUpdate(
+        'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
+        [delta, data['akun_id'].toString(), data['akun_id'].toString()],
+      );
+    }
   }
 
   static Future<void> deleteTransaksi(dynamic id) async {
     final d = await db;
-    await d.delete('transaksi', where: 'id = ?', whereArgs: [id]);
+    final rows = await d.query('transaksi', where: 'id = ? OR local_id = ?', whereArgs: [id, id]);
+    if (rows.isNotEmpty) {
+      final row = rows.first;
+      final akunId = row['akun_id']?.toString();
+      if (akunId != null && akunId.isNotEmpty) {
+        final nominal = (row['nominal'] as num? ?? 0).toDouble();
+        final jenis = row['jenis'] as String?;
+        final delta = jenis == 'pemasukan' ? -nominal : nominal;
+        await d.rawUpdate(
+          'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
+          [delta, akunId, akunId],
+        );
+      }
+    }
+    await d.delete('transaksi', where: 'id = ? OR local_id = ?', whereArgs: [id, id]);
+  }
+
+  static Future<void> deleteAllTransaksi() async {
+    final d = await db;
+    await d.delete('transaksi');
   }
 
   /// Terapkan perubahan body ke baris lokal yang id-nya [id].
@@ -528,6 +556,8 @@ class LocalDb {
     final result = await d.rawQuery('SELECT COUNT(*) as c FROM sync_queue');
     return (result.first['c'] as int? ?? 0);
   }
+
+  static Future<int> getQueueCount() => getPendingCount();
 
   // ── Dashboard kalkulasi lokal ──────────────────────────────────────────────
   static Future<Map<String, double>> getDashboardLocal(String bulan) async {

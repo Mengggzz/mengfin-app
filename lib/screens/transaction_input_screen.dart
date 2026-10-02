@@ -8,6 +8,7 @@ import '../services/app_prefs.dart';
 import '../services/dompet_view.dart';
 import '../services/kategori_otomatis.dart';
 import '../widgets/widgets.dart';
+import 'tambah_kazz_screen.dart';
 
 class TransactionInputScreen extends StatefulWidget {
   final String? initialDeskripsi;
@@ -215,45 +216,107 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            width: 36, height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.textMuted.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text('Pilih dompet', style: TextStyle(
-              color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Column(children: [
+              Text(
+                !_isExpense ? 'Saldo Masuk ke Dompet Mana?' : 'Pilih Sumber Dompet',
+                style: TextStyle(
+                  color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                !_isExpense
+                    ? 'Pilih dompet tujuan untuk menambahkan saldo pemasukan ini'
+                    : 'Pilih dompet yang digunakan untuk transaksi ini',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                textAlign: TextAlign.center,
+              ),
+            ]),
           ),
           Flexible(child: ListView(
             shrinkWrap: true,
             children: [
+              if (_isExpense)
+                ListTile(
+                  leading: const Icon(Icons.account_balance_wallet_outlined),
+                  title: const Text('Semua dompet'),
+                  trailing: _akunTerpilih == null
+                      ? Icon(Icons.check, color: AppColors.primary) : null,
+                  onTap: () => Navigator.pop(context, null),
+                ),
+              ..._akunList.map((a) {
+                final isSelected = AppPrefs.idKeTeks(a.id) == AppPrefs.idKeTeks(_akunTerpilih);
+                final col = a.warna != null && a.warna!.isNotEmpty
+                    ? Color(int.tryParse(a.warna!.replaceFirst('#', '0xFF')) ?? 0xFF10B981)
+                    : AppColors.primary;
+                return ListTile(
+                  leading: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: col.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.account_balance_wallet, color: col, size: 18),
+                  ),
+                  title: Text(a.nama, style: TextStyle(
+                    color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500)),
+                  subtitle: Text('Saldo: Rp ${formatAmount(a.saldo.abs())}', style: TextStyle(
+                    color: AppColors.textMuted, fontSize: 11)),
+                  trailing: isSelected
+                      ? Icon(Icons.check_circle, color: AppColors.primary, size: 20) : null,
+                  onTap: () => Navigator.pop(context, a.id),
+                );
+              }),
               ListTile(
-                leading: const Icon(Icons.account_balance_wallet_outlined),
-                title: const Text('Semua dompet'),
-                trailing: _akunTerpilih == null
-                    ? Icon(Icons.check, color: AppColors.primary) : null,
-                onTap: () => Navigator.pop(context, null),
+                leading: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.add, color: AppColors.primaryLight, size: 20),
+                ),
+                title: Text('Tambah Dompet Baru', style: TextStyle(
+                  color: AppColors.primaryLight, fontWeight: FontWeight.w600, fontSize: 13)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => const TambahKazzScreen()));
+                  await _muatAkun();
+                },
               ),
-              ..._akunList.map((a) => ListTile(
-                title: Text(a.nama),
-                subtitle: Text('Rp ${formatAmount(a.saldo.abs())}'),
-                trailing: AppPrefs.idKeTeks(a.id) == AppPrefs.idKeTeks(_akunTerpilih)
-                    ? Icon(Icons.check, color: AppColors.primary) : null,
-                onTap: () => Navigator.pop(context, a.id),
-              )),
             ],
           )),
+          const SizedBox(height: 12),
         ]),
       ),
     );
     if (!mounted) return;
-    setState(() => _akunTerpilih = terpilih);
+    if (terpilih != null || _isExpense) {
+      setState(() => _akunTerpilih = terpilih);
+    }
   }
 
   Future<void> _onConfirm() async {
     final nominal = _parseAmount();
     if (nominal <= 0 || _saving) return;
 
-    if (!_isExpense && _akunTerpilih == null && _akunList.isNotEmpty) {
-      await _pilihDompet();
-      if (_akunTerpilih == null) {
-        _akunTerpilih = DompetView.dompetAwal(_akunList, AppPrefs.instance.dompetUtama)?.id ?? _akunList.first.id;
+    if (!_isExpense && _akunTerpilih == null) {
+      if (_akunList.isNotEmpty) {
+        await _pilihDompet();
+        if (_akunTerpilih == null) {
+          _akunTerpilih = DompetView.dompetAwal(_akunList, AppPrefs.instance.dompetUtama)?.id ?? _akunList.first.id;
+        }
       }
     }
 
@@ -272,6 +335,19 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
         await ApiService.updateTransaksi(widget.edit!.id, body);
       } else {
         await ApiService.createTransaksi(body);
+      }
+
+      if (!_isExpense && mounted) {
+        final namaDompet = _akunNama(_akunTerpilih) ?? 'Dompet';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Row(children: [
+            const Icon(Icons.check_circle_outline, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Pemasukan ${formatRupiah(nominal)} berhasil masuk ke $namaDompet!')),
+          ]),
+          backgroundColor: AppColors.success,
+          duration: const Duration(seconds: 3),
+        ));
       }
 
       if (_isExpense && mounted) {
