@@ -24,8 +24,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
     setState(() => _loading = true);
     try {
       final data = await ApiService.getGoals();
+      if (!mounted) return;
       setState(() { _goals = data; _loading = false; });
-    } catch (_) { setState(() => _loading = false); }
+    } catch (_) { if (!mounted) return; setState(() => _loading = false); }
   }
 
   // Id dari server berupa String ObjectId, bukan int — jangan dikunci int.
@@ -88,6 +89,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 ));
                 return;
               }
+              if (!mounted) return;
               Navigator.pop(context); _load();
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white,

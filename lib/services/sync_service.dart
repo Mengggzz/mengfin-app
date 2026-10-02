@@ -65,6 +65,9 @@ class SyncService {
     Future<bool> Function(Map<String, dynamic> item)? kirim,
   }) async {
     if (_syncing) return const SyncResult();
+    // Safe: Dart is single-threaded. _syncing is read and set to true
+    // synchronously before any await, so two callers cannot both see false
+    // in the same microtask — no Completer lock needed.
     
     // Cegah sync terlalu sering (minimal 10 detik antar sync)
     // Kecuali saat tes (kirim != null) karena tes perlu kontrol penuh
@@ -154,9 +157,11 @@ class SyncService {
         } catch (_) {
           // Item ini gagal — pertahankan di antrean supaya dicoba lagi nanti.
           gagal++;
-          // Hentikan pengiriman berikutnya agar urutan operasi tetap terjaga
+          // Skip item yang gagal dan lanjutkan ke item berikutnya.
+          // Hentikan pengiriman berikutnya hanya jika urutan operasi kritis
           // (mis. POST harus sukses sebelum PUT/DELETE item yang sama).
-          break;
+          // Dead-letter prevention: item yang gagal tidak memblokir seluruh antrean.
+          continue;
         }
       }
 

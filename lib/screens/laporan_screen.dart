@@ -255,11 +255,23 @@ class _LaporanScreenState extends State<LaporanScreen> {
 
   // ── Bandingkan: muat periode pembanding ───────────────────────────────────
   Future<void> _loadCompare() async {
+    if (_allTx.isNotEmpty) {
+      setState(() {
+        _compareTx = _allTx.where((tx) {
+          final d = DateTime.tryParse(tx.tanggal);
+          if (d == null) return false;
+          return '${d.year}-${d.month.toString().padLeft(2, '0')}' == _periodePembanding;
+        }).toList();
+        _compareLoading = false;
+      });
+      return;
+    }
     setState(() => _compareLoading = true);
     try {
       final txs = await ApiService.getTransaksi(limit: 500);
       if (!mounted) return;
       setState(() {
+        _allTx = txs;
         _compareTx = txs.where((tx) {
           final d = DateTime.tryParse(tx.tanggal);
           if (d == null) return false;

@@ -4,6 +4,7 @@ import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/app_events.dart';
+import '../utils/responsive.dart';
 import '../widgets/widgets.dart';
 import 'calendar_screen.dart';
 import 'laporan_screen.dart';
@@ -49,10 +50,14 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
       // Load all for local filtering, or we could pass params to API
       // For now, let's load a larger set and filter locally for speed
       final data = await ApiService.getTransaksi(limit: 500);
+      if (!mounted) return;
       _list = data;
       _applyAllFilters();
       setState(() => _loading = false);
-    } catch (_) { setState(() => _loading = false); }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
 
   void _applyAllFilters() {
@@ -71,7 +76,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
     // Date Filter
     if (_currentFilter.startDate != null && _currentFilter.endDate != null) {
       filtered = filtered.where((tx) {
-        DateTime txDate = DateTime.parse(tx.tanggal);
+        DateTime txDate = DateTime.tryParse(tx.tanggal) ?? DateTime.now();
         return txDate.isAfter(_currentFilter.startDate!.subtract(const Duration(days: 1))) &&
                txDate.isBefore(_currentFilter.endDate!.add(const Duration(days: 1)));
       }).toList();
@@ -122,6 +127,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
     Navigator.push(context, MaterialPageRoute(
         builder: (_) => TransactionInputScreen(edit: tx as Transaksi)))
         .then((changed) {
+      if (!mounted) return;
       if (changed == true) _load();
     });
   }
@@ -142,6 +148,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
     if (ok != true) return;
     try {
       await ApiService.deleteTransaksi(id);
+      if (!mounted) return;
       _load();
     } catch (e) {
       if (!mounted) return;
@@ -168,8 +175,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
       backgroundColor: AppColors.bg,
       body: SafeArea(child: Column(children: [
         // ── Header ─────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        ResponsiveContainer(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                Text('Transaksi', style: TextStyle(

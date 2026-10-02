@@ -35,6 +35,7 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
     bool available = await _speech.initialize(
       onStatus: (val) {
         debugPrint('onStatus: $val');
+        if (!mounted) return;
         if ((val == 'done' || val == 'notListening') &&
             _isListening && _text.trim().isNotEmpty) {
           _processVoice(_text);

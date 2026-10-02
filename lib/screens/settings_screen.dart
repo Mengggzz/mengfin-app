@@ -157,6 +157,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final prefs = AppPrefs.instance;
       final utama = prefs.dompetUtama;
       final tampil = prefs.dompetTampil;
+      if (!mounted) return;
       setState(() {
         _wallets = wallets;
         if (wallets.isNotEmpty) {
@@ -180,6 +181,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _loading = false;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() => _loading = false);
     }
   }
@@ -388,6 +390,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 setState(() => _notifEnabled = v);
                 await AppPrefs.instance.setNotifAktif(v);
                 await NotifService.instance.terapkanPreferensi();
+                if (!mounted) return;
                 if (v && mounted) await _pastikanIzin();
               },
               activeColor: AppColors.primary,
@@ -544,11 +547,13 @@ class _PilihAplikasiDialogState extends State<_PilihAplikasiDialog> {
   bool _loading = true;
   String _cari = '';
   late final TextEditingController _cariCtrl;
+  late Set<String> terpilih;
 
   @override
   void initState() {
     super.initState();
     _cariCtrl = TextEditingController();
+    terpilih = Set<String>.from(widget.sedang);
     _muat();
   }
 
@@ -578,7 +583,6 @@ class _PilihAplikasiDialogState extends State<_PilihAplikasiDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final terpilih = Set<String>.from(widget.sedang);
     final hasil = _cari.isEmpty
         ? _paket
         : _paket.where((p) => p.toLowerCase().contains(_cari.toLowerCase())).toList();

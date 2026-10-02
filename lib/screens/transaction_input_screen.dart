@@ -251,6 +251,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
         // Smart Budgeting Check
         final bulan = _tanggal.substring(0, 7);
         final anggarans = await ApiService.getAnggaran(bulan);
+        if (!mounted) return;
         try {
           final anggaran = anggarans.firstWhere((a) => a.kategori == _kategori);
           if (anggaran.terpakai > anggaran.batas) {
@@ -264,6 +265,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
               duration: const Duration(seconds: 4),
             ));
           } else if (anggaran.terpakai >= anggaran.batas * 0.8) {
+            if (!mounted) return;
              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Row(children: [
                 const Icon(Icons.info_outline, color: Colors.white),
@@ -318,9 +320,6 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
   @override
   Widget build(BuildContext context) {
     final categories = _isExpense ? expenseCategories : incomeCategories;
-    if (!categories.any((c) => c.label == _kategori)) {
-      _kategori = categories.first.label;
-    }
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -345,7 +344,11 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
             // ── Expense / Income Toggle ──────────────────────
             Row(children: [
               Expanded(child: GestureDetector(
-                onTap: () => setState(() { _isExpense = true; _kategori = 'Makan & Minum'; }),
+                onTap: () => setState(() {
+                    _isExpense = true;
+                    final cats = expenseCategories;
+                    if (!cats.any((c) => c.label == _kategori)) _kategori = cats.first.label;
+                  }),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
@@ -362,7 +365,11 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
               )),
               Container(width: 1, height: 20, color: AppColors.divider),
               Expanded(child: GestureDetector(
-                onTap: () => setState(() { _isExpense = false; _kategori = 'Gaji'; }),
+                onTap: () => setState(() {
+                    _isExpense = false;
+                    final cats = incomeCategories;
+                    if (!cats.any((c) => c.label == _kategori)) _kategori = cats.first.label;
+                  }),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(

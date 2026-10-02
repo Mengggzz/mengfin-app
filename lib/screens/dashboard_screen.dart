@@ -12,6 +12,7 @@ import '../services/auth_service.dart';
 import '../services/dompet_view.dart';
 import '../services/local_db.dart';
 import '../services/update_service.dart';
+import '../utils/responsive.dart';
 import '../widgets/widgets.dart';
 import '../widgets/update_dialog.dart';
 import 'ai_screen.dart';
@@ -90,6 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _autoCheckUpdate() async {
     try {
       await UpdateFlow.run(context, silentWhenNoUpdate: true);
+      if (!mounted) return;
     } catch (_) {}
   }
 
@@ -203,6 +205,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .toList()
         ..sort((a, b) => (b['total'] as double).compareTo(a['total'] as double));
 
+      if (!mounted) return;
       setState(() {
         _data = results[0] as DashboardData;
         _saldoDompet = DompetView.saldoTampil(
@@ -239,6 +242,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final saldo = localStats['saldo'] ?? 0;
         final pemasukan = localStats['pemasukan'] ?? 0;
         final pengeluaran = localStats['pengeluaran'] ?? 0;
+        if (!mounted) return;
         setState(() {
           _saldoDompet = saldo.toDouble();
           _data = DashboardData(
@@ -341,8 +345,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       groupedTx.putIfAbsent(date, () => []).add(tx);
     }
 
-    return SafeArea(child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+    return SafeArea(child: ResponsiveContainer(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // ── Header ──────────────────────────────────────────────
         // 5. Icon kamera → kalender
@@ -410,62 +413,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: 12),
 
-        // ── Quick Actions (1. Analytics dihapus, digabung budget harian) ───
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
-            QuickActionButton(
-              icon: Icons.mic,
-              label: 'Voice Text',
-              iconColor: AppColors.primary,
-              onTap: () async {
-                final saved = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => const VoiceToTextDialog(),
-                );
-                if (saved == true && mounted) _load();
-              },
-            ),
-            const SizedBox(width: 8),
-            QuickActionButton(
-              icon: Icons.auto_awesome,
-              label: 'Kazz AI',
-              iconColor: AppColors.primary,
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiScreen())),
-            ),
-            const SizedBox(width: 8),
-            QuickActionButton(
-              icon: Icons.camera_alt,
-              label: 'Scan Struk',
-              iconColor: AppColors.expense,
-              onTap: () async {
-                final saved = await Navigator.push<bool>(
-                  context, MaterialPageRoute(builder: (_) => const ScanScreen()));
-                if (saved == true && mounted) _load();
-              },
-            ),
-            const SizedBox(width: 8),
-            QuickActionButton(
-              icon: Icons.pie_chart,
-              label: 'Budget',
-              iconColor: AppColors.expense,
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnggaranScreen())),
-            ),
-            const SizedBox(width: 8),
-            // 6. Icon tune → pengaturan beranda
-            GestureDetector(
-              onTap: () => _showBerandaSettings(),
-              child: Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.bgCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.glassBorder),
-                ),
-                child:  Icon(Icons.tune, size: 18, color: AppColors.textMuted),
-              ),
-            ),
-          ]),
+        // ── Quick Actions ───
+        ResponsiveWidget(
+          xs: (context) => SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: _buildQuickActions()),
+          ),
+          md: (context) => ResponsiveRow(
+            spacing: 12,
+            runSpacing: 12,
+            children: _buildQuickActions(),
+          ),
         ),
         const SizedBox(height: 16),
 
@@ -522,6 +480,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onTap: () => Navigator.push(context, MaterialPageRoute(
                     builder: (_) => TransactionInputScreen(edit: tx as Transaksi)))
                     .then((changed) {
+                  if (!mounted) return;
                   if (changed == true) _load();
                 }),
                 onDelete: () => _hapusTransaksi(tx),
@@ -1019,7 +978,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (result != null && result >= 0) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble('budget_harian', result);
+      controller.dispose();
       _load(); // Reload data
+    } else {
+      controller.dispose();
     }
   }
 
@@ -1172,6 +1134,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return date.year == today.year && date.month == today.month && date.day == today.day;
   }
 
+  List<Widget> _buildQuickActions() {
+    return [
+      QuickActionButton(
+        icon: Icons.mic,
+        label: 'Voice Text',
+        iconColor: AppColors.primary,
+        onTap: () async {
+          final saved = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => const VoiceToTextDialog(),
+          );
+          if (saved == true && mounted) _load();
+        },
+      ),
+      QuickActionButton(
+        icon: Icons.auto_awesome,
+        label: 'Kazz AI',
+        iconColor: AppColors.primary,
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiScreen())),
+      ),
+      QuickActionButton(
+        icon: Icons.camera_alt,
+        label: 'Scan Struk',
+        iconColor: AppColors.expense,
+        onTap: () async {
+          final saved = await Navigator.push<bool>(
+            context, MaterialPageRoute(builder: (_) => const ScanScreen()));
+          if (saved == true && mounted) _load();
+        },
+      ),
+      QuickActionButton(
+        icon: Icons.pie_chart,
+        label: 'Budget',
+        iconColor: AppColors.expense,
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnggaranScreen())),
+      ),
+      // 6. Icon tune → pengaturan beranda
+      GestureDetector(
+        onTap: () => _showBerandaSettings(),
+        child: Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.glassBorder),
+          ),
+          child:  Icon(Icons.tune, size: 18, color: AppColors.textMuted),
+        ),
+      ),
+    ];
+  }
+
   Widget _headerIcon(IconData icon, {VoidCallback? onTap}) => GestureDetector(
     onTap: onTap,
     child: Container(
@@ -1191,7 +1205,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildInsightCarousel(DashboardData d, double saldoPersen, double pengeluaranPersen) {
     final kat = _kategoriBreakdown.take(4).toList();
     final pageCount = 1 + (kat.isEmpty ? 1 : kat.length);
-    if (_insightPage >= pageCount) _insightPage = pageCount - 1;
     _insightPageCtrl ??= PageController();
 
     return GlassCard(
@@ -1212,7 +1225,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           height: 150,
           child: PageView(
             controller: _insightPageCtrl,
-            onPageChanged: (i) => setState(() => _insightPage = i),
+            onPageChanged: (i) => setState(() {
+              _insightPage = i.clamp(0, pageCount - 1);
+            }),
             children: [
               _saldoPage(d, saldoPersen, pengeluaranPersen),
               if (kat.isEmpty)
@@ -1440,6 +1455,7 @@ class _DayDetailSheetState extends State<_DayDetailSheet> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() { _loading = true; _error = false; });
     try {
       final txs = await ApiService.getTransaksi(limit: 500);

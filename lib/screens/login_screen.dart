@@ -46,8 +46,16 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() { _loading = true; _error = null; });
 
     if (kIsWeb) {
-      await AuthService.instance.signInWithGoogle();
-      // Page akan redirect ke Google — tidak ada kode setelah ini
+      try {
+        await AuthService.instance.signInWithGoogle();
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _error = _parseSignInError(e);
+          });
+        }
+      }
     } else {
       try {
         final ok = await AuthService.instance.signInWithGoogle();

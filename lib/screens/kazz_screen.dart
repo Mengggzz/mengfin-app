@@ -830,8 +830,17 @@ class _KazzScreenState extends State<KazzScreen> {
             const SizedBox(width: 6),
             GestureDetector(
               onTap: () async {
-                await ApiService.deleteAnggaran(a.id);
-                _load();
+                try {
+                  await ApiService.deleteAnggaran(a.id);
+                  if (!mounted) return;
+                  _load();
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Gagal hapus: $e'),
+                    backgroundColor: AppColors.danger,
+                  ));
+                }
               },
               child: Container(padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(color: AppColors.danger.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),

@@ -38,6 +38,7 @@ class _AiScreenState extends State<AiScreen> {
   void _addMsg(_Msg m) {
     setState(() => _msgs.add(m));
     Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
       if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent,
         duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     });

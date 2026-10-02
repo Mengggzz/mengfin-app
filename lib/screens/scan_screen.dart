@@ -95,6 +95,7 @@ class _ScanScreenState extends State<ScanScreen> {
           ?.map((e) => Map<String, dynamic>.from(e as Map))
           .toList() ?? [];
 
+      final conf = data['confidence'];
       setState(() {
         _hasil = data;
         _jenis = (data['jenis'] ?? 'pengeluaran').toString();
@@ -105,14 +106,12 @@ class _ScanScreenState extends State<ScanScreen> {
         _tanggal = DateTime.tryParse((data['tanggal'] ?? '').toString()) ?? DateTime.now();
         _items = items;
         _scanning = false;
+        if (nominal <= 0) {
+          _error = 'Total tidak terbaca. Cek lagi nominalnya di bawah.';
+        } else if (conf is num && conf < 0.5) {
+          _info = 'Hasil kurang yakin — mohon periksa nominal & toko.';
+        }
       });
-
-      final conf = data['confidence'];
-      if (nominal <= 0) {
-        setState(() => _error = 'Total tidak terbaca. Cek lagi nominalnya di bawah.');
-      } else if (conf is num && conf < 0.5) {
-        setState(() => _info = 'Hasil kurang yakin — mohon periksa nominal & toko.');
-      }
     } catch (e) {
       if (!mounted) return;
       setState(() {

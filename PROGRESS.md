@@ -112,6 +112,34 @@ tabel `akun`) lalu menaikkan ke v3. Sebelumnya hanya `onCreate` yang teruji.
   `pumpAndSettle` menggantung di dialog animasi → pakai `pump` + tutup
   manual lewat `tester.state(find.byType(Navigator).first).pop()`.
 
+## Responsif layout & Bug Fixes Komprehensif (2 Oct 2026)
+Ditambahkan `lib/utils/responsive.dart` dengan:
+- Breakpoints Bootstrap-style (xs, sm, md, lg, xl, xxl)
+- ResponsiveContainer: padding & max-width responsif
+- ResponsiveRow: grid column otomatis berdasarkan lebar layar
+- ResponsiveWidget: child berbeda per breakpoint
+- ResponsiveText: font size scaling
+
+Perbaikan Bug Komprehensif:
+1. `kazz_screen.dart`: input saldo tidak reset saat keyboard muncul (TextEditingController dipindah keluar builder scope), try/catch deleteAnggaran.
+2. `transaction_input_screen.dart`: `resizeToAvoidBottomInset: false` + padding `viewInsets.bottom + 8`, mounted check di `_onConfirm`.
+3. `settings_screen.dart`: `terpilih` dipindah dari build lokal ke `State` field `late Set<String> terpilih` diinisialisasi pada `initState()` (_PilihAplikasiDialog), mounted check & error handling.
+4. `dashboard_screen.dart`: mounted check di `_autoCheckUpdate`, `_load`, `_DayDetailSheetState._load`, callback `.then()`; `TextEditingController` dispose di `_editBudgetHarian()`; mutasi `_insightPage` di onPageChanged.
+5. `transaksi_screen.dart`: mounted checks di `_load()`, `_editTransaksi()`, `_delete()`, serta `DateTime.tryParse`.
+6. `analytics_screen.dart`: `DateTime.tryParse` tanggal transaksi, perbaiki string escape `'\${value}'` -> `'${value}'`, mounted check `_loadData()`.
+7. `anggaran_screen.dart`: `TextEditingController` di luar `StatefulBuilder` builder scope, mounted check di `_load()`.
+8. `calendar_screen.dart`: mounted check di `_load()` & `_hapusTransaksi()`, race condition guard `_loadGen`.
+9. `ai_screen.dart`: mounted check di `Future.delayed`.
+10. `more_screen.dart`: try/catch error handling di `_handleLogout`.
+11. `login_screen.dart`: try/catch reset `_loading = false` pada branch web.
+12. `scan_screen.dart`: konsolidasi multi-setState dan `DateTime.tryParse`.
+13. `laporan_screen.dart`: optimasi `_loadCompare` memanfaatkan `_allTx` yang sudah ada tanpa redundant fetch.
+14. `connectivity_service.dart`: simpan subscription `_sub` dan `cancel()` di `dispose()`.
+15. `local_db.dart`: DB init future lock (`_dbFuture`), bersihkan table `akun` dan `sync_queue` di `clearAll()`.
+16. `sync_service.dart`: bypass dead-letter item agar antrean sync tidak terblokir.
+17. `api_service.dart`: verifikasi HTTP status code di `_delete()`.
+18. `voice_to_text_dialog.dart`: mounted check di `onStatus`.
+
 ## Analisis struktur (28 Sep 2026)
 Dipindai: TODO/FIXME (0), handler kosong (0), kontrol mati (0).
 8 `print(` debug di dashboard_screen & auth_service — tidak fatal.

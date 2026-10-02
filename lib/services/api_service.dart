@@ -59,10 +59,13 @@ class ApiService {
   }
 
   static Future<void> _delete(String path) async {
-    await _client.delete(
+    final res = await _client.delete(
       Uri.parse('$kApiBaseUrl$path'),
       headers: _authHeaders,
     );
+    if (res.statusCode >= 200 && res.statusCode < 300) return;
+    if (res.statusCode == 401) throw Exception('unauthorized');
+    throw Exception('DELETE $path failed: ${res.statusCode} ${res.body}');
   }
 
 

@@ -23,8 +23,12 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
     setState(() => _loading = true);
     try {
       final data = await ApiService.getAnggaran(_periode);
+      if (!mounted) return;
       setState(() { _list = data; _loading = false; });
-    } catch (_) { setState(() => _loading = false); }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
 
   void _changeMonth(int delta) {
@@ -60,6 +64,7 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
   void _showAddModal({Anggaran? edit}) {
     String kategori = edit?.kategori ?? 'Makanan';
     String batas = edit != null ? edit.batas.toStringAsFixed(0) : '';
+    final batasCtrl = TextEditingController(text: batas);
 
     showModalBottomSheet(
       context: context, isScrollControlled: true, backgroundColor: AppColors.bgCard,
@@ -98,7 +103,7 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
            Text('BATAS ANGGARAN (Rp)', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
-            controller: TextEditingController(text: batas),
+            controller: batasCtrl,
             keyboardType: TextInputType.number,
             style:  TextStyle(color: AppColors.textPrimary),
             decoration: InputDecoration(
@@ -108,12 +113,11 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.glassBorder)),
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.primary)),
             ),
-            onChanged: (v) => batas = v,
           ),
           const SizedBox(height: 16),
           SizedBox(width: double.infinity, child: ElevatedButton(
             onPressed: () async {
-              final b = double.tryParse(batas.replaceAll(RegExp(r'\D'), '')) ?? 0;
+              final b = double.tryParse(batasCtrl.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
               final hasil = await Penyimpanan.simpan(() async {
                 if (edit != null) {
                   await ApiService.updateAnggaran(edit.id, b);
@@ -140,7 +144,7 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
           )),
         ]),
       )),
-    );
+    ).then((_) => batasCtrl.dispose());
   }
 
   @override

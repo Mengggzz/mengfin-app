@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import '../models/models.dart';
 
 class LocalDb {
-  static Database? _db;
+  static Future<Database>? _dbFuture;
 
   /// Path DB alternatif — dipakai pengujian supaya tidak menyentuh DB asli.
   static String? _pathOverride;
@@ -11,19 +11,19 @@ class LocalDb {
   /// Arahkan LocalDb ke file DB lain (dipakai test).
   static void overridePathForTest(String path) {
     _pathOverride = path;
-    _db = null;
+    _dbFuture = null;
   }
 
   /// Tutup DB (dipakai test untuk membersihkan).
   static Future<void> closeForTest() async {
-    await _db?.close();
-    _db = null;
+    final db = await _dbFuture;
+    await db?.close();
+    _dbFuture = null;
   }
 
-  static Future<Database> get db async {
-    _db ??= await _open();
-    return _db!;
-  }
+  /// Race-condition-safe: _open() called at most once even with concurrent callers,
+  /// because the Future itself is stored before any await resolves.
+  static Future<Database> get db async => (_dbFuture ??= _open());
 
   static Future<Database> _open() async {
     final path = _pathOverride ?? join(await getDatabasesPath(), 'mengfin.db');
@@ -496,5 +496,7 @@ class LocalDb {
     await d.delete('transaksi');
     await d.delete('anggaran');
     await d.delete('goals');
+    await d.delete('akun');
+    await d.delete('sync_queue');
   }
 }

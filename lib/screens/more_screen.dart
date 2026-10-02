@@ -190,9 +190,17 @@ class MoreScreen extends StatelessWidget {
       ],
     ));
     if (ok == true) {
-      await AuthService.instance.signOut();
-      if (context.mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
+      try {
+        await AuthService.instance.signOut();
+        if (context.mounted) {
+          Navigator.of(context).pushReplacementNamed('/login');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal keluar: $e')),
+          );
+        }
       }
     }
   }

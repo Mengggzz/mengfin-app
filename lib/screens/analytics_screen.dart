@@ -27,11 +27,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     try {
       // For simplicity fetch all transactions; in production would use aggregation endpoint
       final data = await ApiService.getTransaksi(limit: 1000);
+      if (!mounted) return;
       setState(() {
         _transactions = data;
         _loading = false;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() => _loading = false);
     }
   }
@@ -40,7 +42,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   Map<DateTime, double> _weeklyBalance() {
     final map = <DateTime, double>{};
     for (final tx in _transactions) {
-      final date = DateTime.parse(tx.tanggal);
+      final date = DateTime.tryParse(tx.tanggal) ?? DateTime.now();
       final weekStart = date.subtract(Duration(days: date.weekday - 1));
       map.update(weekStart, (v) => v + (tx.jenis == 'pemasukan' ? tx.nominal : -tx.nominal), ifAbsent: () => (tx.jenis == 'pemasukan' ? tx.nominal : -tx.nominal));
     }
@@ -51,7 +53,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   Map<String, double> _monthlyBalance() {
     final map = <String, double>{};
     for (final tx in _transactions) {
-      final date = DateTime.parse(tx.tanggal);
+      final date = DateTime.tryParse(tx.tanggal) ?? DateTime.now();
       final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
       map.update(key, (v) => v + (tx.jenis == 'pemasukan' ? tx.nominal : -tx.nominal), ifAbsent: () => (tx.jenis == 'pemasukan' ? tx.nominal : -tx.nominal));
     }
@@ -125,7 +127,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, interval: null, getTitlesWidget: (value, meta) => Text('\${value.toInt()}', style:  TextStyle(color: AppColors.textSecond, fontSize: 10))),
+          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, interval: null, getTitlesWidget: (value, meta) => Text('${value.toInt()}', style:  TextStyle(color: AppColors.textSecond, fontSize: 10))),
           ),
         ),
         lineBarsData: [
@@ -174,20 +176,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   Widget _buildSummary() {
     final totalIncome = _transactions.where((t) => t.jenis == 'pemasukan').fold<double>(0, (p, e) => p + e.nominal);
     final totalExpense = _transactions.where((t) => t.jenis == 'pengeluaran').fold<double>(0, (p, e) => p + e.nominal);
-    final avgDaily = _transactions.isEmpty ? 0 : _transactions.map((t) => DateTime.parse(t.tanggal)).toSet().length == 0 ? 0 : (totalExpense / _transactions.map((t) => DateTime.parse(t.tanggal)).toSet().length);
+    final avgDaily = _transactions.isEmpty ? 0 : _transactions.map((t) => DateTime.tryParse(t.tanggal) ?? DateTime.now()).toSet().length == 0 ? 0 : (totalExpense / _transactions.map((t) => DateTime.tryParse(t.tanggal) ?? DateTime.now()).toSet().length);
     // For growth comparison, use last week vs previous week
     final now = DateTime.now();
     final lastWeekStart = now.subtract(Duration(days: now.weekday + 6));
     final prevWeekStart = lastWeekStart.subtract(const Duration(days: 7));
-    final lastWeekExp = _transactions.where((t) => t.jenis == 'pengeluaran' && DateTime.parse(t.tanggal).isAfter(lastWeekStart)).fold<double>(0, (p, e) => p + e.nominal);
-    final prevWeekExp = _transactions.where((t) => t.jenis == 'pengeluaran' && DateTime.parse(t.tanggal).isAfter(prevWeekStart) && DateTime.parse(t.tanggal).isBefore(lastWeekStart)).fold<double>(0, (p, e) => p + e.nominal);
+    final lastWeekExp = _transactions.where((t) => t.jenis == 'pengeluaran' && (DateTime.tryParse(t.tanggal) ?? DateTime.now()).isAfter(lastWeekStart)).fold<double>(0, (p, e) => p + e.nominal);
+    final prevWeekExp = _transactions.where((t) => t.jenis == 'pengeluaran' && (DateTime.tryParse(t.tanggal) ?? DateTime.now()).isAfter(prevWeekStart) && (DateTime.tryParse(t.tanggal) ?? DateTime.now()).isBefore(lastWeekStart)).fold<double>(0, (p, e) => p + e.nominal);
     final changePct = prevWeekExp == 0 ? 0 : ((lastWeekExp - prevWeekExp) / prevWeekExp) * 100;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Total pemasukan: \${totalIncome.toStringAsFixed(0)}', style:  TextStyle(color: AppColors.income, fontSize: 14)),
-        Text('Total pengeluaran: \${totalExpense.toStringAsFixed(0)}', style:  TextStyle(color: AppColors.expense, fontSize: 14)),
-        Text('Rata-rata harian: \${avgDaily.toStringAsFixed(0)}', style:  TextStyle(color: AppColors.textSecond, fontSize: 14)),
+        Text('Total pemasukan: ${totalIncome.toStringAsFixed(0)}', style:  TextStyle(color: AppColors.income, fontSize: 14)),
+        Text('Total pengeluaran: ${totalExpense.toStringAsFixed(0)}', style:  TextStyle(color: AppColors.expense, fontSize: 14)),
+        Text('Rata-rata harian: ${avgDaily.toStringAsFixed(0)}', style:  TextStyle(color: AppColors.textSecond, fontSize: 14)),
         Text('Perubahan minggu lalu: ${changePct.toStringAsFixed(1)}%', style: TextStyle(color: changePct >= 0 ? AppColors.danger : AppColors.income, fontSize: 14)),
       ],
     );

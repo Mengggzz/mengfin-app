@@ -8,6 +8,7 @@ class ConnectivityService {
 
   final _connectivity = Connectivity();
   final _controller = StreamController<bool>.broadcast();
+  StreamSubscription<List<ConnectivityResult>>? _sub;
 
   bool _isOnline = true;
   // Di web, selalu anggap online (browser punya akses internet langsung)
@@ -20,7 +21,7 @@ class ConnectivityService {
     final result = await _connectivity.checkConnectivity();
     _isOnline = _isConnected(result);
 
-    _connectivity.onConnectivityChanged.listen((results) {
+    _sub = _connectivity.onConnectivityChanged.listen((results) {
       final online = _isConnected(results);
       if (online != _isOnline) {
         _isOnline = online;
@@ -37,6 +38,7 @@ class ConnectivityService {
   }
 
   void dispose() {
+    _sub?.cancel();
     _controller.close();
   }
 }

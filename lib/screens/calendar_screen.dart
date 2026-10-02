@@ -18,14 +18,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
   bool _loading = true;
   String _filter = 'pengeluaran'; // pengeluaran, pemasukan, semua
 
+  int _loadGen = 0;
+
   @override
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
+    final gen = ++_loadGen;
     setState(() => _loading = true);
     try {
       final bulan = '${_selectedMonth.year}-${_selectedMonth.month.toString().padLeft(2, '0')}';
       final data = await ApiService.getTransaksi(limit: 500);
+      if (!mounted || gen != _loadGen) return;
       setState(() {
         _monthTx = data.where((tx) {
           final txDate = DateTime.tryParse(tx.tanggal);
@@ -35,6 +39,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         _loading = false;
       });
     } catch (_) {
+      if (!mounted || gen != _loadGen) return;
       setState(() => _loading = false);
     }
   }
@@ -94,6 +99,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (tx.id != null) {
         await ApiService.deleteTransaksi(tx.id);
       }
+      if (!mounted) return;
       _load(); // Refresh UI
     } catch (e) {
       if (!mounted) return;
