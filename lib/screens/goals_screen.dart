@@ -21,7 +21,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (_goals.isEmpty) {
+      setState(() => _loading = true);
+    }
     try {
       final data = await ApiService.getGoals();
       if (!mounted) return;

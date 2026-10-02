@@ -56,6 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _loadLocalCacheFirst();
     _load();
     _autoCheckUpdate();
     // Data baru (hasil scan struk, input manual, voice, hapus) langsung
@@ -66,6 +67,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // menyegarkan saldo "Dompet Saya" — sebelumnya perubahan dompet
     // tampil tidak terlihat di beranda sampai aplikasi dibuka ulang.
     AppEvents.instance.akun.addListener(_onDataBerubah);
+  }
+
+  Future<void> _loadLocalCacheFirst() async {
+    if (kIsWeb) return;
+    try {
+      final bulan = currentBulan();
+      final localStats = await LocalDb.getDashboardLocal(bulan);
+      final recentTx = await LocalDb.getTransaksi(limit: 10);
+      final akun = await LocalDb.getAkunList();
+      final prefs = await SharedPreferences.getInstance();
+      final savedBudget = prefs.getDouble('budget_harian') ?? 0;
+      final saldo = localStats['saldo'] ?? 0;
+      final pemasukan = localStats['pemasukan'] ?? 0;
+      final pengeluaran = localStats['pengeluaran'] ?? 0;
+      if (!mounted || _data != null) return;
+      setState(() {
+        _saldoDompet = DompetView.saldoTampil(
+          akun: akun,
+          dompetUtama: AppPrefs.instance.dompetUtama,
+          dompetTampil: AppPrefs.instance.dompetTampil,
+          saldoServer: saldo,
+        );
+        _data = DashboardData(
+          saldoTotal: saldo,
+          pemasukanBulanIni: pemasukan,
+          pengeluaranBulanIni: pengeluaran,
+          bulanIni: bulan,
+          health: HealthScore(score: 0, status: 'Lokal', warna: '#606080', pesan: 'Memuat data...'),
+          rataHarian: pengeluaran > 0 ? pengeluaran / DateTime.now().day : 0,
+          mingguIniPengeluaran: 0,
+          kenaikanPersen: 0,
+          kategoriTerbesar: '-',
+          mingguPeriode: '',
+          prediksiSaldoAkhir: saldo,
+          sisaHari: DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day - DateTime.now().day,
+          prediksiStatus: 'aman',
+        );
+        _recentTx = recentTx;
+        _budgetHarian = savedBudget;
+        _loading = false;
+      });
+    } catch (_) {}
   }
 
   void _onDataBerubah() {
@@ -132,7 +175,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = false; });
+    if (_data == null) {
+      setState(() { _loading = true; _error = false; });
+    }
     try {
       final results = await Future.wait([
         ApiService.getDashboard(),
@@ -157,7 +202,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       
       for (final tx in allTx) {
         try {
-          final txDateRaw = DateTime.parse(tx.tanggal).toLocal();
+          final txDateRaw = DateTime.tryParse(tx.tanggal)?.toLocal();
+          if (txDateRaw == null) continue;
           final txDate = DateTime(txDateRaw.year, txDateRaw.month, txDateRaw.day);
           
           if (txDate.isAtSameMomentAs(nowLocal)) {
@@ -176,7 +222,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         double daySpend = 0;
         for (final tx in allTx) {
           try {
-            final txDateRaw = DateTime.parse(tx.tanggal).toLocal();
+            final txDateRaw = DateTime.tryParse(tx.tanggal)?.toLocal();
+            if (txDateRaw == null) continue;
             final txDate = DateTime(txDateRaw.year, txDateRaw.month, txDateRaw.day);
             
             if (txDate.isAtSameMomentAs(targetDate)) {
@@ -194,8 +241,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       for (final tx in allTx) {
         if (tx.jenis != 'pengeluaran') continue;
         try {
-          final txDateRaw = DateTime.parse(tx.tanggal).toLocal();
-          if (txDateRaw.isBefore(cutoff)) continue;
+          final txDateRaw = DateTime.tryParse(tx.tanggal)?.toLocal();
+          if (txDateRaw == null || txDateRaw.isBefore(cutoff)) continue;
           final k = (tx.kategori ?? 'Lainnya').toString();
           katMap[k] = (katMap[k] ?? 0) + tx.nominal;
         } catch (_) {}
@@ -232,7 +279,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return;
       }
       if (kIsWeb) {
-        setState(() { _loading = false; _error = true; });
+        setState(() {
+          _loading = false;
+          if (_data == null) _error = true;
+        });
         return;
       }
       try {
@@ -265,7 +315,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _isOfflineData = true;
         });
       } catch (_) {
-        setState(() { _loading = false; _error = true; });
+        setState(() {
+          _loading = false;
+          if (_data == null) _error = true;
+        });
       }
     }
   }

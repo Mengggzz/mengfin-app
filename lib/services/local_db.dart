@@ -185,6 +185,28 @@ class LocalDb {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+  static Future<void> upsertTransaksiBatch(List<Transaksi> list, {bool synced = true}) async {
+    if (list.isEmpty) return;
+    final d = await db;
+    final batch = d.batch();
+    for (final tx in list) {
+      batch.insert('transaksi', {
+        'id': tx.id,
+        'local_id': tx.localId,
+        'tanggal': tx.tanggal,
+        'jenis': tx.jenis,
+        'nominal': tx.nominal,
+        'kategori': tx.kategori,
+        'deskripsi': tx.deskripsi,
+        'metode_pembayaran': tx.metodePembayaran,
+        'akun_id': tx.akunId,
+        'akun_nama': tx.akunNama,
+        'synced': synced ? 1 : 0,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+  }
+
   static Future<void> insertTransaksiLocal(Map<String, dynamic> data, String localId) async {
     final d = await db;
     // id lokal = localId (String), konsisten dengan id server (ObjectId).
@@ -267,6 +289,25 @@ class LocalDb {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+  static Future<void> upsertAnggaranBatch(List<Anggaran> list, {bool synced = true}) async {
+    if (list.isEmpty) return;
+    final d = await db;
+    final batch = d.batch();
+    for (final a in list) {
+      batch.insert('anggaran', {
+        'id': a.id,
+        'local_id': a.localId,
+        'kategori': a.kategori,
+        'batas': a.batas,
+        'periode': a.periode,
+        'terpakai': a.terpakai,
+        'persentase': a.persentase,
+        'synced': synced ? 1 : 0,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+  }
+
   static Future<void> insertAnggaranLocal(String localId, String kategori, double batas, String periode) async {
     final d = await db;
     await d.insert('anggaran', {
@@ -322,6 +363,27 @@ class LocalDb {
       'catatan': g.catatan,
       'synced': synced ? 1 : 0,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  static Future<void> upsertGoalBatch(List<Goal> list, {bool synced = true}) async {
+    if (list.isEmpty) return;
+    final d = await db;
+    final batch = d.batch();
+    for (final g in list) {
+      batch.insert('goals', {
+        'id': g.id,
+        'local_id': g.localId,
+        'nama': g.nama,
+        'target': g.target,
+        'terkumpul': g.terkumpul,
+        'deadline': g.deadline,
+        'prioritas': g.prioritas,
+        'nabung_per_bulan': g.nabungPerBulan,
+        'catatan': g.catatan,
+        'synced': synced ? 1 : 0,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
   }
 
   static Future<void> insertGoalLocal(String localId, Map<String, dynamic> data) async {

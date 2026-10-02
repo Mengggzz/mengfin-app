@@ -138,7 +138,11 @@ Perbaikan Bug Komprehensif:
 15. `local_db.dart`: DB init future lock (`_dbFuture`), bersihkan table `akun` dan `sync_queue` di `clearAll()`.
 16. `sync_service.dart`: bypass dead-letter item agar antrean sync tidak terblokir.
 17. `api_service.dart`: verifikasi HTTP status code di `_delete()`.
-18. `voice_to_text_dialog.dart`: mounted check di `onStatus`.
+19. Fix Blank Loading Screen & Slow Batch Sync (Video Bug):
+    - `dashboard_screen.dart`: tambah `_loadLocalCacheFirst()` untuk render instan data lokal saat startup; `_load()` tidak lagi menghapus tampilan (`_loading = true`) jika data lama sudah ada (`_data != null`).
+    - `local_db.dart`: tambah `upsertTransaksiBatch`, `upsertAnggaranBatch`, `upsertGoalBatch` pakai batch SQLite tunggal menggantikan sequential disk writes.
+    - `api_service.dart` & `sync_service.dart`: gunakan batch operations untuk pull 200 data tanpa lag/thread-blocking.
+    - `kazz_screen.dart`, `transaksi_screen.dart`, `anggaran_screen.dart`, `goals_screen.dart`, `analytics_screen.dart`: `_load()` hanya tampilkan full spinner jika data kosong (`isEmpty`), transisi antar-tab mulus tanpa flicker layar hitam.
 
 ## Analisis struktur (28 Sep 2026)
 Dipindai: TODO/FIXME (0), handler kosong (0), kontrol mati (0).

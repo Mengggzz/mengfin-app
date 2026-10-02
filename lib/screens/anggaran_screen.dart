@@ -20,7 +20,9 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (_list.isEmpty) {
+      setState(() => _loading = true);
+    }
     try {
       final data = await ApiService.getAnggaran(_periode);
       if (!mounted) return;

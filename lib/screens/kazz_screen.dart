@@ -55,7 +55,9 @@ class _KazzScreenState extends State<KazzScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (_wallets.isEmpty && _budgets.isEmpty) {
+      setState(() => _loading = true);
+    }
     try {
       final results = await Future.wait([
         ApiService.getAkunList(),

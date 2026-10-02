@@ -23,15 +23,11 @@ class SyncService {
     try {
       // Pull transaksi
       final txList = await ApiService.getTransaksiFromServer(limit: 200);
-      for (final tx in txList) {
-        await LocalDb.upsertTransaksi(tx, synced: true);
-      }
+      await LocalDb.upsertTransaksiBatch(txList, synced: true);
 
       // Pull goals
       final goalList = await ApiService.getGoalsFromServer();
-      for (final g in goalList) {
-        await LocalDb.upsertGoal(g, synced: true);
-      }
+      await LocalDb.upsertGoalBatch(goalList, synced: true);
 
       // Pull anggaran bulan ini + 3 bulan terakhir
       final now = DateTime.now();
@@ -39,9 +35,7 @@ class SyncService {
         final dt = DateTime(now.year, now.month - i);
         final periode = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
         final angList = await ApiService.getAnggaranFromServer(periode);
-        for (final a in angList) {
-          await LocalDb.upsertAnggaran(a, synced: true);
-        }
+        await LocalDb.upsertAnggaranBatch(angList, synced: true);
       }
 
       // Pull akun (dompet) — saldo di server berubah oleh transaksi yang

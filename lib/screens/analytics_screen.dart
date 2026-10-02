@@ -23,7 +23,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _loading = true);
+    if (_transactions.isEmpty) {
+      setState(() => _loading = true);
+    }
     try {
       // For simplicity fetch all transactions; in production would use aggregation endpoint
       final data = await ApiService.getTransaksi(limit: 1000);

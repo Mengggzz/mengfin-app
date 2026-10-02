@@ -98,12 +98,8 @@ class ApiService {
         server = await getTransaksiFromServer(jenis: jenis, limit: limit);
         // Update cache lokal (mobile/desktop only)
         if (!kIsWeb) {
-          // Simpan salinan server ke cache. upsert memakai local_id sebagai
-          // kunci, jadi baris lokal yang id-nya sudah jadi id server tidak
-          // terduplikasi.
-          for (final tx in server) {
-            await LocalDb.upsertTransaksi(tx, synced: true);
-          }
+          // Simpan salinan server ke cache sekaligus (batch) agar cepat
+          await LocalDb.upsertTransaksiBatch(server, synced: true);
         }
       } catch (_) {
         // Gagal ambil dari server → pakai data lokal saja di bawah
@@ -433,9 +429,7 @@ class ApiService {
       try {
         final list = await getAnggaranFromServer(periode);
         if (!kIsWeb) {
-          for (final a in list) {
-            await LocalDb.upsertAnggaran(a, synced: true);
-          }
+          await LocalDb.upsertAnggaranBatch(list, synced: true);
         }
         return list;
       } catch (_) {}
@@ -529,9 +523,7 @@ class ApiService {
       try {
         final list = await getGoalsFromServer();
         if (!kIsWeb) {
-          for (final g in list) {
-            await LocalDb.upsertGoal(g, synced: true);
-          }
+          await LocalDb.upsertGoalBatch(list, synced: true);
         }
         return list;
       } catch (_) {}

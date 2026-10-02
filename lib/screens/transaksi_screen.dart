@@ -45,7 +45,9 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (_list.isEmpty) {
+      setState(() => _loading = true);
+    }
     try {
       // Load all for local filtering, or we could pass params to API
       // For now, let's load a larger set and filter locally for speed
