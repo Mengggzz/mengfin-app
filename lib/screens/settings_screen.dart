@@ -8,7 +8,9 @@ import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/app_events.dart';
 import '../services/app_prefs.dart';
+import '../services/notif_parser.dart';
 import '../services/notif_service.dart';
+import '../services/permission_service.dart';
 
 /// Sumber daftar akun. Bisa diganti di uji supaya layar tidak perlu
 /// server hidup; produksi memakai [ApiService.getAkunList].
@@ -506,6 +508,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ]),
           ),
         ),
+        const SizedBox(height: 16),
+
+        // Storage & Android System Permissions
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.glassBorder),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.folder_shared_outlined, size: 18, color: AppColors.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Izin Penyimpanan & Sistem Android',
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+              'Memberikan izin akses penyimpanan file lokal, impor/ekspor data transaksi, serta dukungan integrasi pembacaan sistem.',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 11, height: 1.3),
+            ),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final ok = await PermissionService.mintaIzinPenyimpanan();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(ok ? 'Izin penyimpanan diberikan' : 'Izin penyimpanan belum aktif'),
+                      backgroundColor: ok ? AppColors.income : AppColors.expense,
+                      duration: const Duration(seconds: 2),
+                    ));
+                  }
+                },
+                icon: Icon(Icons.sd_storage_outlined, size: 14, color: AppColors.primary),
+                label: Text('Minta Izin Storage', style: TextStyle(color: AppColors.primary, fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => PermissionService.bukaPengaturanApp(),
+                icon: Icon(Icons.settings_outlined, size: 14, color: AppColors.textSecond),
+                label: Text('Buka Pengaturan HP', style: TextStyle(color: AppColors.textSecond, fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppColors.glassBorder),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                ),
+              ),
+            ]),
+          ]),
+        ),
         const SizedBox(height: 24),
         ],
       )),
@@ -568,15 +631,32 @@ class _PilihAplikasiDialogState extends State<_PilihAplikasiDialog> {
     try {
       daftar = await NotifService.instance.daftarPaketTerpasang();
     } on MissingPluginException {
-      // Plugin belum terpasang (mis. di web/desktop/uji) — jangan biarkan
-      // indikator loading berputar selamanya.
       daftar = const [];
     } catch (_) {
       daftar = const [];
     }
+    
+    // Gabungkan dengan aplikasi finansial & e-wallet populer di Indonesia
+    final setPaket = <String>{
+      ...daftar,
+      ...NotifParser.aplikasiUmum,
+      'com.gojek.app',
+      'id.dana',
+      'ovo.id',
+      'com.shopee.id',
+      'com.bca',
+      'id.co.bri.brimo',
+      'id.bmri.livin',
+      'id.co.bni.newmobile',
+      'com.btpn.jenius',
+      'com.seabank.mobile',
+      'com.bankjago.digital',
+      'com.tokopedia.tkpd',
+    };
+
     if (!mounted) return;
     setState(() {
-      _paket = daftar;
+      _paket = setPaket.toList()..sort();
       _loading = false;
     });
   }

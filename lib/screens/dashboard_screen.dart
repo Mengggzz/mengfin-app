@@ -18,9 +18,11 @@ import '../widgets/update_dialog.dart';
 import 'ai_screen.dart';
 import 'anggaran_screen.dart';
 import 'calendar_screen.dart';
+import 'kazz_screen.dart';
 import 'laporan_screen.dart';
 import 'scan_screen.dart';
 import 'settings_screen.dart';
+import 'tambah_kazz_screen.dart';
 import 'transaction_input_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -33,6 +35,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Saldo "Dompet Saya" mengikuti pilihan dompet di pengaturan
   // (DompetView), bukan selalu saldoTotal dari server.
   double _saldoDompet = 0;
+  List<Akun> _akunList = [];
+  String _namaDompetAktif = 'Semua Dompet';
+  bool _sembunyikanSaldo = false;
   List<dynamic> _recentTx = [];
   bool _loading = true;
   bool _isOfflineData = false;
@@ -83,6 +88,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final pengeluaran = localStats['pengeluaran'] ?? 0;
       if (!mounted || _data != null) return;
       setState(() {
+        _updateNamaDompetAktif(akun);
         _saldoDompet = DompetView.saldoTampil(
           akun: akun,
           dompetUtama: AppPrefs.instance.dompetUtama,
@@ -255,6 +261,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (!mounted) return;
       setState(() {
         _data = results[0] as DashboardData;
+        _updateNamaDompetAktif(akun);
         _saldoDompet = DompetView.saldoTampil(
           akun: akun,
           dompetUtama: AppPrefs.instance.dompetUtama,
@@ -289,12 +296,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final bulan = currentBulan();
         final localStats = await LocalDb.getDashboardLocal(bulan);
         final recentTx = await LocalDb.getTransaksi(limit: 10);
+        final localAkun = await LocalDb.getAkunList();
         final saldo = localStats['saldo'] ?? 0;
         final pemasukan = localStats['pemasukan'] ?? 0;
         final pengeluaran = localStats['pengeluaran'] ?? 0;
         if (!mounted) return;
         setState(() {
-          _saldoDompet = saldo.toDouble();
+          _updateNamaDompetAktif(localAkun);
+          _saldoDompet = DompetView.saldoTampil(
+            akun: localAkun,
+            dompetUtama: AppPrefs.instance.dompetUtama,
+            dompetTampil: AppPrefs.instance.dompetTampil,
+            saldoServer: saldo,
+          );
           _data = DashboardData(
             saldoTotal: saldo,
             pemasukanBulanIni: pemasukan,
@@ -321,6 +335,281 @@ class _DashboardScreenState extends State<DashboardScreen> {
         });
       }
     }
+  }
+
+  void _updateNamaDompetAktif(List<Akun> akun) {
+    _akunList = akun;
+    final utama = AppPrefs.instance.dompetUtama;
+    final tampil = AppPrefs.instance.dompetTampil;
+
+    if (utama != null) {
+      final found = akun.where((w) => AppPrefs.idKeTeks(w.id) == AppPrefs.idKeTeks(utama));
+      if (found.isNotEmpty) {
+        _namaDompetAktif = found.first.nama;
+        return;
+      }
+    }
+    if (tampil.length == 1) {
+      final found = akun.where((w) => AppPrefs.idKeTeks(w.id) == AppPrefs.idKeTeks(tampil.first));
+      if (found.isNotEmpty) {
+        _namaDompetAktif = found.first.nama;
+        return;
+      }
+    } else if (tampil.length > 1) {
+      _namaDompetAktif = '${tampil.length} Dompet Terpilih';
+      return;
+    }
+    _namaDompetAktif = akun.isNotEmpty ? 'Semua Dompet' : 'Dompet Utama';
+  }
+
+  void _showDompetSelectorSheet() {
+    final prefs = AppPrefs.instance;
+    final utamaId = prefs.dompetUtama;
+    final tampilSet = prefs.dompetTampil;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40, height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.glassBorder,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Pilih Tampilan Dompet',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Pilih dompet yang ditampilkan di halaman beranda',
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close, color: AppColors.textMuted, size: 20),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: [
+                          ListTile(
+                            leading: Container(
+                              width: 40, height: 40,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Center(child: Text('🌐', style: TextStyle(fontSize: 20))),
+                            ),
+                            title: Text(
+                              'Semua Dompet (Gabungan)',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Total: Rp ${formatAmount(_data?.saldoTotal ?? 0)}',
+                              style: TextStyle(color: AppColors.income, fontSize: 12),
+                            ),
+                            trailing: (tampilSet.isEmpty && utamaId == null)
+                                ? Icon(Icons.check_circle, color: AppColors.primary, size: 22)
+                                : null,
+                            onTap: () async {
+                              await prefs.setDompetTampil(const []);
+                              await prefs.setDompetUtama(null);
+                              AppEvents.instance.akunBerubah();
+                              if (mounted) {
+                                setState(() {
+                                  _namaDompetAktif = 'Semua Dompet';
+                                  _saldoDompet = DompetView.saldoTampil(
+                                    akun: _akunList,
+                                    dompetUtama: null,
+                                    dompetTampil: const <String>[],
+                                    saldoServer: _data?.saldoTotal ?? 0,
+                                  );
+                                });
+                              }
+                              Navigator.pop(ctx);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Menampilkan gabungan semua dompet'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                          Divider(height: 16, color: AppColors.glassBorder),
+                          if (_akunList.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Center(
+                                child: Text('Belum ada data dompet terdaftar',
+                                    style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                              ),
+                            )
+                          else
+                            ..._akunList.map((a) {
+                              final idTeks = AppPrefs.idKeTeks(a.id);
+                              final isSelected = (utamaId != null && utamaId == idTeks) ||
+                                  (tampilSet.length == 1 && tampilSet.contains(idTeks));
+                              return ListTile(
+                                leading: Container(
+                                  width: 40, height: 40,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.bgElevated,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      a.jenis.toLowerCase().contains('bank')
+                                          ? '🏦'
+                                          : a.jenis.toLowerCase().contains('ewallet') ||
+                                                  a.jenis.toLowerCase().contains('e-wallet')
+                                              ? '📱'
+                                              : '💵',
+                                      style: const TextStyle(fontSize: 20),
+                                    ),
+                                  ),
+                                ),
+                                title: Text(
+                                  a.nama,
+                                  style: TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${a.saldo < 0 ? '-' : ''}Rp ${formatAmount(a.saldo.abs())}',
+                                  style: TextStyle(
+                                    color: a.saldo < 0 ? AppColors.expense : AppColors.income,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                trailing: isSelected
+                                    ? Icon(Icons.check_circle, color: AppColors.primary, size: 22)
+                                    : null,
+                                onTap: () async {
+                                  await prefs.setDompetUtama(idTeks);
+                                  await prefs.setDompetTampil([idTeks]);
+                                  AppEvents.instance.akunBerubah();
+                                  if (mounted) {
+                                    setState(() {
+                                      _namaDompetAktif = a.nama;
+                                      _saldoDompet = a.saldo;
+                                    });
+                                  }
+                                  Navigator.pop(ctx);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Menampilkan dompet: ${a.nama}'),
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                },
+                              );
+                            }),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const TambahKazzScreen()),
+                              );
+                            },
+                            icon: Icon(Icons.add, size: 16, color: AppColors.primary),
+                            label: Text('+ Tambah Dompet',
+                                style: TextStyle(color: AppColors.primary, fontSize: 12)),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const SettingsScreen(page: SettingsPage.kazzUtama),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.tune, size: 16),
+                            label: const Text('Kelola Semua', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary.withOpacity(0.8),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -418,51 +707,72 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 16),
 
         // ── Wallet Card (Dompet Saya) ───────────────────────────
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.bgCard,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.glassBorder),
-          ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                 Text('Dompet Saya', style: TextStyle(
-                  color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w500)),
-                const SizedBox(width: 6),
-                 Icon(Icons.lock_outline, size: 13, color: AppColors.textMuted),
-              ]),
-              const SizedBox(height: 6),
-              Text(
-                '${saldo < 0 ? '-' : ''}Rp ${formatAmount(saldo.abs())}',
-                style: TextStyle(
-                  color: saldo < 0 ? AppColors.expense : AppColors.income,
-                  fontSize: 22, fontWeight: FontWeight.w800),
+        GestureDetector(
+          onTap: _showDompetSelectorSheet,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.bgCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.glassBorder),
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Text('Dompet Saya', style: TextStyle(
+                      color: AppColors.textSecond, fontSize: 13, fontWeight: FontWeight.w500)),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => setState(() => _sembunyikanSaldo = !_sembunyikanSaldo),
+                      child: Icon(
+                        _sembunyikanSaldo ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        size: 15,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 6),
+                  Text(
+                    _sembunyikanSaldo
+                        ? 'Rp ••••••••'
+                        : '${saldo < 0 ? '-' : ''}Rp ${formatAmount(saldo.abs())}',
+                    style: TextStyle(
+                      color: _sembunyikanSaldo
+                          ? AppColors.textPrimary
+                          : (saldo < 0 ? AppColors.expense : AppColors.income),
+                      fontSize: 22, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgElevated,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.glassBorder),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_namaDompetAktif, style: TextStyle(
+                          color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 4),
+                        Icon(Icons.keyboard_arrow_down, size: 14, color: AppColors.primary),
+                      ],
+                    ),
+                  ),
+                ]),
               ),
-              const SizedBox(height: 4),
-               Text('ketuk untuk kelola',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-              const SizedBox(height: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                width: 52, height: 52,
                 decoration: BoxDecoration(
                   color: AppColors.bgElevated,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child:  Text('Dompet Utama', style: TextStyle(
-                  color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w500)),
+                child: const Center(child: Text('💰', style: TextStyle(fontSize: 28))),
               ),
             ]),
-            Container(
-              width: 52, height: 52,
-              decoration: BoxDecoration(
-                color: AppColors.bgElevated,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Center(child: Text('💰', style: TextStyle(fontSize: 28))),
-            ),
-          ]),
+          ),
         ),
         const SizedBox(height: 12),
 

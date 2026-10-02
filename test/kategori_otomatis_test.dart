@@ -95,6 +95,29 @@ void main() {
       expect(KategoriOtomatis.tebak(deskripsi: 'kopi', riwayat: riwayat),
           isNull);
     });
+
+    test('kamus kata kunci otomatis: kopi -> Makan & Minum, bensin -> Transportasi', () {
+      expect(
+        KategoriOtomatis.tebak(deskripsi: 'kopi', gunakanKamus: true),
+        'Makan & Minum',
+      );
+      expect(
+        KategoriOtomatis.tebak(deskripsi: 'beli bensin pertalite', gunakanKamus: true),
+        'Transportasi',
+      );
+      expect(
+        KategoriOtomatis.tebak(deskripsi: 'bayar tagihan listrik pln', gunakanKamus: true),
+        'Tagihan',
+      );
+      expect(
+        KategoriOtomatis.tebak(deskripsi: 'belanja di shopee', gunakanKamus: true),
+        'Belanja',
+      );
+      expect(
+        KategoriOtomatis.tebak(deskripsi: 'gaji bulanan', gunakanKamus: true, isExpense: false),
+        'Gaji',
+      );
+    });
   });
 
   group('layar pengaturan auto-notif', () {

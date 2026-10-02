@@ -143,6 +143,13 @@ Perbaikan Bug Komprehensif:
     - `local_db.dart`: tambah `upsertTransaksiBatch`, `upsertAnggaranBatch`, `upsertGoalBatch` pakai batch SQLite tunggal menggantikan sequential disk writes.
     - `api_service.dart` & `sync_service.dart`: gunakan batch operations untuk pull 200 data tanpa lag/thread-blocking.
     - `kazz_screen.dart`, `transaksi_screen.dart`, `anggaran_screen.dart`, `goals_screen.dart`, `analytics_screen.dart`: `_load()` hanya tampilkan full spinner jika data kosong (`isEmpty`), transisi antar-tab mulus tanpa flicker layar hitam.
+20. Implementasi 4 Fitur Utama (Izin Sistem & Auto-Catat, Dompet Saya, Pemasukan Multi-Dompet, Auto-Kategori Pengeluaran):
+    - `android/app/src/main/AndroidManifest.xml`: Menambahkan izin `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_IMAGES`, `QUERY_ALL_PACKAGES`, `POST_NOTIFICATIONS` dan intent queries apps package visibility untuk integrasi sistem Android & deteksi aplikasi e-wallet/bank lokal.
+    - `lib/services/permission_service.dart`: Helper terpusat untuk verifikasi dan request izin sistem (storage, notifikasi, query installed apps).
+    - `lib/screens/settings_screen.dart`: Menampilkan status perizinan penyimpanan dan dialog interaktif daftar aplikasi keuangan/e-wallet yang dipantau auto-catat.
+    - `lib/screens/dashboard_screen.dart`: Kartu "Dompet Saya" interaktif dengan bottom sheet switch dompet aktif / Semua Dompet, shortcut Tambah Dompet (`TambahKazzScreen`) dan Kelola Dompet (`KazzScreen`), serta sinkronisasi saldo dinamis.
+    - `lib/screens/transaction_input_screen.dart`: Menyediakan selector dompet untuk transaksi pemasukan (otomatis masuk ke dompet tujuan), konfirmasi pemilihan dompet jika belum ditentukan, dan integrasi cerdas `KategoriOtomatis.tebakKamus` saat user mengetik deskripsi pengeluaran (contoh: "kopi" otomatis memilih kategori "Makan & Minum", "bensin" -> "Transportasi", dsb).
+    - `lib/services/kategori_otomatis.dart`: Penambahan `tebakKamus` pemetaan ratusan kata kunci transaksi lokal Indonesia dan fallback machine learning / frekuensi riwayat.
 
 ## Analisis struktur (28 Sep 2026)
 Dipindai: TODO/FIXME (0), handler kosong (0), kontrol mati (0).

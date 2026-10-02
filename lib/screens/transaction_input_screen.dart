@@ -32,6 +32,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
   // "Dompet Utama" dan transaksi tidak pernah tertaut ke akun mana pun).
   List<Akun> _akunList = [];
   dynamic _akunTerpilih;
+  List<Transaksi> _riwayatCache = [];
 
   late final TextEditingController _deskripsiCtrl;
 
@@ -112,16 +113,35 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
   Future<void> _muatAkun() async {
     try {
       final list = await ApiService.getAkunList();
-      if (!mounted || list.isEmpty) return;
+      if (mounted && list.isNotEmpty) {
+        setState(() {
+          _akunList = list;
+          _akunTerpilih ??= DompetView.dompetAwal(
+            list, AppPrefs.instance.dompetUtama)?.id;
+        });
+      }
+    } catch (_) {}
+    try {
+      final riwayat = await ApiService.getTransaksi(limit: 50);
+      if (mounted) {
+        _riwayatCache = riwayat;
+      }
+    } catch (_) {}
+  }
+
+  void _onDeskripsiChanged(String v) {
+    _deskripsi = v;
+    if (v.trim().isEmpty) return;
+    final tebakan = KategoriOtomatis.tebak(
+      deskripsi: v,
+      riwayat: _riwayatCache,
+      gunakanKamus: true,
+      isExpense: _isExpense,
+    );
+    if (tebakan != null && tebakan != _kategori) {
       setState(() {
-        _akunList = list;
-        // Pilih: dompet dari transaksi yang diedit, lalu dompet utama
-        // dari pengaturan, lalu akun pertama.
-        _akunTerpilih ??= DompetView.dompetAwal(
-          list, AppPrefs.instance.dompetUtama)?.id;
+        _kategori = tebakan;
       });
-    } catch (_) {
-      // Tanpa daftar akun, input tetap bisa jalan (tanpa tertaut dompet).
     }
   }
 
@@ -229,6 +249,13 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
   Future<void> _onConfirm() async {
     final nominal = _parseAmount();
     if (nominal <= 0 || _saving) return;
+
+    if (!_isExpense && _akunTerpilih == null && _akunList.isNotEmpty) {
+      await _pilihDompet();
+      if (_akunTerpilih == null) {
+        _akunTerpilih = DompetView.dompetAwal(_akunList, AppPrefs.instance.dompetUtama)?.id ?? _akunList.first.id;
+      }
+    }
 
     setState(() => _saving = true);
     final body = <String, dynamic>{
@@ -346,8 +373,13 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
               Expanded(child: GestureDetector(
                 onTap: () => setState(() {
                     _isExpense = true;
-                    final cats = expenseCategories;
-                    if (!cats.any((c) => c.label == _kategori)) _kategori = cats.first.label;
+                    final tebakan = KategoriOtomatis.tebak(
+                      deskripsi: _deskripsi,
+                      riwayat: _riwayatCache,
+                      gunakanKamus: true,
+                      isExpense: true,
+                    );
+                    _kategori = tebakan ?? 'Makan & Minum';
                   }),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -367,8 +399,13 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
               Expanded(child: GestureDetector(
                 onTap: () => setState(() {
                     _isExpense = false;
-                    final cats = incomeCategories;
-                    if (!cats.any((c) => c.label == _kategori)) _kategori = cats.first.label;
+                    final tebakan = KategoriOtomatis.tebak(
+                      deskripsi: _deskripsi,
+                      riwayat: _riwayatCache,
+                      gunakanKamus: true,
+                      isExpense: false,
+                    );
+                    _kategori = tebakan ?? 'Gaji';
                   }),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -415,21 +452,30 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.bgElevated,
+                    color: !_isExpense && _akunTerpilih == null
+                        ? AppColors.primary.withOpacity(0.15)
+                        : AppColors.bgElevated,
                     borderRadius: BorderRadius.circular(20),
+                    border: !_isExpense && _akunTerpilih != null
+                        ? Border.all(color: AppColors.income.withOpacity(0.5))
+                        : null,
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('💰', style: TextStyle(fontSize: 14)),
+                    Text(!_isExpense ? '📥 Masuk ke:' : '💰', style: const TextStyle(fontSize: 12)),
                     const SizedBox(width: 6),
                     Flexible(child: Text(
                       _akunList.isEmpty
                           ? 'Dompet'
                           : (_akunTerpilih == null
-                              ? 'Semua dompet'
+                              ? (!_isExpense ? 'Pilih Dompet' : 'Semua dompet')
                               : (_akunNama(_akunTerpilih) ?? 'Dompet'))
                               .toString(),
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500))),
+                      style: TextStyle(
+                        color: !_isExpense && _akunTerpilih != null ? AppColors.income : AppColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ))),
                     const SizedBox(width: 4),
                      Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.textMuted),
                   ]),
@@ -472,7 +518,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                   controller: _deskripsiCtrl,
                   style:  TextStyle(color: AppColors.textPrimary, fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: 'kopi',
+                    hintText: 'kopi, bensin, gaji...',
                     hintStyle:  TextStyle(color: AppColors.textHint),
                     filled: true, fillColor: AppColors.bgElevated,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -480,7 +526,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none),
                   ),
-                  onChanged: (v) => _deskripsi = v,
+                  onChanged: _onDeskripsiChanged,
                 )),
                 const SizedBox(width: 8),
                 GestureDetector(
