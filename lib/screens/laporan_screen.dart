@@ -167,7 +167,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
   Future<void> _buatNarasi() async {
     setState(() { _narasiLoading = true; _narasiError = null; });
     try {
-      final res = await ApiService.getNarasiLaporan(_periode);
+      final res = await ApiService.getNarasiLaporan(_periode, localTxs: _txPeriode);
       if (!mounted) return;
       setState(() {
         _narasi = (res['narasi'] ?? '').toString();

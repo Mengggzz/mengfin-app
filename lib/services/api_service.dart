@@ -385,9 +385,12 @@ class ApiService {
   }
 
   static Future<void> deleteAkun(dynamic id) async {
+    if (!kIsWeb && id != null) {
+      await LocalDb.deleteAkun(id);
+    }
     if (_online) {
       try {
-        await _delete('/akun/$id');
+        await deleteAkunRaw(id);
         AppEvents.instance.akunBerubah();
         return;
       } catch (_) {}
@@ -400,6 +403,8 @@ class ApiService {
     }
     AppEvents.instance.akunBerubah();
   }
+
+  static Future<void> deleteAkunRaw(dynamic id) => _delete('/akun/$id');
 
   /// Tarik ulang daftar akun (dompet) dari server dan simpan ke cache.
   /// Dipakai setelah operasi transaksi, karena backend mengubah saldo
@@ -672,9 +677,96 @@ class ApiService {
   }
 
   // ── Laporan: narasi AI ─────────────────────────────────────────────────────
-  static Future<Map<String, dynamic>> getNarasiLaporan(String bulan) async {
-    final res = await _get('/laporan/narasi?bulan=$bulan');
-    return Map<String, dynamic>.from(res['data'] as Map);
+  static Future<Map<String, dynamic>> getNarasiLaporan(
+    String bulan, {
+    List<Transaksi>? localTxs,
+  }) async {
+    if (_online) {
+      try {
+        final res = await _get('/laporan/narasi?bulan=$bulan');
+        final data = Map<String, dynamic>.from(res['data'] as Map);
+        if (data['narasi'] != null &&
+            data['narasi'].toString().isNotEmpty &&
+            data['kosong'] != true) {
+          return data;
+        }
+      } catch (_) {}
+    }
+
+    // Fallback cerdas berbasis data transaksi aktual
+    final txs = localTxs ?? [];
+    if (txs.isEmpty) {
+      return {
+        'narasi': 'Belum ada transaksi tercatat di periode $bulan. Catat transaksi baru untuk melihat ringkasan dan analisis pengeluaran.',
+        'kosong': true,
+      };
+    }
+
+    final totalMasuk = txs
+        .where((t) => t.jenis == 'pemasukan')
+        .fold(0.0, (s, t) => s + t.nominal);
+    final totalKeluar = txs
+        .where((t) => t.jenis == 'pengeluaran')
+        .fold(0.0, (s, t) => s + t.nominal);
+    final net = totalMasuk - totalKeluar;
+
+    final katMap = <String, double>{};
+    for (final t in txs.where((t) => t.jenis == 'pengeluaran')) {
+      katMap[t.kategori] = (katMap[t.kategori] ?? 0) + t.nominal;
+    }
+    final topKats = katMap.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final sb = StringBuffer();
+    sb.writeln('**Ringkasan**');
+    if (totalMasuk > 0 && net >= 0) {
+      final tabungPersen = (net / totalMasuk * 100).toStringAsFixed(0);
+      sb.writeln('Kondisi keuangan periode ini sehat dengan arus kas surplus **Rp ${_formatRp(net)}** (rasio tabungan **$tabungPersen%**). Total pemasukan Rp ${_formatRp(totalMasuk)} dan total pengeluaran Rp ${_formatRp(totalKeluar)}.');
+    } else if (net < 0) {
+      sb.writeln('Arus kas periode ini mengalami defisit sebesar **-Rp ${_formatRp(net.abs())}**. Pengeluaran (Rp ${_formatRp(totalKeluar)}) melampaui pemasukan (Rp ${_formatRp(totalMasuk)}).');
+    } else {
+      sb.writeln('Total pengeluaran tercatat sebesar **Rp ${_formatRp(totalKeluar)}** dari ${txs.length} transaksi.');
+    }
+
+    sb.writeln('\n**Yang Menonjol**');
+    if (topKats.isNotEmpty) {
+      final top1 = topKats.first;
+      final p1 = totalKeluar > 0 ? (top1.value / totalKeluar * 100).toStringAsFixed(0) : '0';
+      sb.writeln('• Pengeluaran terbesar pada kategori **${top1.key}** sebesar **Rp ${_formatRp(top1.value)}** ($p1% dari total pengeluaran).');
+      if (topKats.length > 1) {
+        final top2 = topKats[1];
+        final p2 = totalKeluar > 0 ? (top2.value / totalKeluar * 100).toStringAsFixed(0) : '0';
+        sb.writeln('• Kategori terbesar kedua adalah **${top2.key}** sebesar **Rp ${_formatRp(top2.value)}** ($p2%).');
+      }
+    }
+    sb.writeln('• Tercatat total **${txs.length} transaksi** pada periode ini.');
+
+    sb.writeln('\n**Saran**');
+    if (net < 0) {
+      sb.writeln('1. Kurangi pos pengeluaran sekunder pada kategori ${topKats.isNotEmpty ? topKats.first.key : 'terbesar'} untuk menyeimbangkan arus kas.');
+      sb.writeln('2. Buat anggaran ketat untuk periode berikutnya agar tidak defisit.');
+    } else {
+      sb.writeln('1. Sisihkan sebagian surplus dana (minimal 20%) ke pos tabungan atau impian (goals).');
+      sb.writeln('2. Pertahankan kebiasaan mencatat transaksi secara konsisten.');
+    }
+
+    return {
+      'narasi': sb.toString().trim(),
+      'kosong': false,
+    };
+  }
+
+  static String _formatRp(double amount) {
+    final i = amount.round();
+    final s = i.toString();
+    final buf = StringBuffer();
+    var count = 0;
+    for (var j = s.length - 1; j >= 0; j--) {
+      buf.write(s[j]);
+      count++;
+      if (count % 3 == 0 && j > 0) buf.write('.');
+    }
+    return buf.toString().split('').reversed.join();
   }
 
   // ── Update checker (via backend, terintegrasi GitHub) ──────────────────────

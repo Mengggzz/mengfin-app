@@ -8,6 +8,7 @@ import '../services/theme_service.dart';
 import '../services/sync_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/local_db.dart';
+import '../widgets/home_settings_sheet.dart';
 import '../widgets/update_dialog.dart';
 import 'ai_screen.dart';
 import 'goals_screen.dart';
@@ -72,23 +73,64 @@ class MoreScreen extends StatelessWidget {
             color: AppColors.primaryLight,
             title: 'Pengaturan beranda',
             subtitle: 'Tampilan & perilaku layar utama',
-            onTap: () => _showHomeSettings(context),
+            onTap: () => HomeSettingsSheet.show(context),
           ),
-          // Mode tampilan: ketuk untuk berganti Sistem → Terang → Gelap.
+          // Mode tampilan: Dark Mode / Light Mode toggle switch
           Consumer<ThemeService>(
-            builder: (context, theme, _) => _menuTile(
-              icon: theme.icon,
-              color: AppColors.accent,
-              title: 'Mode Tampilan',
-              subtitle: '${theme.label} · ketuk untuk ganti',
-              onTap: () {
-                theme.cycle();
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Mode tampilan: ${theme.label}'),
-                  duration: const Duration(seconds: 2),
-                ));
-              },
-            ),
+            builder: (context, theme, _) {
+              final isDark = theme.isDark;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.bgCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.glassBorder),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                      color: AppColors.accent,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(
+                        'Mode Gelap',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isDark ? 'Tema gelap aktif' : 'Tema terang aktif',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ]),
+                  ),
+                  Switch.adaptive(
+                    value: isDark,
+                    activeColor: AppColors.primary,
+                    onChanged: (val) {
+                      theme.setMode(val ? ThemeMode.dark : ThemeMode.light);
+                    },
+                  ),
+                ]),
+              );
+            },
           ),
           const SizedBox(height: 16),
 
@@ -169,16 +211,6 @@ class MoreScreen extends StatelessWidget {
     ),
   );
 
-  void _showHomeSettings(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.bgCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _HomeSettingsSheet(),
-    );
-  }
-
   void _showSyncLog(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -230,121 +262,6 @@ class MoreScreen extends StatelessWidget {
       }
     }
   }
-}
-
-class _HomeSettingsSheet extends StatefulWidget {
-  @override State<_HomeSettingsSheet> createState() => _HomeSettingsSheetState();
-}
-
-class _HomeSettingsSheetState extends State<_HomeSettingsSheet> {
-  int _dataMode = 0; // 0 = 7 hari terakhir, 1 = Siklus aktif
-  bool _showChart = true;
-  bool _showBudget = true;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 40, height: 4, decoration: BoxDecoration(
-          color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(height: 16),
-         Align(alignment: Alignment.centerLeft, child: Text('Pengaturan beranda',
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800))),
-        const SizedBox(height: 4),
-         Align(alignment: Alignment.centerLeft, child: Text(
-          'Sesuaikan tampilan dan perilaku layar beranda kamu.',
-          style: TextStyle(color: AppColors.textMuted, fontSize: 12))),
-        const SizedBox(height: 16),
-
-        // Data mode options
-        _dataModeOption(0, Icons.bolt, '7 hari terakhir',
-          'Ringan. Muat seketika — cocok untuk cek harian.'),
-        const SizedBox(height: 8),
-        _dataModeOption(1, Icons.calendar_month, 'Siklus aktif (Sep 2026)',
-          'Tampilan satu siklus penuh. Mengambil lebih banyak data.'),
-        const SizedBox(height: 20),
-
-        // Display toggles
-         Align(alignment: Alignment.centerLeft, child: Text('Tampilan',
-          style: TextStyle(color: AppColors.expense, fontSize: 13, fontWeight: FontWeight.w600))),
-        const SizedBox(height: 12),
-        _toggleRow('Tampilkan grafik segmen', _showChart, (v) => setState(() => _showChart = v)),
-        _toggleRow('Tampilkan budget harian', _showBudget, (v) => setState(() => _showBudget = v)),
-        const SizedBox(height: 20),
-
-        // Quick action ordering
-         Align(alignment: Alignment.centerLeft, child: Text('Aksi cepat',
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600))),
-        const SizedBox(height: 8),
-        _menuRow(Icons.sort, 'Urutkan aksi cepat', 'Sesuaikan urutan tombol aksi cepat Anda'),
-        const SizedBox(height: 16),
-
-        GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child:  Text('Tutup', style: TextStyle(
-            color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.w600)),
-        ),
-        SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
-      ]),
-    );
-  }
-
-  Widget _dataModeOption(int idx, IconData icon, String title, String desc) => GestureDetector(
-    onTap: () => setState(() => _dataMode = idx),
-    child: Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _dataMode == idx ? AppColors.primary.withOpacity(0.1) : AppColors.bgElevated,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _dataMode == idx ? AppColors.primary : AppColors.glassBorder),
-      ),
-      child: Row(children: [
-        Icon(icon, size: 18, color: _dataMode == idx ? AppColors.primary : AppColors.textMuted),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(
-            color: _dataMode == idx ? AppColors.primary : AppColors.textPrimary,
-            fontSize: 13, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 2),
-          Text(desc, style:  TextStyle(color: AppColors.textMuted, fontSize: 11)),
-        ])),
-        if (_dataMode == idx)
-           Icon(Icons.check_circle, color: AppColors.primary, size: 20),
-      ]),
-    ),
-  );
-
-  Widget _toggleRow(String label, bool value, ValueChanged<bool> onChanged) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label, style:  TextStyle(color: AppColors.textSecond, fontSize: 13)),
-      Switch(
-        value: value,
-        onChanged: onChanged,
-        activeColor: AppColors.primary,
-        inactiveTrackColor: AppColors.bgElevated,
-      ),
-    ]),
-  );
-
-  Widget _menuRow(IconData icon, String title, String subtitle) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-    decoration: BoxDecoration(
-      color: AppColors.bgElevated,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Row(children: [
-      Icon(icon, size: 18, color: AppColors.textMuted),
-      const SizedBox(width: 10),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style:  TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-        Text(subtitle, style:  TextStyle(color: AppColors.textMuted, fontSize: 10)),
-      ])),
-       Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
-    ]),
-  );
 }
 
 // ─────────────────────────────────────────────────────────────

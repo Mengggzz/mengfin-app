@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'api_service.dart';
+import 'app_events.dart';
 import 'local_db.dart';
 
 /// Catatan log sinkronisasi
@@ -96,6 +97,11 @@ class SyncService {
       // baru saja disinkronkan; tanpa ini menu Kazz tetap pakai saldo lama.
       await ApiService.pullAkun();
       
+      AppEvents.instance.transaksiBerubah();
+      AppEvents.instance.anggaranBerubah();
+      AppEvents.instance.goalsBerubah();
+      AppEvents.instance.akunBerubah();
+
       addLog('Data Cloud Selaras', 'Transaksi (${txList.length}), Dompet, dan Anggaran up-to-date.', type: 'pull');
     } catch (e) {
       addLog('Gagal Menarik Data', 'Koneksi terputus / server offline: $e', isError: true, type: 'pull');
@@ -214,6 +220,8 @@ class SyncService {
             if (hasPathId) {
               await ApiService.updateAkunSaldoRaw(pathId, (body['saldo'] as num).toDouble());
             }
+          } else if (method == 'DELETE' && tableName == 'akun') {
+            if (hasPathId) await ApiService.deleteAkunRaw(pathId);
           } else if (method == 'DONE') {
             // penanda lokal saja
           }

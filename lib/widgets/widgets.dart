@@ -4,6 +4,7 @@ import '../constants/app_colors.dart';
 import 'kazz_illustrations.dart';
 import '../constants/utils.dart';
 export 'voice_to_text_dialog.dart';
+export 'home_settings_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────
 // GlassCard

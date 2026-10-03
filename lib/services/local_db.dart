@@ -277,9 +277,14 @@ class LocalDb {
 
   static Future<void> replaceTransaksiLocalToServer(String localId, dynamic serverId) async {
     final d = await db;
+    final sid = serverId.toString();
     await d.rawUpdate(
       'UPDATE transaksi SET id = ?, synced = 1 WHERE local_id = ?',
-      [serverId, localId],
+      [sid, localId],
+    );
+    await d.rawUpdate(
+      "UPDATE sync_queue SET path = '/transaksi/' || ? WHERE path = '/transaksi/' || ?",
+      [sid, localId],
     );
   }
 
@@ -353,6 +358,18 @@ class LocalDb {
   static Future<void> deleteAnggaran(dynamic id) async {
     final d = await db;
     await d.delete('anggaran', where: 'id = ?', whereArgs: [id]);
+  }
+
+  static Future<void> replaceAnggaranLocalToServer(String localId, String serverId) async {
+    final d = await db;
+    await d.rawUpdate(
+      'UPDATE anggaran SET id = ?, synced = 1 WHERE local_id = ?',
+      [serverId, localId],
+    );
+    await d.rawUpdate(
+      "UPDATE sync_queue SET path = '/anggaran/' || ? WHERE path = '/anggaran/' || ?",
+      [serverId, localId],
+    );
   }
 
   static Future<void> updateAnggaranBatas(dynamic id, double batas) async {
@@ -435,6 +452,22 @@ class LocalDb {
     await d.delete('goals', where: 'id = ?', whereArgs: [id]);
   }
 
+  static Future<void> replaceGoalLocalToServer(String localId, String serverId) async {
+    final d = await db;
+    await d.rawUpdate(
+      'UPDATE goals SET id = ?, synced = 1 WHERE local_id = ?',
+      [serverId, localId],
+    );
+    await d.rawUpdate(
+      "UPDATE sync_queue SET path = '/goals/' || ? || '/progres' WHERE path = '/goals/' || ? || '/progres'",
+      [serverId, localId],
+    );
+    await d.rawUpdate(
+      "UPDATE sync_queue SET path = '/goals/' || ? WHERE path = '/goals/' || ?",
+      [serverId, localId],
+    );
+  }
+
   static Future<void> updateGoalProgres(dynamic id, double tambah) async {
     final d = await db;
     await d.rawUpdate(
@@ -471,6 +504,20 @@ class LocalDb {
       {'id': serverId, 'synced': 1},
       where: 'id = ? OR local_id = ?',
       whereArgs: [localId, localId],
+    );
+    await d.rawUpdate(
+      "UPDATE sync_queue SET path = '/akun/' || ? WHERE path = '/akun/' || ?",
+      [serverId, localId],
+    );
+  }
+
+  /// Hapus akun dari database lokal
+  static Future<void> deleteAkun(dynamic id) async {
+    final d = await db;
+    await d.delete(
+      'akun',
+      where: 'id = ? OR local_id = ?',
+      whereArgs: [id.toString(), id.toString()],
     );
   }
 

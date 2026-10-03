@@ -72,6 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // menyegarkan saldo "Dompet Saya" — sebelumnya perubahan dompet
     // tampil tidak terlihat di beranda sampai aplikasi dibuka ulang.
     AppEvents.instance.akun.addListener(_onDataBerubah);
+    AppEvents.instance.berandaSettings.addListener(_onBerandaSettingsBerubah);
   }
 
   Future<void> _loadLocalCacheFirst() async {
@@ -144,11 +145,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (_) {}
   }
 
+  void _onBerandaSettingsBerubah() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   @override
   void dispose() {
     AppEvents.instance.transaksi.removeListener(_onDataBerubah);
     AppEvents.instance.anggaran.removeListener(_onDataBerubah);
     AppEvents.instance.akun.removeListener(_onDataBerubah);
+    AppEvents.instance.berandaSettings.removeListener(_onBerandaSettingsBerubah);
     _insightPageCtrl?.dispose();
     super.dispose();
   }
@@ -694,8 +701,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // 4. Icon jam → laporan (bar_chart)
         // 3. Icon notifikasi → update discord
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-           Text('Home', style: TextStyle(
-            color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.w800)),
+          GestureDetector(
+            onTap: _showEditHomeTitleDialog,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  AppPrefs.instance.homeTitle,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.edit_outlined, size: 16, color: AppColors.textMuted),
+              ],
+            ),
+          ),
           Row(children: [
             _headerIcon(Icons.calendar_today_outlined, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalendarScreen()))),
             const SizedBox(width: 8),
@@ -791,12 +814,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 16),
 
         // ── Insight Carousel: Saldo vs Pengeluaran + Kategori (swipe) ──
-        _buildInsightCarousel(d, saldoPersen, pengeluaranPersen),
-        const SizedBox(height: 12),
+        if (AppPrefs.instance.homeShowChart) ...[
+          _buildInsightCarousel(d, saldoPersen, pengeluaranPersen),
+          const SizedBox(height: 12),
+        ],
 
         // ── Budget Harian (2. diperbaiki fungsinya, 1. analytics digabung) ─
-        _buildBudgetHarianCard(),
-        const SizedBox(height: 20),
+        if (AppPrefs.instance.homeShowBudget) ...[
+          _buildBudgetHarianCard(),
+          const SizedBox(height: 20),
+        ],
 
         // ── Transactions Header ──────────────────────────────────
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -1434,60 +1461,131 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // 6. Pengaturan Beranda (icon tune)
   // ══════════════════════════════════════════════════════════════
   void _showBerandaSettings() {
-    showModalBottomSheet(
+    HomeSettingsSheet.show(context);
+  }
+
+  void _showEditHomeTitleDialog() {
+    final ctrl = TextEditingController(text: AppPrefs.instance.homeTitle);
+    final emojis = ['🏠', '💰', '💳', '🚀', '💎', '🌟', '📊', '⚡', '🎯', '🔥', '☕', '🐱'];
+
+    showDialog(
       context: context,
-      backgroundColor: AppColors.bgCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 40, height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.textMuted.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(2),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          backgroundColor: AppColors.bgCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text(
+            'Ubah Nama & Emoji Beranda',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 16),
-           Text('Pengaturan Beranda', style: TextStyle(
-            color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-           Text('Kelola tampilan dan widget di halaman utama',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-          const SizedBox(height: 20),
-          _settingsTile(Icons.pie_chart_outline, 'Budget Harian', 'Atur batas pengeluaran harian',
-            onTap: () { Navigator.pop(ctx); _editBudgetHarian(); }),
-          _settingsTile(Icons.palette_outlined, 'Tampilan Kazz', 'Pilih dompet yang tampil di beranda',
-            onTap: () { Navigator.pop(ctx); Navigator.push(context, MaterialPageRoute(
-              builder: (_) => const SettingsScreen(page: SettingsPage.kazzUtama))); }),
-          _settingsTile(Icons.notifications_active_outlined, 'Auto-Notifikasi', 'Catat otomatis dari notifikasi',
-            onTap: () { Navigator.pop(ctx); Navigator.push(context, MaterialPageRoute(
-              builder: (_) => const SettingsScreen(page: SettingsPage.autoNotif))); }),
-        ]),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Kustomisasi judul tampilan di beranda utama kamu.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 15),
+                  decoration: InputDecoration(
+                    hintText: 'Contoh: Home 🏠',
+                    hintStyle: TextStyle(color: AppColors.textMuted),
+                    filled: true,
+                    fillColor: AppColors.bgElevated,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.glassBorder),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.glassBorder),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Pilihan emoji cepat:',
+                  style: TextStyle(
+                    color: AppColors.textSecond,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: emojis.map((e) => InkWell(
+                    onTap: () {
+                      final current = ctrl.text.trim();
+                      if (current.isEmpty) {
+                        ctrl.text = e;
+                      } else {
+                        ctrl.text = '$current $e';
+                      }
+                      setDlgState(() {});
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgElevated,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.glassBorder),
+                      ),
+                      child: Text(e, style: const TextStyle(fontSize: 16)),
+                    ),
+                  )).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                ctrl.text = 'Home';
+                setDlgState(() {});
+              },
+              child: Text('Reset', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Batal', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final text = ctrl.text.trim();
+                final finalTitle = text.isEmpty ? 'Home' : text;
+                await AppPrefs.instance.setHomeTitle(finalTitle);
+                if (mounted) setState(() {});
+                if (mounted) Navigator.pop(ctx);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Simpan'),
+            ),
+          ],
+        ),
       ),
     );
   }
-
-  Widget _settingsTile(IconData icon, String title, String subtitle, {VoidCallback? onTap}) =>
-    ListTile(
-      leading: Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: AppColors.primary, size: 20),
-      ),
-      title: Text(title, style:  TextStyle(
-        color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle, style:  TextStyle(
-        color: AppColors.textMuted, fontSize: 11)),
-      trailing:  Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
-      onTap: onTap,
-      contentPadding: EdgeInsets.zero,
-    );
 
   // ── Helpers ──────────────────────────────────────────────────
   bool _isToday(String dateStr) {
@@ -1498,8 +1596,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<Widget> _buildQuickActions() {
-    return [
-      QuickActionButton(
+    final order = AppPrefs.instance.quickActionOrder;
+    final Map<String, Widget> actionMap = {
+      'voice': QuickActionButton(
         icon: Icons.mic,
         label: 'Voice Text',
         iconColor: AppColors.primary,
@@ -1511,13 +1610,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (saved == true && mounted) _load();
         },
       ),
-      QuickActionButton(
+      'ai': QuickActionButton(
         icon: Icons.auto_awesome,
         label: 'Kazz AI',
         iconColor: AppColors.primary,
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiScreen())),
       ),
-      QuickActionButton(
+      'scan': QuickActionButton(
         icon: Icons.camera_alt,
         label: 'Scan Struk',
         iconColor: AppColors.expense,
@@ -1527,13 +1626,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (saved == true && mounted) _load();
         },
       ),
-      QuickActionButton(
+      'budget': QuickActionButton(
         icon: Icons.pie_chart,
         label: 'Budget',
         iconColor: AppColors.expense,
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnggaranScreen())),
       ),
-      // 6. Icon tune → pengaturan beranda
+    };
+
+    final List<Widget> list = [];
+    for (final key in order) {
+      if (actionMap.containsKey(key)) {
+        list.add(actionMap[key]!);
+      }
+    }
+    for (final entry in actionMap.entries) {
+      if (!list.contains(entry.value)) {
+        list.add(entry.value);
+      }
+    }
+
+    // 6. Icon tune → pengaturan beranda
+    list.add(
       GestureDetector(
         onTap: () => _showBerandaSettings(),
         child: Container(
@@ -1543,10 +1657,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.glassBorder),
           ),
-          child:  Icon(Icons.tune, size: 18, color: AppColors.textMuted),
+          child: Icon(Icons.tune, size: 18, color: AppColors.textMuted),
         ),
       ),
-    ];
+    );
+
+    return list;
   }
 
   Widget _headerIcon(IconData icon, {VoidCallback? onTap}) => GestureDetector(
