@@ -25,6 +25,14 @@ notifikasi di HP nyata. Untuk mulai lagi: baca bagian ini, lalu lihat
    `app_prefs.dart`.
 
 ### SELESAI — jangan kerjakan lagi (sudah ada tes + CI sukses)
+- Rename Kazz -> Saldo & Kazz AI -> MengFin AI (UI strings) — 8d8e1e7
+- Sinkronisasi DB penuh (segment pathId goals/progres, return Map createRaw, replace local id) — 8d8e1e7
+- Perbaiki logika bot MengFin AI (prompt to-the-point terstruktur, filter kataAnalisis) — 8d8e1e7
+- Sinkronisasi DB dasar (update sync_queue path, deleteAkun, post-pull events) — cbade9a
+- Pengaturan Beranda persisten (homeDataMode, showChart, showBudget, quickActionOrder, homeTitle) — cbade9a
+- Toggle switch Dark/Light mode (Switch.adaptive) — cbade9a
+- Narasi AI laporan offline fallback kalkulasi lokal — cbade9a
+- Edit judul & emoji header Home — cbade9a
 - Fitur mati (numpad, Tentang MengFin, filter, ×/÷, ikon hiasan) — 79ea311
 - Pengaturan benar-benar dipakai (AppPrefs, dompet utama/tampil, notif, keyword)
 - Edit/hapus transaksi offline-aware (`updateTransaksi`, id String)
