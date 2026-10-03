@@ -180,7 +180,7 @@ class _KazzScreenState extends State<KazzScreen> {
           const SizedBox(height: 16),
           // ── Header ───────────────────────────────────────────
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-             Text('Kazz', style: TextStyle(
+             Text('Saldo', style: TextStyle(
               color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.w800)),
             Row(children: [
               _headerIcon(Icons.ios_share_outlined, onTap: _showEksporMenu),
@@ -370,8 +370,8 @@ class _KazzScreenState extends State<KazzScreen> {
           padding: const EdgeInsets.symmetric(vertical: 32),
           child: Center(child: Text(
             _walletFilter == KazzFilter.semua
-                ? 'Belum ada Kazz. Tambahkan yang pertama di bawah.'
-                : 'Tidak ada Kazz untuk filter ini.',
+                ? 'Belum ada Saldo. Tambahkan yang pertama di bawah.'
+                : 'Tidak ada Saldo untuk filter ini.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
           )),
@@ -510,7 +510,7 @@ class _KazzScreenState extends State<KazzScreen> {
         ),
         Divider(color: AppColors.divider, height: 1),
         _sheetAction(ctx, Icons.edit_outlined, 'Ubah saldo', 'edit'),
-        _sheetAction(ctx, Icons.delete_outline, 'Hapus Kazz', 'hapus',
+        _sheetAction(ctx, Icons.delete_outline, 'Hapus Saldo', 'hapus',
           color: AppColors.danger),
         const SizedBox(height: 8),
       ])),
@@ -597,7 +597,7 @@ class _KazzScreenState extends State<KazzScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Hapus ${w.nama}?',
           style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-        content: Text('Kazz ini akan dihapus dari daftar dompetmu.',
+        content: Text('Saldo ini akan dihapus dari daftar dompetmu.',
           style: TextStyle(color: AppColors.textSecond, fontSize: 13)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
@@ -879,7 +879,7 @@ class _KazzScreenState extends State<KazzScreen> {
         _guideStep(1, 'Pilih yang ingin dipantau',
           'Pilih satu atau beberapa kantong dan kategori yang ingin kamu awasi.'),
         _guideStep(2, 'Tetapkan batas dan periode',
-          'Bulanan, mingguan, custom — Kazz hitung pakainya hari demi hari.'),
+          'Bulanan, mingguan, custom — Saldo hitung pakainya hari demi hari.'),
         _guideStep(3, 'Dapat peringatan sebelum kebablasan',
           'Notifikasi berwarna saat capai 50%, 80%, dan over budget.'),
         _guideStep(4, 'Berlanjut otomatis setiap siklus',

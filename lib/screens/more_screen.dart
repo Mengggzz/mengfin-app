@@ -37,7 +37,7 @@ class MoreScreen extends StatelessWidget {
           _menuTile(
             icon: Icons.auto_awesome,
             color: AppColors.primary,
-            title: 'Kazz AI',
+            title: 'MengFin AI',
             subtitle: 'Chat asisten keuangan pribadi',
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiScreen())),
           ),
@@ -55,7 +55,7 @@ class MoreScreen extends StatelessWidget {
           _menuTile(
             icon: Icons.wallet,
             color: AppColors.info,
-            title: 'Pengaturan Kazz Utama',
+            title: 'Pengaturan Saldo Utama',
             subtitle: 'Pilih dompet yang tampil di beranda',
             onTap: () => Navigator.push(context, MaterialPageRoute(
               builder: (_) => const SettingsScreen(page: SettingsPage.kazzUtama))),

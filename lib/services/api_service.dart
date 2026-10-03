@@ -513,7 +513,7 @@ class ApiService {
     );
   }
 
-  static Future<void> createAnggaranRaw(String kategori, double batas, String periode) =>
+  static Future<Map<String, dynamic>> createAnggaranRaw(String kategori, double batas, String periode) =>
       _post('/anggaran', {'kategori': kategori, 'batas': batas, 'periode': periode});
 
   static Future<void> updateAnggaran(dynamic id, double batas) async {
@@ -605,7 +605,7 @@ class ApiService {
     );
   }
 
-  static Future<void> createGoalRaw(Map<String, dynamic> body) =>
+  static Future<Map<String, dynamic>> createGoalRaw(Map<String, dynamic> body) =>
       _post('/goals', body);
 
   static Future<void> updateProgres(dynamic id, double tambah) async {

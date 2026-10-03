@@ -215,7 +215,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         title: Text(
           widget.page == SettingsPage.kazzUtama
-              ? 'Pengaturan Kazz Utama'
+              ? 'Pengaturan Saldo Utama'
               : 'Auto-catat dari notifikasi',
           style:  TextStyle(
             color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
@@ -237,7 +237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           const SizedBox(height: 8),
-           Text('Pilih Kazz untuk Tampilan Home',
+           Text('Pilih Saldo untuk Tampilan Home',
             style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
            Text(
@@ -383,7 +383,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   color: _notifEnabled ? AppColors.primary : AppColors.textPrimary,
                   fontSize: 14, fontWeight: FontWeight.w700)),
-               Text('Izinkan Kazz membaca notifikasi dari aplikasi yang kamu pilih',
+               Text('Izinkan MengFin membaca notifikasi dari aplikasi yang kamu pilih',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
             ])),
             Switch(
@@ -414,7 +414,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(width: 8),
              Expanded(child: Text(
               'Beberapa HP (mis. Xiaomi, Huawei, Oppo) suka mematikan aplikasi latar belakang demi hemat baterai. '
-              'Kalau notifikasi berhenti tertangkap, cek pengaturan baterai HP kamu dan izinkan Kazz berjalan di latar belakang.',
+              'Kalau notifikasi berhenti tertangkap, cek pengaturan baterai HP kamu dan izinkan MengFin berjalan di latar belakang.',
               style: TextStyle(color: AppColors.warning, fontSize: 10, height: 1.4))),
           ]),
         ),

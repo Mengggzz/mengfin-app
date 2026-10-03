@@ -42,7 +42,7 @@ router.post('/chat', async (req, res) => {
       .reduce((s, t) => s + t.nominal, 0);
 
     const konteks = {
-      bulan: bulanIni, pemasukan, pengeluaran,
+      bulanIni: bulanIni, pemasukan, pengeluaran,
       saldoBersih: pemasukan - pengeluaran, saldoTotal,
       rataHarian: hariIni > 0 ? Math.round(pengeluaran / hariIni) : 0,
       pengeluaranHariIni,
@@ -92,6 +92,12 @@ router.post('/konfirmasi-transaksi', async (req, res) => {
 
 function cekApakahTransaksi(teks) {
   const t = (teks || '').toLowerCase();
+  // Kalimat tanya / analisis → jangan parse sebagai transaksi
+  const kataAnalisis = ['bagaimana', 'berapa', 'analisis', 'ringkasan', 'laporan',
+    'tips', 'hemat', 'saran', 'proyeksi', 'prediksi', 'akhir bulan', 'kondisi',
+    'persentase', 'apakah', 'kenapa', 'mengapa', 'bolehkah', 'bisakah'];
+  if (kataAnalisis.some(k => t.includes(k))) return false;
+
   // Kata kunci transaksi — word boundary, supaya "kondisi" tidak cocok "isi"
   const kata = ['beli', 'bayar', 'makan', 'minum', 'jajan', 'kopi', 'transfer', 'kirim',
     'isi', 'top up', 'topup', 'belanja', 'gajian', 'gaji', 'dapat', 'terima', 'bonus',

@@ -132,7 +132,7 @@ class _MainNavState extends State<MainNav> {
 
   static const _tabs = [
     (icon: Icons.home_outlined,           activeIcon: Icons.home,           label: 'Home'),
-    (icon: Icons.folder_outlined,         activeIcon: Icons.folder,         label: 'Kazz'),
+    (icon: Icons.folder_outlined,         activeIcon: Icons.folder,         label: 'Saldo'),
     (icon: Icons.search,                  activeIcon: Icons.search,         label: 'View'),
     (icon: Icons.more_horiz,              activeIcon: Icons.more_horiz,     label: 'Lainnya'),
   ];

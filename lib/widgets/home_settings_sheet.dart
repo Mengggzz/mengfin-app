@@ -191,7 +191,7 @@ class _HomeSettingsSheetState extends State<HomeSettingsSheet> {
               const SizedBox(height: 8),
               _menuRow(
                 Icons.wallet,
-                'Pengaturan Kazz Utama',
+                'Pengaturan Saldo Utama',
                 'Pilih dompet yang tampil di beranda',
                 onTap: () => Navigator.push(
                   context,
@@ -335,7 +335,7 @@ class _HomeSettingsSheetState extends State<HomeSettingsSheet> {
   void _showReorderQuickActionsDialog() {
     final meta = {
       'voice': {'title': 'Voice Text', 'icon': Icons.mic, 'color': AppColors.primary},
-      'ai': {'title': 'Kazz AI', 'icon': Icons.auto_awesome, 'color': AppColors.primary},
+      'ai': {'title': 'MengFin AI', 'icon': Icons.auto_awesome, 'color': AppColors.primary},
       'scan': {'title': 'Scan Struk', 'icon': Icons.camera_alt, 'color': AppColors.expense},
       'budget': {'title': 'Budget', 'icon': Icons.pie_chart, 'color': AppColors.expense},
     };

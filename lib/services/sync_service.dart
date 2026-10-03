@@ -173,9 +173,13 @@ class SyncService {
         final localId = item['local_id'] as String? ?? '';
         final tableName = item['table_name'] as String;
 
-        // Ambil id server dari segmen terakhir path (String/ObjectId).
-        final pathId = path.split('/').last.split('?').first;
-        final hasPathId = pathId.isNotEmpty && pathId != path;
+        // Ambil id server dari segmen ke-2 path (String/ObjectId).
+        // Contoh: '/transaksi/abc123' → 'abc123'
+        //         '/goals/abc123/progres' → 'abc123' (bukan 'progres')
+        final pathSegments = path.split('/').where((s) => s.isNotEmpty).toList();
+        // pathId = segmen setelah nama tabel (index 1), bukan segmen terakhir
+        final pathId = pathSegments.length >= 2 ? pathSegments[1].split('?').first : '';
+        final hasPathId = pathId.isNotEmpty;
 
         try {
           final body = jsonDecode(bodyStr) as Map<String, dynamic>;
@@ -194,8 +198,12 @@ class SyncService {
           } else if (method == 'DELETE' && tableName == 'transaksi') {
             if (hasPathId) await ApiService.deleteTransaksiRaw(pathId);
           } else if (method == 'POST' && tableName == 'anggaran') {
-            await ApiService.createAnggaranRaw(
+            final result = await ApiService.createAnggaranRaw(
                 body['kategori'], (body['batas'] as num).toDouble(), body['periode']);
+            final serverId = result['data']?['id']?.toString();
+            if (serverId != null && serverId.isNotEmpty) {
+              await LocalDb.replaceAnggaranLocalToServer(localId, serverId);
+            }
           } else if (method == 'PUT' && tableName == 'anggaran') {
             if (hasPathId) {
               await ApiService.updateAnggaranRaw(pathId, (body['batas'] as num).toDouble());
@@ -203,7 +211,11 @@ class SyncService {
           } else if (method == 'DELETE' && tableName == 'anggaran') {
             if (hasPathId) await ApiService.deleteAnggaranRaw(pathId);
           } else if (method == 'POST' && tableName == 'goals') {
-            await ApiService.createGoalRaw(body);
+            final result = await ApiService.createGoalRaw(body);
+            final serverId = result['data']?['id']?.toString();
+            if (serverId != null && serverId.isNotEmpty) {
+              await LocalDb.replaceGoalLocalToServer(localId, serverId);
+            }
           } else if (method == 'PUT' && tableName == 'goals') {
             if (hasPathId) {
               await ApiService.updateProgresRaw(pathId, (body['tambah'] as num).toDouble());

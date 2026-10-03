@@ -22,13 +22,13 @@ class KazzTipe {
 const List<KazzTipe> kazzTipes = [
   KazzTipe(
     key: 'cashflow',
-    nama: 'Kazz Cashflow',
+    nama: 'Saldo Cashflow',
     deskripsi: 'Kelola pemasukan dan pengeluaran harian Anda',
   ),
   KazzTipe(
     key: 'tabungan',
-    nama: 'Kazz Tabungan',
-    deskripsi: 'Kelola dana tabungan Anda. Transfer ke Kazz tipe ini akan '
+    nama: 'Saldo Tabungan',
+    deskripsi: 'Kelola dana tabungan Anda. Transfer ke Saldo tipe ini akan '
         'terdeteksi otomatis sebagai aktivitas menabung.',
   ),
   KazzTipe(
@@ -38,7 +38,7 @@ const List<KazzTipe> kazzTipes = [
   ),
   KazzTipe(
     key: 'aset',
-    nama: 'Kazz Aset',
+    nama: 'Saldo Aset',
     deskripsi: 'Lacak nilai emas yang Anda miliki.',
     pro: true,
   ),
@@ -65,7 +65,7 @@ class TambahKazzScreen extends StatelessWidget {
               child: Row(children: [
                 _BackButton(onTap: () => Navigator.pop(context, false)),
                 const SizedBox(width: 16),
-                Text('Tambah Kazz',
+                Text('Tambah Saldo',
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 26,
@@ -239,7 +239,7 @@ class _FormKazzScreenState extends State<_FormKazzScreen> {
   Future<void> _submit() async {
     final nama = _namaCtrl.text.trim();
     if (nama.isEmpty) {
-      setState(() => _error = 'Nama Kazz belum diisi.');
+      setState(() => _error = 'Nama Saldo belum diisi.');
       return;
     }
 
@@ -340,7 +340,7 @@ class _FormKazzScreenState extends State<_FormKazzScreen> {
                                 strokeWidth: 2.4,
                                 valueColor:
                                     AlwaysStoppedAnimation(Colors.white)))
-                        : const Text('Simpan Kazz',
+                        : const Text('Simpan Saldo',
                             style: TextStyle(
                                 fontSize: 15, fontWeight: FontWeight.w700)),
                   ),

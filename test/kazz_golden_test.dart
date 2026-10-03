@@ -22,7 +22,7 @@ void main() {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Kazz',
+              Text('Saldo',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 28,

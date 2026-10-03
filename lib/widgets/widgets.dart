@@ -458,7 +458,7 @@ class AddKazzCard extends StatelessWidget {
                     color: AppColors.textPrimary, size: 24),
               ),
               const SizedBox(height: 10),
-              Text('Tambah Kazz',
+              Text('Tambah Saldo',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 13,

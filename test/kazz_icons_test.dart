@@ -70,7 +70,7 @@ void main() {
     await tester.tap(ikonHeaderKazz(Icons.tune));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Kazz'), findsWidgets,
+    expect(find.textContaining('Saldo'), findsWidgets,
         reason: 'layar pengaturan harus terbuka');
   });
 

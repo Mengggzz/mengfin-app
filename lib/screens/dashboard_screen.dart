@@ -1612,7 +1612,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       'ai': QuickActionButton(
         icon: Icons.auto_awesome,
-        label: 'Kazz AI',
+        label: 'MengFin AI',
         iconColor: AppColors.primary,
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiScreen())),
       ),
