@@ -1,0 +1,6 @@
+node_modules/
+mengfin.json
+*.log
+.env
+
+.vercel

@@ -1,0 +1,91 @@
+name: Build & Release APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Flutter APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Setup Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # Decode release keystore dari GitHub Secret (jika ada)
+      - name: Setup signing keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Using release keystore from secret"
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+            printf 'storePassword=${{ secrets.KEYSTORE_PASSWORD }}\nkeyPassword=${{ secrets.KEY_PASSWORD }}\nkeyAlias=${{ secrets.KEY_ALIAS }}\nstoreFile=keystore.jks\n' > android/key.properties
+            echo "KEYSTORE_READY=true" >> $GITHUB_ENV
+          else
+            echo "KEYSTORE_READY=false" >> $GITHUB_ENV
+          fi
+
+      - name: Build release APK
+        run: flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
+
+      - name: Print SHA-1 dari APK (untuk verifikasi)
+        run: |
+          echo "========================================"
+          if [ "$KEYSTORE_READY" = "true" ]; then
+            echo "Signed dengan: RELEASE keystore"
+          else
+            echo "Signed dengan: DEBUG keystore"
+          fi
+          keytool -printcert \
+            -jarfile build/app/outputs/flutter-apk/app-release.apk \
+            2>/dev/null | grep -E "SHA1:|SHA256:" \
+            || echo "Tidak bisa baca cert"
+          echo "========================================"
+
+      - name: Get version tag
+        id: version
+        run: echo "VERSION=v$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
+
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: "MengFin ${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## 📱 MengFin Android APK
+            
+            ### ✅ Fitur
+            - Dashboard keuangan real-time
+            - Input transaksi (online & offline)
+            - Anggaran bulanan & Goals / tabungan
+            - AI Financial Advisor (Gemini)
+            - Sync otomatis saat online
+            
+            ### 📥 Cara Install
+            1. Download **app-release.apk** di bawah
+            2. Buka di HP → izinkan "Install dari sumber tidak dikenal"
+            3. Install dan buka app
+            
+            > 🌐 Server: Railway Cloud 24/7 + MongoDB Atlas
+          files: build/app/outputs/flutter-apk/app-release.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
