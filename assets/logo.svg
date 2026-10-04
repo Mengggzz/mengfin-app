@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF"/>
+      <stop offset="50%" stop-color="#00B8D4"/>
+      <stop offset="100%" stop-color="#B388FF"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E676"/>
+      <stop offset="100%" stop-color="#00E5FF"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#161B22"/>
+      <stop offset="100%" stop-color="#0D1117"/>
+    </linearGradient>
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Container Box -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)"/>
+  <rect width="504" height="504" x="4" y="4" rx="106" fill="none" stroke="url(#primaryGrad)" stroke-width="4" opacity="0.6"/>
+
+  <!-- Background Decorative Glowing Circles -->
+  <circle cx="160" cy="180" r="120" fill="#00E5FF" opacity="0.08" filter="url(#neonGlow)"/>
+  <circle cx="350" cy="330" r="140" fill="#B388FF" opacity="0.08" filter="url(#neonGlow)"/>
+
+  <!-- Central Emblem: Stylized Meng (Cat Silhouette) + Fin (Growth Bars / Diamond Wallet) -->
+  <g transform="translate(0, 10)">
+    <!-- Cat Ears / Geometric Tech Roof -->
+    <path d="M 140 230 L 175 145 L 230 195 Z" fill="url(#primaryGrad)" />
+    <path d="M 372 230 L 337 145 L 282 195 Z" fill="url(#primaryGrad)" />
+
+    <!-- Modern M Polygon / Financial Shield -->
+    <path d="M 150 235 L 256 315 L 362 235 L 362 335 C 362 360 256 410 256 410 C 256 410 150 360 150 335 Z" 
+          fill="url(#bgGrad)" stroke="url(#primaryGrad)" stroke-width="12" stroke-linejoin="round"/>
+
+    <!-- Dynamic Growth Chart Bars (Green -> Cyan -> Violet) -->
+    <!-- Bar 1 -->
+    <rect x="185" y="300" width="22" height="45" rx="6" fill="#00E676" opacity="0.9"/>
+    <!-- Bar 2 -->
+    <rect x="220" y="270" width="22" height="75" rx="6" fill="#00E5FF" opacity="0.95"/>
+    <!-- Bar 3 -->
+    <rect x="255" y="240" width="22" height="105" rx="6" fill="#84FFFF"/>
+    <!-- Bar 4 (Peak) -->
+    <rect x="290" y="210" width="22" height="135" rx="6" fill="#B388FF" filter="url(#neonGlow)"/>
+
+    <!-- Upward Trend Line with Node -->
+    <polyline points="196,290 231,260 266,230 301,195" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="301" cy="195" r="9" fill="#00E676" stroke="#FFFFFF" stroke-width="4"/>
+
+    <!-- Subtle Sleek Whiskers / Speed Lines -->
+    <line x1="85" y1="285" x2="135" y2="295" stroke="#00E5FF" stroke-width="4" stroke-linecap="round" opacity="0.4"/>
+    <line x1="80" y1="315" x2="135" y2="315" stroke="#00E5FF" stroke-width="4" stroke-linecap="round" opacity="0.4"/>
+    <line x1="427" y1="285" x2="377" y2="295" stroke="#B388FF" stroke-width="4" stroke-linecap="round" opacity="0.4"/>
+    <line x1="432" y1="315" x2="377" y2="315" stroke="#B388FF" stroke-width="4" stroke-linecap="round" opacity="0.4"/>
+  </g>
+</svg>
