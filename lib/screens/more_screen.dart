@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:intl/intl.dart';
@@ -320,7 +321,10 @@ class _TentangSheetState extends State<_TentangSheet> {
             color: AppColors.primary.withOpacity(0.15),
             borderRadius: BorderRadius.circular(18),
           ),
-          child: Center(child: Text('💸', style: TextStyle(fontSize: 30))),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: SvgPicture.asset('assets/logo.svg', width: 64, height: 64),
+          ),
         ),
         const SizedBox(height: 12),
         Text('MengFin', style: TextStyle(
@@ -371,6 +375,8 @@ class _SyncLogSheet extends StatefulWidget {
 class _SyncLogSheetState extends State<_SyncLogSheet> {
   bool _syncing = false;
   int _queueCount = 0;
+  int _queueFailed = 0;
+  String? _queueError;
 
   @override
   void initState() {
@@ -379,22 +385,47 @@ class _SyncLogSheetState extends State<_SyncLogSheet> {
   }
 
   Future<void> _loadQueue() async {
+    final d = await LocalDb.db;
     final count = await LocalDb.getQueueCount();
-    if (mounted) setState(() => _queueCount = count);
+    int failed = 0;
+    String? lastErr;
+    try {
+      final rows = await d.rawQuery(
+          "SELECT COUNT(*) as c FROM sync_queue WHERE retry_count > 0");
+      failed = (rows.first['c'] as int?) ?? 0;
+      final errRows = await d.rawQuery(
+          "SELECT last_error FROM sync_queue WHERE last_error IS NOT NULL AND last_error != '' ORDER BY id DESC LIMIT 1");
+      if (errRows.isNotEmpty) lastErr = errRows.first['last_error'] as String?;
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _queueCount = count;
+        _queueFailed = failed;
+        _queueError = lastErr;
+      });
+    }
   }
 
   Future<void> _handleSync() async {
     setState(() => _syncing = true);
-    await SyncService.instance.triggerManualSync();
+    final res = await SyncService.instance.triggerManualSync();
     await _loadQueue();
-    if (mounted) {
-      setState(() => _syncing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sinkronisasi database selesai'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+    if (!mounted) return;
+    setState(() => _syncing = false);
+
+    if (res.adaGagal) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Sinkronisasi Parsial — Berhasil: ${res.terkirim}, '
+            'Gagal: ${res.gagal}, Pending: ${res.pending}'),
+        backgroundColor: AppColors.warning,
+        duration: const Duration(seconds: 4),
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Sinkronisasi selesai — ${res.terkirim} perubahan terkirim'),
+        backgroundColor: AppColors.success,
+        duration: const Duration(seconds: 2),
+      ));
     }
   }
 
@@ -489,6 +520,20 @@ class _SyncLogSheetState extends State<_SyncLogSheet> {
                     fontSize: 11, fontWeight: FontWeight.w700)),
                 ]),
               ]),
+              if (_queueFailed > 0) ...[
+                const Divider(height: 16, thickness: 0.5),
+                Row(children: [
+                  Icon(Icons.error_outline, size: 14, color: AppColors.danger),
+                  const SizedBox(width: 6),
+                  Text('$_queueFailed item gagal — akan dicoba ulang otomatis',
+                      style: TextStyle(color: AppColors.danger, fontSize: 10, fontWeight: FontWeight.w600)),
+                ]),
+                if (_queueError != null && _queueError!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text('Error terakhir: $_queueError',
+                      style: TextStyle(color: AppColors.textSecond, fontSize: 10, height: 1.35)),
+                ],
+              ],
             ]),
           ),
           const SizedBox(height: 12),

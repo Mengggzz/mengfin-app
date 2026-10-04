@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/models.dart';
@@ -29,7 +30,7 @@ class LocalDb {
     final path = _pathOverride ?? join(await getDatabasesPath(), 'mengfin.db');
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (db, _) async {
         await _createSchema(db);
       },
@@ -48,14 +49,14 @@ class LocalDb {
             deskripsi, metode_pembayaran, CAST(akun_id AS TEXT), akun_nama, synced
           FROM transaksi_v1
         ''');
-        await db.execute('''
+          await db.execute('''
           INSERT INTO anggaran (id, local_id, kategori, batas, periode,
             terpakai, persentase, synced)
           SELECT CAST(id AS TEXT), local_id, kategori, batas, periode,
             terpakai, persentase, synced
           FROM anggaran_v1
         ''');
-        await db.execute('''
+          await db.execute('''
           INSERT INTO goals (id, local_id, nama, target, terkumpul, deadline,
             prioritas, nabung_per_bulan, catatan, synced)
           SELECT CAST(id AS TEXT), local_id, nama, target, terkumpul, deadline,
@@ -65,6 +66,21 @@ class LocalDb {
           for (final t in ['transaksi', 'anggaran', 'goals']) {
             await db.execute('DROP TABLE ${t}_v1');
           }
+        }
+        // v3 → v4: tambah tracking retry & error di sync_queue
+        if (oldVersion < 4) {
+          try {
+            await db.execute('ALTER TABLE sync_queue ADD COLUMN retry_count INTEGER DEFAULT 0');
+          } catch (_) {}
+          try {
+            await db.execute('ALTER TABLE sync_queue ADD COLUMN last_error TEXT DEFAULT ""');
+          } catch (_) {}
+          try {
+            await db.execute('ALTER TABLE sync_queue ADD COLUMN last_attempt TEXT DEFAULT ""');
+          } catch (_) {}
+          try {
+            await db.execute('ALTER TABLE sync_queue ADD COLUMN status TEXT DEFAULT "pending"');
+          } catch (_) {}
         }
       },
     );
@@ -122,8 +138,7 @@ class LocalDb {
       ikon TEXT DEFAULT 'bank',
       synced INTEGER DEFAULT 1
     )''');
-    // sync_queue.id tetap INTEGER AUTOINCREMENT — itu nomor antrean lokal,
-    // bukan id server, jadi tidak terpengaruh migrasi ke MongoDB.
+    // sync_queue menyimpan data offline dengan tracking retry & error
     await db.execute('''
       CREATE TABLE IF NOT EXISTS sync_queue (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -132,6 +147,10 @@ class LocalDb {
         body TEXT,
         local_id TEXT,
         table_name TEXT,
+        retry_count INTEGER DEFAULT 0,
+        last_error TEXT DEFAULT '',
+        last_attempt TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
         created_at TEXT
       )
     ''');
@@ -509,6 +528,67 @@ class LocalDb {
       "UPDATE sync_queue SET path = '/akun/' || ? WHERE path = '/akun/' || ?",
       [serverId, localId],
     );
+
+    // Perbarui akun_id pada antrean transaksi yang merujuk ke id lokal ini
+    try {
+      final txQueue = await d.query('sync_queue', where: "table_name = 'transaksi' AND body LIKE ?", whereArgs: ['%$localId%']);
+      for (final q in txQueue) {
+        final qid = q['id'] as int;
+        final bodyStr = q['body'] as String? ?? '{}';
+        try {
+          final b = jsonDecode(bodyStr) as Map<String, dynamic>;
+          if (b['akun_id']?.toString() == localId) {
+            b['akun_id'] = serverId;
+            await d.update('sync_queue', {'body': jsonEncode(b)}, where: 'id = ?', whereArgs: [qid]);
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  /// Cari id server untuk dompet/akun berdasarkan localId atau id.
+  static Future<String?> getServerIdForAkun(String localId) async {
+    final d = await db;
+    final rows = await d.query('akun', columns: ['id', 'synced'], where: 'id = ? OR local_id = ?', whereArgs: [localId, localId]);
+    if (rows.isNotEmpty) {
+      final id = rows.first['id']?.toString();
+      final synced = (rows.first['synced'] as int? ?? 0) == 1;
+      if (synced && id != null && !id.startsWith('akun_')) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  /// Cari id server untuk transaksi berdasarkan localId.
+  static Future<String?> getServerIdForTransaksi(String localId) async {
+    final d = await db;
+    final rows = await d.query('transaksi', columns: ['id', 'synced'], where: 'local_id = ?', whereArgs: [localId]);
+    if (rows.isNotEmpty) {
+      final id = rows.first['id']?.toString();
+      final synced = (rows.first['synced'] as int? ?? 0) == 1;
+      if (synced && id != null && !id.startsWith('tx_')) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  /// Perbarui status, retry count, dan pesan error item antrean.
+  static Future<void> updateQueueItem(
+    int id, {
+    required int retryCount,
+    required String lastError,
+    required String lastAttempt,
+    String status = 'pending',
+  }) async {
+    final d = await db;
+    await d.update('sync_queue', {
+      'retry_count': retryCount,
+      'last_error': lastError,
+      'last_attempt': lastAttempt,
+      'status': status,
+    }, where: 'id = ?', whereArgs: [id]);
   }
 
   /// Hapus akun dari database lokal
@@ -590,7 +670,18 @@ class LocalDb {
 
   static Future<List<Map<String, dynamic>>> getQueue() async {
     final d = await db;
-    return d.query('sync_queue', orderBy: 'created_at ASC');
+    return d.rawQuery('''
+      SELECT * FROM sync_queue 
+      ORDER BY 
+        CASE table_name 
+          WHEN 'akun' THEN 1 
+          WHEN 'transaksi' THEN 2 
+          WHEN 'anggaran' THEN 3 
+          WHEN 'goals' THEN 4 
+          ELSE 5 
+        END ASC, 
+        id ASC
+    ''');
   }
 
   static Future<void> removeFromQueue(int id) async {

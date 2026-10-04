@@ -230,9 +230,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
     setState(() => _isDeleting = true);
     try {
       final idsToDelete = _selectedIds.toList();
-      for (final id in idsToDelete) {
-        await ApiService.deleteTransaksi(id);
-      }
+      await ApiService.deleteTransaksiBatch(idsToDelete);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('$count transaksi berhasil dihapus'),

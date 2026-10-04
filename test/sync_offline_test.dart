@@ -152,8 +152,102 @@ void main() {
       );
 
       expect(hasil.gagal, 1);
+      expect(hasil.pending, 1);
+      expect(hasil.adaGagal, isTrue);
+      expect(hasil.lastError, isNotNull);
       final sisa = await LocalDb.getQueue();
       expect(sisa.length, 1, reason: 'item gagal harus tetap di antrean');
+    });
+
+    test('item gagal menyimpan retry_count & pesan error asli', () async {
+      await LocalDb.enqueue(
+        method: 'PUT',
+        path: '/akun/server_y',
+        body: '{"saldo":5000}',
+        localId: 'akun_uji_err',
+        tableName: 'akun',
+      );
+
+      await SyncService.instance.syncToServer(
+        kirim: (item) async => false,
+      );
+
+      final sisa = await LocalDb.getQueue();
+      expect(sisa.length, 1);
+      expect(sisa.first['retry_count'], 1);
+      expect((sisa.first['last_error'] as String).isNotEmpty, isTrue);
+      expect((sisa.first['last_attempt'] as String).isNotEmpty, isTrue);
+    });
+
+    test('urutan antrean: akun dikirim lebih dulu dari transaksi', () async {
+      await LocalDb.enqueue(
+        method: 'POST', path: '/transaksi', body: '{}',
+        localId: 'tx_urut_1', tableName: 'transaksi',
+      );
+      await LocalDb.enqueue(
+        method: 'POST', path: '/akun', body: '{}',
+        localId: 'akun_urut_1', tableName: 'akun',
+      );
+
+      final urutan = <String>[];
+      await SyncService.instance.syncToServer(
+        kirim: (item) async {
+          urutan.add(item['table_name'] as String);
+          return true;
+        },
+      );
+
+      expect(urutan, ['akun', 'transaksi'],
+          reason: 'dompet harus dibuat di cloud sebelum transaksi merujuknya');
+    });
+  });
+
+  group('resolusi id lokal → id server', () {
+    test('getServerIdForAkun mengembalikan id server setelah replace', () async {
+      await LocalDb.insertAkunLocal({
+        'nama': 'Dompet Resolusi',
+        'jenis': 'cash',
+        'saldo': 0,
+        'warna': '#2563EB',
+        'ikon': 'cash',
+      }, 'akun_resol_1');
+
+      // Sebelum sync: belum ada id server.
+      expect(await LocalDb.getServerIdForAkun('akun_resol_1'), isNull);
+
+      await LocalDb.replaceAkunLocalToServer('akun_resol_1', '507f1f77bcf86cd799439011');
+      expect(await LocalDb.getServerIdForAkun('akun_resol_1'), '507f1f77bcf86cd799439011');
+    });
+
+    test('replaceAkunLocalToServer memperbarui akun_id di antrean transaksi',
+        () async {
+      const serverId = '507f1f77bcf86cd799439012';
+      const localAkunId = 'akun_resol_2';
+
+      await LocalDb.insertAkunLocal({
+        'nama': 'Dompet Untuk Transaksi',
+        'jenis': 'cash',
+        'saldo': 0,
+        'warna': '#2563EB',
+        'ikon': 'cash',
+      }, localAkunId);
+
+      await LocalDb.enqueue(
+        method: 'POST',
+        path: '/transaksi',
+        body: '{"tanggal":"2026-10-20","jenis":"pengeluaran",'
+            '"nominal":10000,"kategori":"Belanja","akun_id":"$localAkunId"}',
+        localId: 'tx_resol_2',
+        tableName: 'transaksi',
+      );
+
+      await LocalDb.replaceAkunLocalToServer(localAkunId, serverId);
+
+      final queue = await LocalDb.getQueue();
+      final txItem = queue.firstWhere((q) => q['table_name'] == 'transaksi');
+      expect((txItem['body'] as String).contains(serverId), isTrue,
+          reason: 'antrean transaksi tidak boleh lagi memakai id dompet lokal');
+      expect((txItem['body'] as String).contains(localAkunId), isFalse);
     });
   });
 

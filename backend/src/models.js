@@ -12,10 +12,11 @@ const UserSchema = new mongoose.Schema({
 const AkunSchema = new mongoose.Schema({
   user_id: { type: String, required: true, index: true },
   nama: { type: String, required: true },
-  jenis: { type: String, enum: ['kas', 'bank', 'ewallet', 'investasi'], default: 'bank' },
+  jenis: { type: String, default: 'bank' },
   saldo: { type: Number, default: 0 },
   warna: { type: String, default: '#2563EB' },
   ikon: { type: String, default: 'bank' },
+  local_id: { type: String, default: null, index: true },
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 
 // ── Transaksi ──────────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ const TransaksiSchema = new mongoose.Schema({
   deskripsi: { type: String, default: '' },
   metode_pembayaran: { type: String, default: 'tunai' },
   akun_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Akun', default: null },
+  local_id: { type: String, default: null, index: true },
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 
 // ── Anggaran ───────────────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ const AnggaranSchema = new mongoose.Schema({
   kategori: { type: String, required: true },
   batas: { type: Number, required: true, min: 0 },
   periode: { type: String, required: true }, // format: YYYY-MM
+  local_id: { type: String, default: null, index: true },
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 
 // ── Goal ────────────────────────────────────────────────────────────────────
@@ -48,6 +51,7 @@ const GoalSchema = new mongoose.Schema({
   prioritas: { type: String, enum: ['tinggi', 'sedang', 'rendah'], default: 'sedang' },
   nabung_per_bulan: { type: Number, default: 0 },
   catatan: { type: String, default: '' },
+  local_id: { type: String, default: null, index: true },
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 
 const User     = mongoose.model('User', UserSchema);

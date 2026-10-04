@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../constants/app_colors.dart';
 import '../services/auth_service.dart';
 
@@ -131,18 +132,16 @@ class _LoginScreenState extends State<LoginScreen>
                 Container(
                   width: 96, height: 96,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: AppColors.gradientPrimary,
-                      begin: Alignment.topLeft, end: Alignment.bottomRight,
-                    ),
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [BoxShadow(
                       color: AppColors.primary.withOpacity(0.4),
                       blurRadius: 24, offset: const Offset(0, 8),
                     )],
                   ),
-                  child: const Icon(Icons.account_balance_wallet_rounded,
-                      color: Colors.white, size: 48),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: SvgPicture.asset('assets/logo.svg', width: 96, height: 96),
+                  ),
                 ),
                 const SizedBox(height: 28),
 

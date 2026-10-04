@@ -1,10 +1,17 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const { Transaksi, Akun } = require('../models');
 const { parseVoiceTranscription } = require('../services/voice_parser');
 const { authMiddleware } = require('../middleware/auth');
 
 router.use(authMiddleware);
+
+function isValidObjectId(id) {
+  if (!id) return false;
+  const s = String(id).trim();
+  return mongoose.Types.ObjectId.isValid(s) && String(new mongoose.Types.ObjectId(s)) === s;
+}
 
 // GET semua transaksi (dengan filter)
 router.get('/', async (req, res) => {
@@ -65,10 +72,33 @@ router.get('/kalender/:bulan', async (req, res) => {
 // POST tambah transaksi
 router.post('/', async (req, res) => {
   try {
-    const { tanggal, jenis, nominal, kategori, deskripsi, metode_pembayaran, akun_id } = req.body;
+    const { tanggal, jenis, nominal, kategori, deskripsi, metode_pembayaran, akun_id, local_id } = req.body;
 
-    if (!tanggal || !jenis || !nominal || !kategori) {
+    if (!tanggal || !jenis || nominal === undefined || nominal === null || !kategori) {
       return res.status(400).json({ error: 'Field wajib: tanggal, jenis, nominal, kategori' });
+    }
+
+    // Idempotency: cegah duplikasi jika local_id sudah tercatat di cloud
+    if (local_id) {
+      const existing = await Transaksi.findOne({ user_id: req.user.id, local_id });
+      if (existing) {
+        return res.status(200).json({
+          data: { id: existing._id, ...existing.toObject() },
+          message: 'Transaksi sudah ada (idempotent)'
+        });
+      }
+    }
+
+    // Resolusi akun_id yang aman (bisa ObjectId asli atau local_id dompet)
+    let validAkunId = null;
+    if (akun_id) {
+      const aidStr = String(akun_id).trim();
+      if (isValidObjectId(aidStr)) {
+        validAkunId = aidStr;
+      } else {
+        const akunByLocal = await Akun.findOne({ user_id: req.user.id, local_id: aidStr });
+        if (akunByLocal) validAkunId = akunByLocal._id;
+      }
     }
 
     const tx = await Transaksi.create({
@@ -78,15 +108,16 @@ router.post('/', async (req, res) => {
       kategori,
       deskripsi: deskripsi || '',
       metode_pembayaran: metode_pembayaran || 'tunai',
-      akun_id: akun_id || null,
+      akun_id: validAkunId,
+      local_id: local_id || null,
     });
 
     // Update saldo akun milik user
-    if (akun_id) {
-      const akun = await Akun.findOne({ _id: akun_id, user_id: req.user.id });
+    if (validAkunId) {
+      const akun = await Akun.findOne({ _id: validAkunId, user_id: req.user.id });
       if (akun) {
         const delta = jenis === 'pemasukan' ? Number(nominal) : -Number(nominal);
-        await Akun.findByIdAndUpdate(akun_id, { $inc: { saldo: delta } });
+        await Akun.findByIdAndUpdate(validAkunId, { $inc: { saldo: delta } });
       }
     }
 
@@ -102,8 +133,15 @@ router.post('/', async (req, res) => {
 // PUT update transaksi
 router.put('/:id', async (req, res) => {
   try {
-    const { tanggal, jenis, nominal, kategori, deskripsi, metode_pembayaran } = req.body;
-    const old = await Transaksi.findOne({ _id: req.params.id, user_id: req.user.id });
+    const { tanggal, jenis, nominal, kategori, deskripsi, metode_pembayaran, akun_id } = req.body;
+    let query = { user_id: req.user.id };
+    if (isValidObjectId(req.params.id)) {
+      query._id = req.params.id;
+    } else {
+      query.local_id = req.params.id;
+    }
+
+    const old = await Transaksi.findOne(query);
     if (!old) return res.status(404).json({ error: 'Transaksi tidak ditemukan' });
 
     if (old.akun_id) {
@@ -111,14 +149,33 @@ router.put('/:id', async (req, res) => {
       await Akun.findByIdAndUpdate(old.akun_id, { $inc: { saldo: delta } });
     }
 
-    await Transaksi.findByIdAndUpdate(req.params.id, { tanggal, jenis, nominal: Number(nominal), kategori, deskripsi, metode_pembayaran });
+    const updateData = {};
+    if (tanggal !== undefined) updateData.tanggal = tanggal;
+    if (jenis !== undefined) updateData.jenis = jenis;
+    if (nominal !== undefined) updateData.nominal = Number(nominal);
+    if (kategori !== undefined) updateData.kategori = kategori;
+    if (deskripsi !== undefined) updateData.deskripsi = deskripsi;
+    if (metode_pembayaran !== undefined) updateData.metode_pembayaran = metode_pembayaran;
 
-    if (old.akun_id) {
-      const delta = jenis === 'pemasukan' ? Number(nominal) : -Number(nominal);
-      await Akun.findByIdAndUpdate(old.akun_id, { $inc: { saldo: delta } });
+    if (akun_id !== undefined) {
+      if (isValidObjectId(akun_id)) {
+        updateData.akun_id = akun_id;
+      } else if (akun_id) {
+        const akunByLocal = await Akun.findOne({ user_id: req.user.id, local_id: String(akun_id) });
+        updateData.akun_id = akunByLocal ? akunByLocal._id : null;
+      } else {
+        updateData.akun_id = null;
+      }
     }
 
-    res.json({ message: 'Transaksi berhasil diupdate' });
+    const updated = await Transaksi.findByIdAndUpdate(old._id, updateData, { new: true });
+
+    if (updated.akun_id) {
+      const delta = updated.jenis === 'pemasukan' ? Number(updated.nominal) : -Number(updated.nominal);
+      await Akun.findByIdAndUpdate(updated.akun_id, { $inc: { saldo: delta } });
+    }
+
+    res.json({ message: 'Transaksi berhasil diupdate', data: { id: updated._id, ...updated.toObject() } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -127,7 +184,14 @@ router.put('/:id', async (req, res) => {
 // DELETE transaksi
 router.delete('/:id', async (req, res) => {
   try {
-    const tx = await Transaksi.findOne({ _id: req.params.id, user_id: req.user.id });
+    let query = { user_id: req.user.id };
+    if (isValidObjectId(req.params.id)) {
+      query._id = req.params.id;
+    } else {
+      query.local_id = req.params.id;
+    }
+
+    const tx = await Transaksi.findOne(query);
     if (!tx) return res.status(404).json({ error: 'Transaksi tidak ditemukan' });
 
     if (tx.akun_id) {

@@ -24,9 +24,17 @@ class SyncLogEntry {
 class SyncResult {
   final int terkirim;
   final int gagal;
+  final int pending;
   final bool adaGagal;
+  final String? lastError;
 
-  const SyncResult({this.terkirim = 0, this.gagal = 0, this.adaGagal = false});
+  const SyncResult({
+    this.terkirim = 0,
+    this.gagal = 0,
+    this.pending = 0,
+    this.adaGagal = false,
+    this.lastError,
+  });
 }
 
 class SyncService {
@@ -42,10 +50,12 @@ class SyncService {
 
   bool _syncing = false;
   DateTime? _lastSyncTime;
+  String? _lastError;
   final List<SyncLogEntry> _logs = [];
 
   bool get isSyncing => _syncing;
   DateTime? get lastSyncTime => _lastSyncTime;
+  String? get lastError => _lastError;
   List<SyncLogEntry> get logs => List.unmodifiable(_logs);
 
   void addLog(String title, String message, {bool isError = false, String type = 'info'}) {
@@ -113,10 +123,12 @@ class SyncService {
     addLog('Sinkronisasi Manual Dimulai', 'Memeriksa antrean perubahan offline & server...', type: 'manual');
     final res = await syncToServer(force: true);
     await pullFromServer();
+    final remainingPending = await LocalDb.getPendingCount();
     if (res.adaGagal) {
+      final errMsg = res.lastError ?? _lastError ?? 'Kendala pengiriman data';
       addLog(
         'Sinkronisasi Parsial',
-        'Terkirim: ${res.terkirim}, Gagal: ${res.gagal}. Item gagal akan dicoba lagi otomatis.',
+        'Berhasil: ${res.terkirim}\nGagal: ${res.gagal}\nPending: $remainingPending\n\nError terakhir:\n$errMsg',
         isError: true,
         type: 'manual',
       );
@@ -133,9 +145,7 @@ class SyncService {
   /// Kirim semua item dari sync_queue ke server.
   ///
   /// [kirim] opsional untuk mengganti jalur pengiriman (dipakai tes).
-  /// Produksi memakai [_kirimKeServer].
-  ///
-  /// PENTING: id server sekarang String (ObjectId MongoDB), bukan int.
+  /// Produksi memakai ApiService raw.
   Future<SyncResult> syncToServer({
     Future<bool> Function(Map<String, dynamic> item)? kirim,
     bool force = false,
@@ -149,12 +159,14 @@ class SyncService {
       if (_lastSyncTime != null) {
         final diff = now.difference(_lastSyncTime!);
         if (diff.inSeconds < 10) {
-          return const SyncResult();
+          final pending = await LocalDb.getPendingCount();
+          return SyncResult(pending: pending);
         }
       }
     }
     
     _syncing = true;
+    _lastError = null;
 
     var terkirim = 0;
     var gagal = 0;
@@ -172,12 +184,22 @@ class SyncService {
         final bodyStr = item['body'] as String? ?? '{}';
         final localId = item['local_id'] as String? ?? '';
         final tableName = item['table_name'] as String;
+        final retryCount = (item['retry_count'] as int?) ?? 0;
+        final lastAttemptStr = item['last_attempt'] as String?;
 
-        // Ambil id server dari segmen ke-2 path (String/ObjectId).
-        // Contoh: '/transaksi/abc123' → 'abc123'
-        //         '/goals/abc123/progres' → 'abc123' (bukan 'progres')
+        // ── Exponential Backoff ──────────────────────────────────
+        if (kirim == null && !force && retryCount > 0 && lastAttemptStr != null && lastAttemptStr.isNotEmpty) {
+          final lastAttempt = DateTime.tryParse(lastAttemptStr);
+          if (lastAttempt != null) {
+            final waitSeconds = (1 << retryCount.clamp(0, 8)) * 2;
+            if (DateTime.now().difference(lastAttempt).inSeconds < waitSeconds) {
+              gagal++;
+              continue; // Masih dalam masa jeda backoff
+            }
+          }
+        }
+
         final pathSegments = path.split('/').where((s) => s.isNotEmpty).toList();
-        // pathId = segmen setelah nama tabel (index 1), bukan segmen terakhir
         final pathId = pathSegments.length >= 2 ? pathSegments[1].split('?').first : '';
         final hasPathId = pathId.isNotEmpty;
 
@@ -186,21 +208,50 @@ class SyncService {
 
           if (kirim != null) {
             final ok = await kirim({...item, 'body': body});
-            if (!ok) throw Exception('gagal');
+            if (!ok) throw Exception('Pengiriman gagal');
           } else if (method == 'POST' && tableName == 'transaksi') {
+            // Resolusi akun_id jika masih berupa ID lokal
+            if (body.containsKey('akun_id') && body['akun_id'] != null) {
+              final aid = body['akun_id'].toString().trim();
+              if (aid.startsWith('akun_') || aid == 'null' || aid == 'undefined' || aid.isEmpty) {
+                final serverAkunId = await LocalDb.getServerIdForAkun(aid);
+                body['akun_id'] = (serverAkunId != null && serverAkunId.isNotEmpty) ? serverAkunId : null;
+              }
+            }
+            if (localId.isNotEmpty) body['local_id'] = localId;
+
             final result = await ApiService.createTransaksiRaw(body);
-            final serverId = result['data']?['id']?.toString();
+            final serverId = result['data']?['id']?.toString() ?? result['data']?['_id']?.toString();
             if (serverId != null && serverId.isNotEmpty) {
               await LocalDb.replaceTransaksiLocalToServer(localId, serverId);
             }
           } else if (method == 'PUT' && tableName == 'transaksi') {
-            if (hasPathId) await ApiService.updateTransaksiRaw(pathId, body);
+            String actualId = pathId;
+            if (pathId.startsWith('tx_') || pathId.startsWith('upd_tx_')) {
+              final clean = pathId.replaceFirst('upd_tx_', '');
+              final resolved = await LocalDb.getServerIdForTransaksi(clean);
+              if (resolved != null && resolved.isNotEmpty) actualId = resolved;
+            }
+            if (hasPathId) await ApiService.updateTransaksiRaw(actualId, body);
           } else if (method == 'DELETE' && tableName == 'transaksi') {
-            if (hasPathId) await ApiService.deleteTransaksiRaw(pathId);
+            String actualId = pathId;
+            if (pathId.startsWith('tx_') || pathId.startsWith('del_tx_')) {
+              final clean = pathId.replaceFirst('del_tx_', '');
+              final resolved = await LocalDb.getServerIdForTransaksi(clean);
+              if (resolved != null && resolved.isNotEmpty) {
+                actualId = resolved;
+              } else {
+                // Transaksi lokal yang belum pernah masuk cloud dan sudah dihapus lokal
+                await LocalDb.removeFromQueue(id);
+                terkirim++;
+                continue;
+              }
+            }
+            if (hasPathId) await ApiService.deleteTransaksiRaw(actualId);
           } else if (method == 'POST' && tableName == 'anggaran') {
             final result = await ApiService.createAnggaranRaw(
                 body['kategori'], (body['batas'] as num).toDouble(), body['periode']);
-            final serverId = result['data']?['id']?.toString();
+            final serverId = result['data']?['id']?.toString() ?? result['data']?['_id']?.toString();
             if (serverId != null && serverId.isNotEmpty) {
               await LocalDb.replaceAnggaranLocalToServer(localId, serverId);
             }
@@ -212,7 +263,7 @@ class SyncService {
             if (hasPathId) await ApiService.deleteAnggaranRaw(pathId);
           } else if (method == 'POST' && tableName == 'goals') {
             final result = await ApiService.createGoalRaw(body);
-            final serverId = result['data']?['id']?.toString();
+            final serverId = result['data']?['id']?.toString() ?? result['data']?['_id']?.toString();
             if (serverId != null && serverId.isNotEmpty) {
               await LocalDb.replaceGoalLocalToServer(localId, serverId);
             }
@@ -223,26 +274,62 @@ class SyncService {
           } else if (method == 'DELETE' && tableName == 'goals') {
             if (hasPathId) await ApiService.deleteGoalRaw(pathId);
           } else if (method == 'POST' && tableName == 'akun') {
+            if (localId.isNotEmpty) body['local_id'] = localId;
             final result = await ApiService.createAkunRaw(body);
-            final serverId = result['data']?['id']?.toString();
+            final serverId = result['data']?['id']?.toString() ?? result['data']?['_id']?.toString();
             if (serverId != null && serverId.isNotEmpty) {
               await LocalDb.replaceAkunLocalToServer(localId, serverId);
             }
           } else if (method == 'PUT' && tableName == 'akun') {
+            String actualId = pathId;
+            if (pathId.startsWith('akun_')) {
+              final resolved = await LocalDb.getServerIdForAkun(pathId);
+              if (resolved != null && resolved.isNotEmpty) actualId = resolved;
+            }
             if (hasPathId) {
-              await ApiService.updateAkunSaldoRaw(pathId, (body['saldo'] as num).toDouble());
+              await ApiService.updateAkunSaldoRaw(actualId, (body['saldo'] as num).toDouble());
             }
           } else if (method == 'DELETE' && tableName == 'akun') {
-            if (hasPathId) await ApiService.deleteAkunRaw(pathId);
+            String actualId = pathId;
+            if (pathId.startsWith('akun_')) {
+              final resolved = await LocalDb.getServerIdForAkun(pathId);
+              if (resolved != null && resolved.isNotEmpty) {
+                actualId = resolved;
+              } else {
+                await LocalDb.removeFromQueue(id);
+                terkirim++;
+                continue;
+              }
+            }
+            if (hasPathId) await ApiService.deleteAkunRaw(actualId);
           } else if (method == 'DONE') {
-            // penanda lokal saja
+            // penanda lokal
           }
 
           // Hapus dari antrean HANYA setelah operasi benar-benar berhasil.
           await LocalDb.removeFromQueue(id);
           terkirim++;
-        } catch (_) {
+        } catch (e) {
           gagal++;
+          final rawMsg = e.toString().replaceFirst('Exception: ', '');
+          _lastError = rawMsg;
+          final newRetry = retryCount + 1;
+          final isPermanent = rawMsg.contains('400') || rawMsg.contains('validation');
+          
+          await LocalDb.updateQueueItem(
+            id,
+            retryCount: newRetry,
+            lastError: rawMsg,
+            lastAttempt: DateTime.now().toIso8601String(),
+            status: (isPermanent && newRetry >= 5) ? 'permanent_failed' : 'failed',
+          );
+
+          addLog(
+            'Gagal [$tableName $method]',
+            'ID: $localId (Percobaan #$newRetry)\nError: $rawMsg',
+            isError: true,
+            type: 'push',
+          );
           continue;
         }
       }
@@ -256,6 +343,13 @@ class SyncService {
       }
     }
 
-    return SyncResult(terkirim: terkirim, gagal: gagal, adaGagal: gagal > 0);
+    final pending = await LocalDb.getPendingCount();
+    return SyncResult(
+      terkirim: terkirim,
+      gagal: gagal,
+      pending: pending,
+      adaGagal: gagal > 0,
+      lastError: _lastError,
+    );
   }
 }

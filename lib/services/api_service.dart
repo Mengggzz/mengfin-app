@@ -24,48 +24,77 @@ class ApiService {
 
   // ── Low-level HTTP ─────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> _get(String path) async {
-    final res = await _client.get(
-      Uri.parse('$kApiBaseUrl$path'),
-      headers: _authHeaders,
-    );
-    if (res.statusCode == 200) return jsonDecode(res.body);
-    if (res.statusCode == 401) throw Exception('unauthorized');
-    throw Exception('GET $path failed: ${res.statusCode}');
+    try {
+      final res = await _client.get(
+        Uri.parse('$kApiBaseUrl$path'),
+        headers: _authHeaders,
+      );
+      ConnectivityService.instance.reportOnline();
+      if (res.statusCode == 200) return jsonDecode(res.body);
+      if (res.statusCode == 401) throw Exception('unauthorized');
+      throw Exception('GET $path failed: ${res.statusCode}');
+    } catch (e) {
+      if (e is! Exception || !e.toString().contains('unauthorized')) {
+        ConnectivityService.instance.reportOffline();
+      }
+      rethrow;
+    }
   }
 
   static Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
-    final res = await _client.post(
-      Uri.parse('$kApiBaseUrl$path'),
-      headers: _authHeaders,
-      body: jsonEncode(body),
-    );
-    if (res.statusCode >= 200 && res.statusCode < 300) return jsonDecode(res.body);
-    if (res.statusCode == 401) throw Exception('unauthorized');
-    throw Exception('POST $path failed: ${res.body}');
+    try {
+      final res = await _client.post(
+        Uri.parse('$kApiBaseUrl$path'),
+        headers: _authHeaders,
+        body: jsonEncode(body),
+      );
+      ConnectivityService.instance.reportOnline();
+      if (res.statusCode >= 200 && res.statusCode < 300) return jsonDecode(res.body);
+      if (res.statusCode == 401) throw Exception('unauthorized');
+      throw Exception('POST $path failed: ${res.body}');
+    } catch (e) {
+      if (e is! Exception || !e.toString().contains('unauthorized')) {
+        ConnectivityService.instance.reportOffline();
+      }
+      rethrow;
+    }
   }
 
   static Future<void> _put(String path, Map<String, dynamic> body) async {
-    final res = await _client.put(
-      Uri.parse('$kApiBaseUrl$path'),
-      headers: _authHeaders,
-      body: jsonEncode(body),
-    );
-    // Sebelumnya status respons diabaikan, jadi permintaan yang ditolak
-    // server tetap dianggap berhasil dan perubahan tidak pernah masuk
-    // antrean sinkronisasi. Sekarang kegagalan dilempar ke pemanggil.
-    if (res.statusCode >= 200 && res.statusCode < 300) return;
-    if (res.statusCode == 401) throw Exception('unauthorized');
-    throw Exception('PUT $path failed: ${res.statusCode} ${res.body}');
+    try {
+      final res = await _client.put(
+        Uri.parse('$kApiBaseUrl$path'),
+        headers: _authHeaders,
+        body: jsonEncode(body),
+      );
+      ConnectivityService.instance.reportOnline();
+      if (res.statusCode >= 200 && res.statusCode < 300) return;
+      if (res.statusCode == 401) throw Exception('unauthorized');
+      throw Exception('PUT $path failed: ${res.statusCode} ${res.body}');
+    } catch (e) {
+      if (e is! Exception || !e.toString().contains('unauthorized')) {
+        ConnectivityService.instance.reportOffline();
+      }
+      rethrow;
+    }
   }
 
   static Future<void> _delete(String path) async {
-    final res = await _client.delete(
-      Uri.parse('$kApiBaseUrl$path'),
-      headers: _authHeaders,
-    );
-    if (res.statusCode >= 200 && res.statusCode < 300) return;
-    if (res.statusCode == 401) throw Exception('unauthorized');
-    throw Exception('DELETE $path failed: ${res.statusCode} ${res.body}');
+    try {
+      final res = await _client.delete(
+        Uri.parse('$kApiBaseUrl$path'),
+        headers: _authHeaders,
+      );
+      ConnectivityService.instance.reportOnline();
+      if (res.statusCode >= 200 && res.statusCode < 300) return;
+      if (res.statusCode == 401) throw Exception('unauthorized');
+      throw Exception('DELETE $path failed: ${res.statusCode} ${res.body}');
+    } catch (e) {
+      if (e is! Exception || !e.toString().contains('unauthorized')) {
+        ConnectivityService.instance.reportOffline();
+      }
+      rethrow;
+    }
   }
 
 
@@ -200,30 +229,82 @@ class ApiService {
 
   static Future<void> deleteTransaksi(dynamic id) async {
     if (kIsWeb) {
-      if (id != null) await deleteTransaksiRaw(id);
+      if (id != null) {
+        try {
+          await deleteTransaksiRaw(id);
+        } catch (_) {}
+      }
       await pullAkun();
       AppEvents.instance.transaksiBerubah();
       AppEvents.instance.akunBerubah();
       return;
     }
+
     await LocalDb.deleteTransaksi(id);
-    AppEvents.instance.transaksiBerubah();
-    AppEvents.instance.akunBerubah();
     if (_online) {
       try {
         if (id != null) await deleteTransaksiRaw(id);
-        await pullAkun();
-        AppEvents.instance.transaksiBerubah();
-        AppEvents.instance.akunBerubah();
-        return;
-      } catch (_) {}
+      } catch (_) {
+        if (id != null) {
+          await LocalDb.enqueue(
+            method: 'DELETE', path: '/transaksi/$id',
+            body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
+          );
+        }
+      }
+    } else {
+      if (id != null) {
+        await LocalDb.enqueue(
+          method: 'DELETE', path: '/transaksi/$id',
+          body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
+        );
+      }
     }
-    if (id != null) {
-      await LocalDb.enqueue(
-        method: 'DELETE', path: '/transaksi/$id',
-        body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
-      );
+    await pullAkun();
+    AppEvents.instance.transaksiBerubah();
+    AppEvents.instance.akunBerubah();
+  }
+
+  /// Hapus beberapa transaksi sekaligus (batch).
+  static Future<void> deleteTransaksiBatch(List<dynamic> ids) async {
+    if (ids.isEmpty) return;
+    if (kIsWeb) {
+      for (final id in ids) {
+        try {
+          if (id != null) await deleteTransaksiRaw(id);
+        } catch (_) {}
+      }
+      await pullAkun();
+      AppEvents.instance.transaksiBerubah();
+      AppEvents.instance.akunBerubah();
+      return;
     }
+
+    for (final id in ids) {
+      await LocalDb.deleteTransaksi(id);
+      if (_online) {
+        try {
+          if (id != null) await deleteTransaksiRaw(id);
+        } catch (_) {
+          if (id != null) {
+            await LocalDb.enqueue(
+              method: 'DELETE', path: '/transaksi/$id',
+              body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
+            );
+          }
+        }
+      } else {
+        if (id != null) {
+          await LocalDb.enqueue(
+            method: 'DELETE', path: '/transaksi/$id',
+            body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
+          );
+        }
+      }
+    }
+    await pullAkun();
+    AppEvents.instance.transaksiBerubah();
+    AppEvents.instance.akunBerubah();
   }
 
   /// Hapus semua transaksi dari lokal dan server.
@@ -241,10 +322,6 @@ class ApiService {
       return;
     }
 
-    await LocalDb.deleteAllTransaksi();
-    AppEvents.instance.transaksiBerubah();
-    AppEvents.instance.akunBerubah();
-
     if (_online) {
       try {
         final txs = await getTransaksiFromServer(limit: 500);
@@ -253,6 +330,7 @@ class ApiService {
         }
       } catch (_) {}
     }
+    await LocalDb.deleteAllTransaksi();
     await pullAkun();
     AppEvents.instance.transaksiBerubah();
     AppEvents.instance.akunBerubah();
