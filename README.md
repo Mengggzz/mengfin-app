@@ -191,5 +191,5 @@ flutter test
 Didistribusikan di bawah lisensi **MIT License**.
 
 <p align="center">
-  Dibuat dengan oleh <b>Mengggzz</b> • <i>Smart Wealth for Smarter Future</i>
+  Dibuat oleh <b>Mengggzz</b> • <i>Smart Wealth for Smarter Future</i>
 </p>
