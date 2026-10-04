@@ -21,7 +21,7 @@
 
 ---
 
-## 📌 Sekilas Tentang MengFin
+## 📌 Tentang MengFin
 
 **MengFin** (gabungan *Meng* 🐾 & *Financial*) dirancang untuk memberikan kendali finansial penuh dengan antarmuka modern bernuansa *cyberpunk / dark glassmorphism*. MengFin menggabungkan kemudahan pencatatan transaksi harian dengan analitik cerdas berbasis Google Gemini AI serta integrasi pendengar notifikasi perbankan otomatis di perangkat Android.
 
@@ -191,5 +191,5 @@ flutter test
 Didistribusikan di bawah lisensi **MIT License**.
 
 <p align="center">
-  Dibuat dengan ❤️ oleh <b>Mengggzz</b> • <i>Smart Wealth for Smarter Future</i>
+  Dibuat dengan oleh <b>Mengggzz</b> • <i>Smart Wealth for Smarter Future</i>
 </p>
