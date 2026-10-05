@@ -94,7 +94,8 @@ router.post('/', async (req, res) => {
     if (akun_id) {
       const aidStr = String(akun_id).trim();
       if (isValidObjectId(aidStr)) {
-        validAkunId = aidStr;
+        const akunExists = await Akun.findOne({ _id: aidStr, user_id: req.user.id });
+        if (akunExists) validAkunId = aidStr;
       } else {
         const akunByLocal = await Akun.findOne({ user_id: req.user.id, local_id: aidStr });
         if (akunByLocal) validAkunId = akunByLocal._id;

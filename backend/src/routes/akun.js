@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const { Akun } = require('../models');
+const { Akun, Transaksi } = require('../models');
 const { authMiddleware } = require('../middleware/auth');
 
 router.use(authMiddleware);
@@ -87,6 +87,13 @@ router.delete('/:id', async (req, res) => {
 
     const result = await Akun.findOneAndDelete(query);
     if (!result) return res.status(404).json({ error: 'Akun tidak ditemukan' });
+
+    // Lepaskan referensi akun_id pada transaksi yang pernah terkait
+    await Transaksi.updateMany(
+      { user_id: req.user.id, akun_id: result._id },
+      { $set: { akun_id: null } }
+    );
+
     res.json({ message: 'Akun berhasil dihapus' });
   } catch (err) {
     res.status(500).json({ error: err.message });

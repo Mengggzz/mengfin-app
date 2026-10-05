@@ -169,15 +169,17 @@ class ApiService {
   }
 
   static Future<Transaksi> createTransaksi(Map<String, dynamic> body) async {
-    // Pastikan akun_id selalu terisi jika belum ada
+    // Pastikan akun_id selalu terisi dan menunjuk ke dompet yang masih aktif
     if (body['akun_id'] == null || body['akun_id'].toString().isEmpty || body['akun_id'].toString() == 'null') {
       final defaultDompet = AppPrefs.instance.dompetUtama;
-      if (defaultDompet != null && defaultDompet.isNotEmpty) {
-        body['akun_id'] = defaultDompet;
-      } else if (!kIsWeb) {
+      if (!kIsWeb) {
         final akuns = await LocalDb.getAkunList();
-        if (akuns.isNotEmpty) {
+        final match = akuns.where((a) => a.id.toString() == defaultDompet);
+        if (match.isNotEmpty) {
+          body['akun_id'] = match.first.id;
+        } else if (akuns.isNotEmpty) {
           body['akun_id'] = akuns.first.id;
+          await AppPrefs.instance.setDompetUtama(akuns.first.id.toString());
         }
       }
     }
@@ -460,6 +462,15 @@ class ApiService {
             // Server tidak mengembalikan id — simpan lokal sementara.
             await LocalDb.insertAkunLocal(body, localId);
           }
+
+          // Sinkronkan dompet utama jika belum ada yang valid
+          final targetAkunId = serverId ?? localId;
+          final currentUtama = AppPrefs.instance.dompetUtama;
+          final akuns = await LocalDb.getAkunList();
+          final exists = akuns.any((a) => a.id.toString() == currentUtama);
+          if (!exists || currentUtama == null || currentUtama.isEmpty) {
+            await AppPrefs.instance.setDompetUtama(targetAkunId);
+          }
         }
         AppEvents.instance.akunBerubah();
         return;
@@ -473,6 +484,12 @@ class ApiService {
             body: jsonEncode(body), localId: localId,
             tableName: 'akun',
           );
+          final currentUtama = AppPrefs.instance.dompetUtama;
+          final akuns = await LocalDb.getAkunList();
+          final exists = akuns.any((a) => a.id.toString() == currentUtama);
+          if (!exists || currentUtama == null || currentUtama.isEmpty) {
+            await AppPrefs.instance.setDompetUtama(localId);
+          }
         } else {
           rethrow;
         }
@@ -487,6 +504,12 @@ class ApiService {
         body: jsonEncode(body), localId: localId,
         tableName: 'akun',
       );
+      final currentUtama = AppPrefs.instance.dompetUtama;
+      final akuns = await LocalDb.getAkunList();
+      final exists = akuns.any((a) => a.id.toString() == currentUtama);
+      if (!exists || currentUtama == null || currentUtama.isEmpty) {
+        await AppPrefs.instance.setDompetUtama(localId);
+      }
     }
 
     AppEvents.instance.akunBerubah();
@@ -513,6 +536,19 @@ class ApiService {
   }
 
   static Future<void> deleteAkun(dynamic id) async {
+    final idStr = id?.toString();
+    if (idStr != null) {
+      final prefs = AppPrefs.instance;
+      if (prefs.dompetUtama == idStr) {
+        await prefs.setDompetUtama(null);
+      }
+      final tampil = List<String>.from(prefs.dompetTampil);
+      if (tampil.contains(idStr)) {
+        tampil.remove(idStr);
+        await prefs.setDompetTampil(tampil);
+      }
+    }
+
     if (!kIsWeb && id != null) {
       await LocalDb.deleteAkun(id);
     }

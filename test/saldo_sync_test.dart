@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mengfin/models/models.dart';
 import 'package:mengfin/services/api_service.dart';
 import 'package:mengfin/services/local_db.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Saldo dompet di menu Kazz harus sinkron dengan saldo server setiap kali
@@ -21,6 +22,7 @@ void main() {
   });
 
   setUp(() async {
+    SharedPreferences.setMockInitialValues({});
     final d = await LocalDb.db;
     await d.delete('akun');
     await d.delete('transaksi');
@@ -166,6 +168,38 @@ void main() {
       final list = await LocalDb.getAkunList();
       expect(list.first.saldo, equals(350000),
           reason: 'Saldo dompet harus match dengan dashboard lokal');
+    });
+
+    test('hapus dompet lama lalu buat dompet baru: pengeluaran baru memotong dompet baru', () async {
+      // 1. Buat dompet lama & transaksi
+      await ApiService.createAkun(nama: 'Dompet Lama', jenis: 'cashflow', saldo: 100000);
+      var akuns = await LocalDb.getAkunList();
+      final oldId = akuns.first.id;
+
+      // 2. Hapus dompet lama
+      await ApiService.deleteAkun(oldId);
+      akuns = await LocalDb.getAkunList();
+      expect(akuns.isEmpty, isTrue);
+
+      // 3. Tambahkan dompet baru dengan saldo 200.000
+      await ApiService.createAkun(nama: 'Dompet Baru', jenis: 'cashflow', saldo: 200000);
+      akuns = await LocalDb.getAkunList();
+      expect(akuns.length, 1);
+      expect(akuns.first.saldo, 200000);
+
+      // 4. Catat transaksi pengeluaran baru 50.000
+      await ApiService.createTransaksi({
+        'tanggal': '2026-10-22',
+        'jenis': 'pengeluaran',
+        'nominal': 50000,
+        'kategori': 'Makan & Minum',
+        'deskripsi': 'Kopi',
+      });
+
+      // 5. Saldo dompet baru harus berkurang menjadi 150.000
+      akuns = await LocalDb.getAkunList();
+      expect(akuns.first.saldo, equals(150000),
+          reason: 'Saldo dompet baru harus terpotong 50.000');
     });
   });
 }

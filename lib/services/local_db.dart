@@ -648,10 +648,16 @@ class LocalDb {
   /// Hapus akun dari database lokal
   static Future<void> deleteAkun(dynamic id) async {
     final d = await db;
+    final idStr = id.toString();
     await d.delete(
       'akun',
       where: 'id = ? OR local_id = ?',
-      whereArgs: [id.toString(), id.toString()],
+      whereArgs: [idStr, idStr],
+    );
+    // Lepaskan referensi akun pada transaksi yang pernah terkait
+    await d.rawUpdate(
+      'UPDATE transaksi SET akun_id = NULL WHERE akun_id = ?',
+      [idStr],
     );
   }
 
