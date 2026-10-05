@@ -785,14 +785,280 @@ class ApiService {
 
   // ── AI Chat ────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> chat(String pesan) async {
-    return _post('/ai/chat', {'pesan': pesan});
+    if (_online) {
+      try {
+        final res = await _post('/ai/chat', {'pesan': pesan});
+        if (res.containsKey('tipe') || res.containsKey('pesan')) {
+          return res;
+        }
+      } catch (_) {
+        // Server gagal atau endpoint tidak tersedia → alihkan ke fallback lokal
+      }
+    }
+
+    return _localAIChat(pesan);
+  }
+
+  static Future<Map<String, dynamic>> _localAIChat(String pesan) async {
+    final t = pesan.trim();
+    final lower = t.toLowerCase();
+
+    // 1. Cek apakah perintah transaksi
+    final isTx = _isTransactionText(lower);
+    if (isTx) {
+      final parsed = _fastParseTransaksiLocal(t);
+      if (parsed != null && ((parsed['nominal'] as num?)?.toDouble() ?? 0) > 0) {
+        final nominalNum = (parsed['nominal'] as num).toDouble();
+        final nominalFmt = _formatRp(nominalNum);
+        return {
+          'tipe': 'transaksi_preview',
+          'data': parsed,
+          'pesan': 'Saya mendeteksi transaksi:\n*${parsed['deskripsi']}*\n💰 Rp $nominalFmt\n📁 ${parsed['kategori']}\n💳 ${parsed['metode_pembayaran']}\n\nKonfirmasi untuk menyimpan?'
+        };
+      }
+    }
+
+    // 2. Ambil data lokal untuk analisis keuangan
+    final now = DateTime.now();
+    final bulanIni = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    Map<String, double> dash = {};
+    List<Transaksi> txList = [];
+    List<Akun> akuns = [];
+    List<Anggaran> anggarans = [];
+
+    if (!kIsWeb) {
+      try {
+        dash = await LocalDb.getDashboardLocal(bulanIni);
+        txList = await LocalDb.getTransaksi(limit: 20);
+        akuns = await LocalDb.getAkunList();
+        anggarans = await LocalDb.getAnggaran(bulanIni);
+      } catch (_) {}
+    }
+
+    final double saldoTotal = akuns.fold<double>(0.0, (s, a) => s + a.saldo);
+    final double pemasukan = (dash['pemasukan'] ??
+        txList.where((x) => x.jenis == 'pemasukan' && x.tanggal.startsWith(bulanIni)).fold<double>(0.0, (s, x) => s + x.nominal)).toDouble();
+    final double pengeluaran = (dash['pengeluaran'] ??
+        txList.where((x) => x.jenis == 'pengeluaran' && x.tanggal.startsWith(bulanIni)).fold<double>(0.0, (s, x) => s + x.nominal)).toDouble();
+    final double saldoBersih = pemasukan - pengeluaran;
+    final double rataHarian = now.day > 0 ? (pengeluaran / now.day) : 0.0;
+    final double pengeluaranHariIni = txList
+        .where((x) => x.jenis == 'pengeluaran' && x.tanggal == todayStr)
+        .fold<double>(0.0, (s, x) => s + x.nominal);
+
+    // Kategori pengeluaran terbesar
+    final katMap = <String, double>{};
+    for (final x in txList.where((x) => x.jenis == 'pengeluaran' && x.tanggal.startsWith(bulanIni))) {
+      katMap[x.kategori] = (katMap[x.kategori] ?? 0.0) + x.nominal;
+    }
+    final topKat = katMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
+    // A. Tanya Transaksi Terakhir / Riwayat
+    if (lower.contains('riwayat') || lower.contains('terakhir') || lower.contains('beli apa') || lower.contains('daftar')) {
+      if (txList.isEmpty) {
+        return {
+          'tipe': 'jawaban',
+          'pesan': '📝 **Riwayat Transaksi:**\n\nBelum ada transaksi tercatat. Ketik misalnya *"beli kopi 25rb"* untuk mencatat transaksi pertamamu!'
+        };
+      }
+      final sb = StringBuffer();
+      sb.writeln('📝 **${txList.take(7).length} Transaksi Terakhir:**\n');
+      int idx = 1;
+      for (final tx in txList.take(7)) {
+        final sign = tx.jenis == 'pemasukan' ? '(+) ' : '(-) ';
+        sb.writeln('$idx. **${tx.deskripsi.isNotEmpty ? tx.deskripsi : tx.kategori}** — $sign Rp ${_formatRp(tx.nominal)}');
+        sb.writeln('   📅 ${tx.tanggal} • 📁 ${tx.kategori}');
+        idx++;
+      }
+      return {'tipe': 'jawaban', 'pesan': sb.toString()};
+    }
+
+    // B. Tanya Saldo / Dompet
+    if (lower.contains('saldo') || lower.contains('dompet') || lower.contains('uangku') || lower.contains('sisa uang')) {
+      final sb = StringBuffer();
+      sb.writeln('💰 **Informasi Saldo:**\n');
+      sb.writeln('• Total Saldo: **Rp ${_formatRp(saldoTotal)}**');
+      sb.writeln('• Pemasukan Bulan Ini: **Rp ${_formatRp(pemasukan)}**');
+      sb.writeln('• Pengeluaran Bulan Ini: **Rp ${_formatRp(pengeluaran)}**');
+      sb.writeln('• Arus Kas Net: **${saldoBersih >= 0 ? '+' : ''}Rp ${_formatRp(saldoBersih)}**');
+      if (akuns.isNotEmpty) {
+        sb.writeln('\n**Daftar Dompet:**');
+        for (final a in akuns) {
+          sb.writeln('  • ${a.nama}: Rp ${_formatRp(a.saldo)}');
+        }
+      }
+      return {'tipe': 'jawaban', 'pesan': sb.toString()};
+    }
+
+    // C. Tanya Budget / Anggaran
+    if (lower.contains('budget') || lower.contains('anggaran') || lower.contains('batas')) {
+      if (anggarans.isEmpty) {
+        return {
+          'tipe': 'jawaban',
+          'pesan': '🎯 **Status Budget:**\n\n• Pengeluaran Hari Ini: **Rp ${_formatRp(pengeluaranHariIni)}**\n• Rata-rata Harian: **Rp ${_formatRp(rataHarian)}/hari**\n\n*Kamu belum menetapkan batas anggaran kategori di menu Saldo/Budget.*'
+        };
+      }
+      final sb = StringBuffer();
+      sb.writeln('🎯 **Status Anggaran Kategori:**\n');
+      for (final a in anggarans) {
+        final terpakai = katMap[a.kategori] ?? 0.0;
+        final pct = (terpakai / (a.batas > 0 ? a.batas : 1) * 100).round();
+        final statusIcon = terpakai > a.batas ? '⚠️' : '✅';
+        sb.writeln('$statusIcon **${a.kategori}**: Rp ${_formatRp(terpakai)} / Rp ${_formatRp(a.batas)} ($pct%)');
+      }
+      return {'tipe': 'jawaban', 'pesan': sb.toString()};
+    }
+
+    // D. Tips Hemat
+    if (lower.contains('tips') || lower.contains('hemat') || lower.contains('kurangi')) {
+      final sb = StringBuffer();
+      sb.writeln('💡 **Tips Hemat Terarah ($bulanIni):**\n');
+      if (topKat.isNotEmpty) {
+        sb.writeln('1. **Fokus pada Pos ${topKat.first.key}**: Pengeluaran pos ini mencapai **Rp ${_formatRp(topKat.first.value)}**. Tetapkan batas mingguan ketat.');
+      } else {
+        sb.writeln('1. **Catat Pengeluaran Rutin**: Awasi setiap pengeluaran harian agar tidak bocor halus.');
+      }
+      sb.writeln('2. **Evaluasi Pengeluaran Harian**: Rata-rata pengeluaranmu saat ini **Rp ${_formatRp(rataHarian)}/hari**.');
+      sb.writeln('3. **Prioritaskan Tabungan**: Sisihkan 10-20% di awal setiap kali menerima pemasukan.');
+      return {'tipe': 'jawaban', 'pesan': sb.toString()};
+    }
+
+    // E. Sapaan / Greeting
+    if (lower == 'halo' || lower == 'hai' || lower == 'pagi' || lower == 'siang' || lower == 'malam' || lower.startsWith('halo') || lower.startsWith('hai')) {
+      return {
+        'tipe': 'jawaban',
+        'pesan': '👋 Halo! Saya **MengFin AI** siap membantu.\n\nKamu bisa:\n• Tanya kondisi keuangan atau saldo\n• Minta tips hemat\n• Catat transaksi (misal: *"beli kopi 20rb"* atau *"gajian 5jt"*)\n\nAda yang ingin dicek?'
+      };
+    }
+
+    // F. Analisis / Default Ringkasan
+    final sb = StringBuffer();
+    sb.writeln('📊 **Analisis Keuangan ($bulanIni):**\n');
+    sb.writeln('• **Saldo Dompet**: Rp ${_formatRp(saldoTotal)}');
+    sb.writeln('• **Pemasukan**: Rp ${_formatRp(pemasukan)}');
+    sb.writeln('• **Pengeluaran**: Rp ${_formatRp(pengeluaran)}');
+    sb.writeln('• **Arus Kas Net**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}Rp ${_formatRp(saldoBersih)}');
+    if (topKat.isNotEmpty) {
+      sb.writeln('\n📈 **Pengeluaran Terbesar:**');
+      for (final k in topKat.take(3)) {
+        final pct = pengeluaran > 0 ? (k.value / pengeluaran * 100).round() : 0;
+        sb.writeln('  • **${k.key}**: Rp ${_formatRp(k.value)} ($pct%)');
+      }
+    }
+    sb.writeln('\n🎯 **Rekomendasi:**');
+    if (saldoBersih < 0) {
+      sb.writeln('• ⚠️ Arus kas saat ini sedang defisit. Batasi pengeluaran non-primer untuk menstabilkan saldo.');
+    } else {
+      sb.writeln('• ✅ Kondisi keuangan terjaga baik. Pertahankan pencatatan rutin!');
+    }
+
+    return {'tipe': 'jawaban', 'pesan': sb.toString()};
+  }
+
+  static bool _isTransactionText(String t) {
+    if (t.isEmpty) return false;
+    final isQuery = RegExp(r'^(bagaimana|gimana|berapa|apa|apakah|kenapa|mengapa|analisis|laporan|ringkasan|tips|saran|proyeksi|cek saldo)\b', caseSensitive: false).hasMatch(t);
+    if (isQuery) return false;
+
+    final keywords = ['beli', 'bayar', 'makan', 'minum', 'jajan', 'kopi', 'transfer', 'kirim', 'top up', 'topup', 'belanja', 'gajian', 'gaji', 'bonus', 'pesan', 'order', 'parkir', 'bensin', 'tarik', 'setor', 'sewa', 'tagihan', 'listrik', 'pulsa'];
+    final hasKeyword = keywords.any((k) => RegExp('\\b$k\\b', caseSensitive: false).hasMatch(t));
+    final hasNumber = RegExp(r'\d+').hasMatch(t) || RegExp(r'\b(ribu|juta|jt|rb|k)\b', caseSensitive: false).hasMatch(t);
+    return hasKeyword && hasNumber;
+  }
+
+  static Map<String, dynamic>? _fastParseTransaksiLocal(String teks) {
+    final lower = teks.toLowerCase();
+
+    // 1. Metode
+    String metode = 'tunai';
+    if (RegExp(r'\b(transfer|trf|tf|bca|mandiri|bri|bni|jago)\b').hasMatch(lower)) {
+      metode = 'transfer';
+    } else if (RegExp(r'\b(qris|qr)\b').hasMatch(lower)) {
+      metode = 'qris';
+    } else if (RegExp(r'\b(debit|kredit|cc)\b').hasMatch(lower)) {
+      metode = 'debit';
+    }
+
+    // 2. Nominal
+    double nominal = 0;
+    final numMultiplierMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*(ribu|juta|jt|rb|k)\b').firstMatch(lower);
+    final plainNumberMatch = RegExp(r'(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})+|\d{4,9})\b').firstMatch(lower);
+
+    if (numMultiplierMatch != null) {
+      double rawNum = double.tryParse(numMultiplierMatch.group(1)!.replaceAll(',', '.')) ?? 0;
+      final unit = numMultiplierMatch.group(2)!.toLowerCase();
+      if (unit == 'juta' || unit == 'jt') {
+        rawNum *= 1000000;
+      } else {
+        rawNum *= 1000;
+      }
+      nominal = rawNum;
+    } else if (plainNumberMatch != null) {
+      final rawDigits = plainNumberMatch.group(1)!.replaceAll('.', '');
+      nominal = double.tryParse(rawDigits) ?? 0;
+    }
+
+    if (nominal <= 0) return null;
+
+    // 3. Jenis
+    final isPemasukan = RegExp(r'\b(gajian|gaji|dapat transfer|terima|bonus|pemasukan|omset)\b').hasMatch(lower);
+    final jenis = isPemasukan ? 'pemasukan' : 'pengeluaran';
+
+    // 4. Kategori
+    String kategori = 'Lainnya';
+    if (isPemasukan) {
+      if (RegExp(r'\b(gaji|gajian)\b').hasMatch(lower)) kategori = 'Gaji';
+      else if (RegExp(r'\b(bonus|thr|hadiah)\b').hasMatch(lower)) kategori = 'Bonus';
+      else kategori = 'Transfer';
+    } else {
+      if (RegExp(r'\b(makan|minum|kopi|coffee|cafe|kafe|restoran|resto|warung|mie|nasi|ayam|bakso|jajan|snack|roti)\b').hasMatch(lower)) {
+        kategori = 'Makan & Minum';
+      } else if (RegExp(r'\b(bensin|bbm|pertalite|pertamax|parkir|tol|ojol|gojek|grab|maxim|angkot|bus|kereta)\b').hasMatch(lower)) {
+        kategori = 'Transportasi';
+      } else if (RegExp(r'\b(belanja|supermarket|minimarket|indomaret|alfamart|shopee|tokopedia|mall)\b').hasMatch(lower)) {
+        kategori = 'Belanja';
+      } else if (RegExp(r'\b(listrik|pln|pdam|air|pulsa|kuota|paket data|wifi|tagihan)\b').hasMatch(lower)) {
+        kategori = 'Tagihan';
+      } else if (RegExp(r'\b(obat|apotek|dokter|klinik|rs|rumah sakit|vitamin)\b').hasMatch(lower)) {
+        kategori = 'Kesehatan';
+      } else if (RegExp(r'\b(nonton|bioskop|cinema|game|steam|netflix|spotify|hiburan)\b').hasMatch(lower)) {
+        kategori = 'Hiburan';
+      }
+    }
+
+    // 5. Deskripsi
+    String deskripsi = teks
+        .replaceAll(RegExp(r'^(tolong|bantu|catat|masukkan|input|tambahkan)\s+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\b(pakai|pake|via|lewat)\s+(tunai|cash|transfer|tf|qris|debit|kredit|gopay|ovo|dana)\b', caseSensitive: false), '')
+        .replaceAll(RegExp(r'(\d+(?:[.,]\d+)?)\s*(ribu|juta|jt|rb|k)\b', caseSensitive: false), '')
+        .replaceAll(RegExp(r'(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})+|\d{4,9})\b', caseSensitive: false), '')
+        .trim();
+
+    deskripsi = deskripsi.replaceAll(RegExp(r'^(beli|bayar|makan|minum|jajan|order|pesan|topup|top up)\s+', caseSensitive: false), '').trim();
+    if (deskripsi.isEmpty || deskripsi.length < 2) {
+      deskripsi = kategori == 'Lainnya' ? (jenis == 'pemasukan' ? 'Pemasukan' : 'Pengeluaran') : kategori;
+    } else {
+      deskripsi = deskripsi[0].toUpperCase() + deskripsi.substring(1);
+    }
+
+    final now = DateTime.now();
+    final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    return {
+      'jenis': jenis,
+      'nominal': nominal,
+      'kategori': kategori,
+      'deskripsi': deskripsi,
+      'metode_pembayaran': metode,
+      'tanggal': today,
+    };
   }
 
   static Future<void> konfirmasiTransaksi(Map<String, dynamic> body) async {
-    await _post('/ai/konfirmasi-transaksi', body);
-    await pullAkun();
-    AppEvents.instance.transaksiBerubah();
-    AppEvents.instance.akunBerubah();
+    // Gunakan createTransaksi agar tersimpan di database lokal & cloud secara terpadu
+    await createTransaksi(body);
   }
 
   // ── Scan struk ─────────────────────────────────────────────────────────────

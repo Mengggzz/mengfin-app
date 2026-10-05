@@ -48,13 +48,6 @@ class _AiScreenState extends State<AiScreen> {
     final msg = (text ?? _ctrl.text).trim();
     if (msg.isEmpty || _sending) return;
 
-    // Cek offline
-    if (!ConnectivityService.instance.isOnline) {
-      _addMsg(_Msg(id: 'off${DateTime.now().millisecondsSinceEpoch}', isUser: false,
-        text: '📴 Fitur AI memerlukan koneksi internet.\n\nUntuk input transaksi saat offline, gunakan tombol + di tab Transaksi.'));
-      return;
-    }
-
     _ctrl.clear();
     setState(() => _sending = true);
 
@@ -72,7 +65,7 @@ class _AiScreenState extends State<AiScreen> {
       }
     } catch (_) {
       _addMsg(_Msg(id: 'e${DateTime.now().millisecondsSinceEpoch}', isUser: false,
-        text: '⚠️ Gagal terhubung ke AI. Pastikan server backend berjalan.'));
+        text: '⚠️ Maaf, terjadi kendala saat memproses pesan. Silakan coba lagi.'));
     } finally {
       setState(() => _sending = false);
     }
