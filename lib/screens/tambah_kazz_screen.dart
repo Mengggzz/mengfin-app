@@ -297,7 +297,9 @@ class _FormKazzScreenState extends State<_FormKazzScreen> {
                     style: TextStyle(
                         color: AppColors.textMuted, fontSize: 12, height: 1.4)),
                 const SizedBox(height: 20),
-                _label('NAMA KAZZ'),
+                _label(widget.tipe.key == 'kredit'
+                    ? 'NAMA KARTU'
+                    : 'NAMA DOMPET / KAS'),
                 const SizedBox(height: 8),
                 _field(
                   controller: _namaCtrl,

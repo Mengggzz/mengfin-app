@@ -143,9 +143,19 @@ class ApiService {
     final pending = await LocalDb.getTransaksi(
       jenis: jenis, limit: limit, hanyaBelumSync: true);
 
-    final sudahAda = <String>{ for (final t in server) _txKey(t) };
+    final idsServer = <String>{ for (final t in server) t.id.toString() };
+    final localIdsServer = <String>{ for (final t in server) if (t.localId != null && t.localId!.isNotEmpty) t.localId.toString() };
+    final keysServer = <String>{ for (final t in server) _txKey(t) };
+
     final gabungan = <Transaksi>[
-      ...pending.where((t) => !sudahAda.contains(_txKey(t))),
+      ...pending.where((t) {
+        final idStr = t.id.toString();
+        final locStr = (t.localId ?? '').toString();
+        if (keysServer.contains(_txKey(t))) return false;
+        if (idsServer.contains(idStr)) return false;
+        if (locStr.isNotEmpty && (idsServer.contains(locStr) || localIdsServer.contains(locStr))) return false;
+        return true;
+      }),
       ...server,
     ];
 

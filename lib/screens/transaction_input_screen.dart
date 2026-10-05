@@ -304,9 +304,69 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
     }
   }
 
+  Future<void> _konfirmasiHapus() async {
+    if (_saving || !_isEdit) return;
+    final konfirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Hapus Transaksi', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Text('Yakin ingin menghapus transaksi ini? Saldo dompet akan disesuaikan kembali.',
+          style: TextStyle(color: AppColors.textSecond, fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Batal', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (konfirm != true || !mounted) return;
+
+    setState(() => _saving = true);
+    try {
+      await ApiService.deleteTransaksi(widget.edit!.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Transaksi berhasil dihapus'),
+          backgroundColor: AppColors.success,
+        ));
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Gagal menghapus: $e'),
+          backgroundColor: AppColors.danger,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _onConfirm() async {
+    if (_saving) return;
     final nominal = _parseAmount();
-    if (nominal <= 0 || _saving) return;
+    if (nominal <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Masukkan jumlah nominal transaksi terlebih dahulu.'),
+        backgroundColor: AppColors.warning,
+        duration: const Duration(seconds: 2),
+      ));
+      return;
+    }
+
+    setState(() => _saving = true);
 
     // Pastikan transaksi selalu terhubung ke dompet jika daftar akun tersedia
     if (_akunTerpilih == null && _akunList.isNotEmpty) {
@@ -316,7 +376,6 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
       _akunTerpilih ??= DompetView.dompetAwal(_akunList, AppPrefs.instance.dompetUtama)?.id ?? _akunList.first.id;
     }
 
-    setState(() => _saving = true);
     final body = <String, dynamic>{
       'tanggal': _tanggal,
       'jenis': _isExpense ? 'pengeluaran' : 'pemasukan',
@@ -432,6 +491,14 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
         title:  Text(_isEdit ? 'Edit Transaksi' : 'Transaksi', style: TextStyle(
           color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         centerTitle: true,
+        actions: [
+          if (_isEdit)
+            IconButton(
+              icon: Icon(Icons.delete_outline, color: AppColors.danger),
+              tooltip: 'Hapus Transaksi',
+              onPressed: _saving ? null : _konfirmasiHapus,
+            ),
+        ],
       ),
       body: Column(children: [
         // Scrollable top section
