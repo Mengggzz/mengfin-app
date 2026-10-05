@@ -184,8 +184,8 @@ class _UpdateDialogState extends State<UpdateDialog>
                       version: widget.currentTag.isEmpty ? 'dev' : widget.currentTag,
                       color: AppColors.textMuted,
                     ),
-                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: Icon(Icons.arrow_forward_rounded,
                           size: 16, color: AppColors.textMuted),
                     ),
@@ -196,61 +196,22 @@ class _UpdateDialogState extends State<UpdateDialog>
                     ),
                     const Spacer(),
                     Text(widget.release.readableVersion,
-                      style:  TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
                   ]),
-                  const SizedBox(height: 20),
-
-                  if (widget.release.body.isNotEmpty) ...[
-                    Row(children: [
-                      Container(
-                        width: 3, height: 16,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: AppColors.gradientPrimary,
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                       Text('Yang Baru',
-                        style: TextStyle(color: AppColors.textPrimary,
-                          fontSize: 14, fontWeight: FontWeight.w700)),
-                    ]),
-                    const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgElevated,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.glassBorder),
-                      ),
-                      child: Text(
-                        _parseChangelog(widget.release.body),
-                        style:  TextStyle(color: AppColors.textSecond,
-                          fontSize: 12.5, height: 1.6),
-                        maxLines: 8,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-
+                  const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.warning.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                      color: AppColors.bgElevated,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.glassBorder),
                     ),
-                    child:  Row(children: [
-                      Icon(Icons.info_outline_rounded, size: 14, color: AppColors.warning),
-                      SizedBox(width: 8),
+                    child: Row(children: [
+                      Icon(Icons.info_outline_rounded, size: 16, color: AppColors.primary),
+                      const SizedBox(width: 10),
                       Expanded(child: Text(
-                        'Setelah download, buka APK dan pilih "Install" untuk update. Ini opsional — kamu bisa update kapan saja.',
-                        style: TextStyle(color: AppColors.warning, fontSize: 11.5, height: 1.4),
+                        'Versi terbaru telah tersedia. Unduh dan pasang pembaruan untuk menikmati fitur serta peningkatan performa terkini.',
+                        style: TextStyle(color: AppColors.textSecond, fontSize: 12, height: 1.4),
                       )),
                     ]),
                   ),
