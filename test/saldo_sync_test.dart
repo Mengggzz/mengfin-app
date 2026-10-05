@@ -89,6 +89,29 @@ void main() {
       expect(list.first.saldo, equals(250000), reason: 'Saldo harus mengikuti server');
     });
 
+    test('insertTransaksiLocal pengeluaran mengurangi saldo akun lokal secara otomatis', () async {
+      await LocalDb.insertAkunLocal({
+        'nama': 'Dompet Utama',
+        'jenis': 'cash',
+        'saldo': 500000,
+        'warna': '#2563EB',
+        'ikon': 'cash',
+      }, 'akun_mutasi_1');
+
+      // Transaksi pengeluaran 120.000 tanpa akun_id eksplisit (default ke akun pertama)
+      await LocalDb.insertTransaksiLocal({
+        'tanggal': '2026-10-20',
+        'jenis': 'pengeluaran',
+        'nominal': 120000,
+        'kategori': 'Makan & Minum',
+        'deskripsi': 'makan siang',
+      }, 'tx_mutasi_1');
+
+      final list = await LocalDb.getAkunList();
+      expect(list.first.saldo, equals(380000),
+          reason: 'Saldo akun harus berkurang 120.000 saat ada pengeluaran');
+    });
+
     test('delete pengeluaran: saldo berkurang sesuai server', () async {
       await LocalDb.upsertAkunList([
         Akun(

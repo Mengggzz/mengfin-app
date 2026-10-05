@@ -53,14 +53,16 @@ router.post('/chat', async (req, res) => {
     };
 
     if (cekApakahTransaksi(pesan)) {
-      const parsed = await parseTransaksiDariTeks(pesan);
-      if (parsed) {
-        return res.json({
-          tipe: 'transaksi_preview',
-          data: parsed,
-          pesan: `Saya mendeteksi transaksi:\n*${parsed.deskripsi}*\n💰 Rp ${Number(parsed.nominal).toLocaleString('id-ID')}\n📁 ${parsed.kategori}\n💳 ${parsed.metode_pembayaran}\n\nKonfirmasi untuk menyimpan?`
-        });
-      }
+      try {
+        const parsed = await parseTransaksiDariTeks(pesan);
+        if (parsed && parsed.nominal && Number(parsed.nominal) > 0 && parsed.deskripsi && parsed.deskripsi.trim().length > 0) {
+          return res.json({
+            tipe: 'transaksi_preview',
+            data: parsed,
+            pesan: `Saya mendeteksi transaksi:\n*${parsed.deskripsi}*\n💰 Rp ${Number(parsed.nominal).toLocaleString('id-ID')}\n📁 ${parsed.kategori}\n💳 ${parsed.metode_pembayaran}\n\nKonfirmasi untuk menyimpan?`
+          });
+        }
+      } catch (_) {}
     }
 
     const jawaban = await tanyaAIAdvisor(pesan, konteks);
@@ -73,17 +75,35 @@ router.post('/chat', async (req, res) => {
 // Konfirmasi simpan transaksi dari AI chat
 router.post('/konfirmasi-transaksi', async (req, res) => {
   try {
-    const { tanggal, jenis, nominal, kategori, deskripsi, metode_pembayaran } = req.body;
+    const { tanggal, jenis, nominal, kategori, deskripsi, metode_pembayaran, akun_id } = req.body;
+    if (!tanggal || !jenis || nominal === undefined || nominal === null || !kategori) {
+      return res.status(400).json({ error: 'Field transaksi tidak lengkap' });
+    }
+
+    let validAkunId = akun_id || null;
+    if (!validAkunId) {
+      const firstAkun = await Akun.findOne({ user_id: req.user.id }).sort({ created_at: 1 });
+      if (firstAkun) validAkunId = firstAkun._id;
+    }
+
     const tx = await Transaksi.create({
       user_id: req.user.id,
       tanggal, jenis,
       nominal: Number(nominal),
-      kategori, deskripsi,
+      kategori, deskripsi: deskripsi || '',
       metode_pembayaran: metode_pembayaran || 'tunai',
+      akun_id: validAkunId,
     });
+
+    if (validAkunId) {
+      const delta = jenis === 'pemasukan' ? Number(nominal) : -Number(nominal);
+      await Akun.findByIdAndUpdate(validAkunId, { $inc: { saldo: delta } });
+    }
+
     res.status(201).json({
-      message: `✅ Transaksi berhasil dicatat!\n*${deskripsi}* — Rp ${Number(nominal).toLocaleString('id-ID')}`,
-      id: tx._id
+      message: `✅ Transaksi berhasil dicatat!\n*${deskripsi || kategori}* — Rp ${Number(nominal).toLocaleString('id-ID')}`,
+      id: tx._id,
+      data: { id: tx._id, ...tx.toObject() }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -91,24 +111,35 @@ router.post('/konfirmasi-transaksi', async (req, res) => {
 });
 
 function cekApakahTransaksi(teks) {
-  const t = (teks || '').toLowerCase();
-  // Kalimat tanya / analisis → jangan parse sebagai transaksi
-  const kataAnalisis = ['bagaimana', 'berapa', 'analisis', 'ringkasan', 'laporan',
+  const t = (teks || '').toLowerCase().trim();
+  if (!t) return false;
+
+  // Kalimat tanya / analisis / status / sapaan → jangan parse sebagai transaksi
+  const kataAnalisis = [
+    'bagaimana', 'gimana', 'berapa', 'analisis', 'analisa', 'ringkasan', 'laporan',
     'tips', 'hemat', 'saran', 'proyeksi', 'prediksi', 'akhir bulan', 'kondisi',
-    'persentase', 'apakah', 'kenapa', 'mengapa', 'bolehkah', 'bisakah'];
+    'persentase', 'apakah', 'kenapa', 'mengapa', 'bolehkah', 'bisakah', 'keuangan',
+    'keuanganku', 'keuangan saya', 'saldo', 'dompet', 'evaluasi', 'rekomendasi',
+    'halo', 'hai', 'pagi', 'siang', 'malam', 'bantu', 'help'
+  ];
   if (kataAnalisis.some(k => t.includes(k))) return false;
 
-  // Kata kunci transaksi — word boundary, supaya "kondisi" tidak cocok "isi"
-  const kata = ['beli', 'bayar', 'makan', 'minum', 'jajan', 'kopi', 'transfer', 'kirim',
-    'isi', 'top up', 'topup', 'belanja', 'gajian', 'gaji', 'dapat', 'terima', 'bonus',
-    'masuk', 'keluar', 'habis', 'pesan', 'order', 'parkir', 'bensin', 'tarik', 'setor',
-    'bayarin', 'cicip', 'sewa', 'tagihan', 'listrik', 'pulsa'];
+  // Kata kunci transaksi — harus ada kata kerja pencatatan transaksi
+  const kata = [
+    'beli', 'bayar', 'makan', 'minum', 'jajan', 'kopi', 'transfer', 'kirim',
+    'top up', 'topup', 'belanja', 'gajian', 'gaji', 'bonus',
+    'pesan', 'order', 'parkir', 'bensin', 'tarik', 'setor',
+    'bayarin', 'sewa', 'tagihan', 'listrik', 'pulsa'
+  ];
   const hasKeyword = kata.some(k => new RegExp(`\\b${k}\\b`).test(t));
-  // Nominal: digit (5 ribu, 30.500) atau angka terbilang (lima ribu, dua juta)
-  const hasNumber = /\d/.test(t) ||
+  if (!hasKeyword) return false;
+
+  // Nominal: harus ada angka atau nominal terbilang yang valid
+  const hasNumber = /\d+/.test(t) ||
     /\b(ribu|juta|jt|rb|k)\b/.test(t) ||
-    /\b(satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh)\b/.test(t);
-  return hasKeyword && hasNumber;
+    /\b(satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh)\s*(ribu|juta|rb|jt|k)\b/.test(t);
+
+  return hasNumber;
 }
 
 module.exports = router;

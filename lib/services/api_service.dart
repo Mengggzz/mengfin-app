@@ -374,6 +374,36 @@ class ApiService {
   // ── Akun ───────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> getAkun() async => _get('/akun');
 
+  /// Normalisasi jenis dompet agar selalu kompatibel dengan backend.
+  static String normalizeJenisForServer(String? jenis) {
+    final j = (jenis ?? '').toLowerCase().trim();
+    switch (j) {
+      case 'cashflow':
+      case 'kas':
+      case 'cash':
+        return 'kas';
+      case 'tabungan':
+      case 'kredit':
+      case 'bank':
+      case 'saving':
+      case 'credit':
+        return 'bank';
+      case 'ewallet':
+      case 'e-wallet':
+      case 'gopay':
+      case 'ovo':
+      case 'dana':
+      case 'shopeepay':
+        return 'ewallet';
+      case 'aset':
+      case 'investasi':
+      case 'gold':
+        return 'investasi';
+      default:
+        return 'bank';
+    }
+  }
+
   /// Simpan Kazz (akun) baru. Dipakai layar Tambah Kazz.
   static Future<void> createAkun({
     required String nama,
@@ -382,9 +412,10 @@ class ApiService {
     String warna = '#2563EB',
   }) async {
     final localId = 'akun_${DateTime.now().millisecondsSinceEpoch}';
+    final serverJenis = normalizeJenisForServer(jenis);
     final body = {
       'nama': nama,
-      'jenis': jenis,
+      'jenis': serverJenis,
       'saldo': saldo,
       'warna': warna,
       'ikon': jenis,

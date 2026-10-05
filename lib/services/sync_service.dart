@@ -275,6 +275,9 @@ class SyncService {
             if (hasPathId) await ApiService.deleteGoalRaw(pathId);
           } else if (method == 'POST' && tableName == 'akun') {
             if (localId.isNotEmpty) body['local_id'] = localId;
+            if (body.containsKey('jenis')) {
+              body['jenis'] = ApiService.normalizeJenisForServer(body['jenis']?.toString());
+            }
             final result = await ApiService.createAkunRaw(body);
             final serverId = result['data']?['id']?.toString() ?? result['data']?['_id']?.toString();
             if (serverId != null && serverId.isNotEmpty) {

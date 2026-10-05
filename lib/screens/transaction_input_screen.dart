@@ -308,13 +308,12 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
     final nominal = _parseAmount();
     if (nominal <= 0 || _saving) return;
 
-    if (!_isExpense && _akunTerpilih == null) {
-      if (_akunList.isNotEmpty) {
+    // Pastikan transaksi selalu terhubung ke dompet jika daftar akun tersedia
+    if (_akunTerpilih == null && _akunList.isNotEmpty) {
+      if (!_isExpense) {
         await _pilihDompet();
-        if (_akunTerpilih == null) {
-          _akunTerpilih = DompetView.dompetAwal(_akunList, AppPrefs.instance.dompetUtama)?.id ?? _akunList.first.id;
-        }
       }
+      _akunTerpilih ??= DompetView.dompetAwal(_akunList, AppPrefs.instance.dompetUtama)?.id ?? _akunList.first.id;
     }
 
     setState(() => _saving = true);

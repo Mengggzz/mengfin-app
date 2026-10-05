@@ -228,6 +228,14 @@ class LocalDb {
 
   static Future<void> insertTransaksiLocal(Map<String, dynamic> data, String localId) async {
     final d = await db;
+    String? akunId = data['akun_id']?.toString();
+    if (akunId == null || akunId.isEmpty || akunId == 'null') {
+      final akuns = await d.query('akun', columns: ['id', 'local_id'], limit: 1);
+      if (akuns.isNotEmpty) {
+        akunId = akuns.first['id']?.toString() ?? akuns.first['local_id']?.toString();
+      }
+    }
+
     // id lokal = localId (String), konsisten dengan id server (ObjectId).
     await d.insert('transaksi', {
       'id': localId,
@@ -238,17 +246,17 @@ class LocalDb {
       'kategori': data['kategori'],
       'deskripsi': data['deskripsi'] ?? '',
       'metode_pembayaran': data['metode_pembayaran'] ?? 'tunai',
-      'akun_id': data['akun_id'],
+      'akun_id': akunId,
       'akun_nama': null,
       'synced': 0,
     });
 
-    if (data['akun_id'] != null) {
+    if (akunId != null && akunId.isNotEmpty) {
       final nominal = (data['nominal'] as num? ?? 0).toDouble();
       final delta = data['jenis'] == 'pemasukan' ? nominal : -nominal;
       await d.rawUpdate(
         'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
-        [delta, data['akun_id'].toString(), data['akun_id'].toString()],
+        [delta, akunId, akunId],
       );
     }
   }

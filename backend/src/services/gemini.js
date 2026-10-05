@@ -1,8 +1,14 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { getMengFinAISystemPrompt } = require('../config/mengfin_ai_system_prompt');
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const CANDIDATE_MODELS = [
+  process.env.GEMINI_MODEL,
+  'gemini-1.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-pro',
+  'gemini-pro'
+].filter(Boolean);
 
 // Daftar kategori tunggal — dipakai oleh parse teks, scan struk, dan narasi
 // supaya hasil AI selalu konsisten dengan kategori di aplikasi Flutter
@@ -17,7 +23,7 @@ const KATEGORI_LIST = KATEGORI.map(k => `"${k}"`).join(', ');
 const METODE = ['tunai', 'transfer', 'qris', 'debit', 'kredit'];
 
 /// Retry helper — Gemini sering balas 503 (high demand) secara transien.
-async function withRetry(fn, attempts = 4) {
+async function withRetry(fn, attempts = 3) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
@@ -26,7 +32,25 @@ async function withRetry(fn, attempts = 4) {
       lastErr = err;
       const status = err?.status || err?.response?.status;
       if (status !== 503 && status !== 429) throw err;
-      await new Promise(r => setTimeout(r, 1500 * (i + 1)));
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
+/// Helper pemanggilan Gemini dengan multi-model fallback
+async function generateWithFallbackModels(promptOrContent) {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY tidak dikonfigurasi');
+  }
+  let lastErr;
+  for (const modelName of CANDIDATE_MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const res = await withRetry(() => model.generateContent(promptOrContent), 2);
+      return res.response.text();
+    } catch (err) {
+      lastErr = err;
     }
   }
   throw lastErr;
@@ -67,8 +91,6 @@ function normalizeMetode(raw) {
 
 // Parse transaksi dari teks natural language
 async function parseTransaksiDariTeks(teks) {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-
   const prompt = `Kamu adalah sistem pencatat keuangan. Parse teks berikut menjadi JSON transaksi.
 
 Teks: "${teks}"
@@ -83,46 +105,113 @@ Kembalikan JSON dengan format persis ini (tanpa markdown, tanpa penjelasan):
   "tanggal": "${new Date().toISOString().split('T')[0]}"
 }
 
-PENTING: kategori HARUS persis salah satu nilai di atas. Untuk makanan/minuman (kopi, mie ayam, nasi, jajan) pakai "Makan & Minum".
+PENTING:
+- Jika teks BUKAN pencatatan transaksi atau tidak ada nominal nyata (>0), kembalikan: {"error": "bukan_transaksi"}
+- Kategori HARUS persis salah satu nilai di atas. Untuk makanan/minuman pakai "Makan & Minum".
 
 Contoh:
 - "beli kopi 5 ribu" → jenis:pengeluaran, nominal:5000, kategori:"Makan & Minum", deskripsi:"Kopi", metode:tunai
-- "beli mie ayam 25rb pakai tunai" → jenis:pengeluaran, nominal:25000, kategori:"Makan & Minum", metode:tunai
-- "gajian 5 juta" → jenis:pemasukan, nominal:5000000, kategori:"Gaji"
-- "bayar listrik 200k transfer" → jenis:pengeluaran, nominal:200000, kategori:"Tagihan", metode:transfer`;
+- "beli mie ayam 25rb pakai tunai" → jenis:pengeluaran, nominal:25000, kategori:"Makan & Minum", deskripsi:"Mie Ayam", metode:tunai
+- "gajian 5 juta" → jenis:pemasukan, nominal:5000000, kategori:"Gaji", deskripsi:"Gaji Bulanan", metode:transfer`;
 
   try {
-    const result = await withRetry(() => model.generateContent(prompt));
-    const parsed = extractJson(result.response.text());
+    const textRes = await generateWithFallbackModels(prompt);
+    const parsed = extractJson(textRes);
+    if (parsed.error || !parsed.nominal || Number(parsed.nominal) <= 0) {
+      return null;
+    }
     parsed.kategori = normalizeKategori(parsed.kategori);
     parsed.metode_pembayaran = normalizeMetode(parsed.metode_pembayaran);
     parsed.nominal = Number(parsed.nominal) || 0;
+    parsed.deskripsi = (parsed.deskripsi || '').trim();
+    if (!parsed.deskripsi) return null;
     return parsed;
   } catch (err) {
-    console.error('Gemini parse error:', err.message || err);
     return null;
   }
 }
 
 // AI Financial Advisor - jawab pertanyaan keuangan
 async function tanyaAIAdvisor(pertanyaan, konteksKeuangan) {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-
   const systemPrompt = getMengFinAISystemPrompt(konteksKeuangan);
   const userPrompt = `Pertanyaan/perintah pengguna: "${pertanyaan}"`;
 
   try {
-    const result = await withRetry(() => model.generateContent(systemPrompt + '\n\n' + userPrompt));
-    return result.response.text();
+    return await generateWithFallbackModels(systemPrompt + '\n\n' + userPrompt);
   } catch (err) {
-    console.error('Gemini advisor error:', err.message || err);
-    return 'Maaf, saya sedang tidak bisa memproses permintaan ini. Coba lagi beberapa saat.';
+    // Fallback cerdas berbasis data keuangan aktual
+    return generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan);
   }
+}
+
+function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
+  const {
+    bulanIni = '',
+    pemasukan = 0,
+    pengeluaran = 0,
+    saldoBersih = 0,
+    saldoTotal = 0,
+    rataHarian = 0,
+    pengeluaranHariIni = 0,
+    budgetHarian = 100000,
+    topKategoriPengeluaran = [],
+    sisaHariBulan = 0,
+    hariIni = 1
+  } = konteksKeuangan || {};
+
+  const p = (pertanyaan || '').toLowerCase().trim();
+  const fmt = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+
+  if (p.includes('tips') || p.includes('hemat') || p.includes('kurangi')) {
+    let tips = `💡 **Tips Hemat Berdasarkan Keuangan Anda Bulan Ini:**\n\n`;
+    if (topKategoriPengeluaran.length > 0) {
+      tips += `1. **Kendalikan Pos ${topKategoriPengeluaran[0].kategori}**: Pengeluaran pos ini mencapai **${fmt(topKategoriPengeluaran[0].total)}**. Tetapkan batas mingguan ketat.\n`;
+    } else {
+      tips += `1. **Catat Pengeluaran Rutin**: Awasi setiap transaksi harian agar pos pengeluaran tidak bocor halus.\n`;
+    }
+    if (pengeluaranHariIni > budgetHarian) {
+      tips += `2. **Jaga Budget Harian**: Hari ini pengeluaran (${fmt(pengeluaranHariIni)}) melebihi target (${fmt(budgetHarian)}). Tahan belanja non-primer sampai esok hari.\n`;
+    } else {
+      tips += `2. **Pertahankan Budget Harian**: Sisa budget hari ini masih aman (${fmt(Math.max(0, budgetHarian - pengeluaranHariIni))}).\n`;
+    }
+    tips += `3. **Alokasikan Tabungan di Awal**: Sisihkan minimal 10-20% segera saat pemasukan masuk ke akun tabungan atau goals.\n`;
+    tips += `4. **Evaluasi Rutin**: Rata-rata pengeluaran Anda saat ini **${fmt(rataHarian)}/hari**.`;
+    return tips;
+  }
+
+  // Analisis keuangan default / pertanyaan umum
+  let out = `📊 **Analisis Keuangan (${bulanIni || 'Bulan Ini'}):**\n\n`;
+  out += `• **Saldo Dompet**: ${fmt(saldoTotal)}\n`;
+  out += `• **Total Pemasukan**: ${fmt(pemasukan)}\n`;
+  out += `• **Total Pengeluaran**: ${fmt(pengeluaran)}\n`;
+  out += `• **Arus Kas (Net)**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}${fmt(saldoBersih)}\n\n`;
+
+  out += `📈 **Pengeluaran Terbesar:**\n`;
+  if (topKategoriPengeluaran.length > 0) {
+    topKategoriPengeluaran.slice(0, 3).forEach((k, idx) => {
+      const pct = pengeluaran > 0 ? Math.round((k.total / pengeluaran) * 100) : 0;
+      out += `  ${idx + 1}. **${k.kategori}**: ${fmt(k.total)} (${pct}%)\n`;
+    });
+  } else {
+    out += `  (Belum ada data pengeluaran tercatat di periode ini)\n`;
+  }
+
+  out += `\n🎯 **Status Harian & Saran:**\n`;
+  out += `• Rata-rata pengeluaran: **${fmt(rataHarian)}/hari** (sisa ${sisaHariBulan} hari di bulan ini)\n`;
+  if (saldoBersih < 0) {
+    out += `• ⚠️ Arus kas saat ini sedang defisit. Disarankan membatasi pengeluaran pos sekunder untuk menstabilkan saldo.\n`;
+  } else if (pemasukan > 0) {
+    const saveRate = Math.round((saldoBersih / pemasukan) * 100);
+    out += `• ✅ Tingkat tabungan Anda mencapai **${saveRate}%**. Kondisi keuangan dalam batas sehat!\n`;
+  } else {
+    out += `• Catat transaksi harian secara konsisten untuk melihat proyeksi kesehatan finansial yang lebih akurat.\n`;
+  }
+
+  return out;
 }
 
 // Scan nota/struk dari base64 image
 async function scanNota(imageBase64, mimeType = 'image/jpeg') {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
   const hariIni = new Date().toISOString().split('T')[0];
 
   const prompt = `Kamu adalah OCR struk belanja Indonesia yang sangat teliti.
@@ -155,11 +244,11 @@ Balas HANYA JSON valid (tanpa markdown):
 }`;
 
   try {
-    const result = await withRetry(() => model.generateContent([
+    const textRes = await generateWithFallbackModels([
       prompt,
       { inlineData: { data: imageBase64, mimeType } },
-    ]));
-    const parsed = extractJson(result.response.text());
+    ]);
+    const parsed = extractJson(textRes);
     parsed.jenis = parsed.jenis === 'pemasukan' ? 'pemasukan' : 'pengeluaran';
     parsed.kategori = normalizeKategori(parsed.kategori);
     parsed.metode_pembayaran = normalizeMetode(parsed.metode_pembayaran);
@@ -175,8 +264,6 @@ Balas HANYA JSON valid (tanpa markdown):
 
 // Generate insight otomatis berdasarkan data keuangan
 async function generateInsight(dataKeuangan) {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-
   const prompt = `Berdasarkan data keuangan berikut, buat 3 insight singkat dan actionable dalam Bahasa Indonesia.
 
 Data: ${JSON.stringify(dataKeuangan)}
@@ -189,8 +276,8 @@ Format response (JSON array, tanpa markdown):
 ]`;
 
   try {
-    const result = await withRetry(() => model.generateContent(prompt));
-    return extractJson(result.response.text());
+    const textRes = await generateWithFallbackModels(prompt);
+    return extractJson(textRes);
   } catch (err) {
     return [
       { ikon: '💡', pesan: 'Pantau pengeluaran harian Anda untuk kontrol lebih baik.' },
@@ -202,8 +289,6 @@ Format response (JSON array, tanpa markdown):
 
 // Narasi laporan keuangan — ringkasan bahasa manusia dari data periode
 async function generateNarasiLaporan(data) {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-
   const prompt = `Kamu adalah penasihat keuangan pribadi yang ramah dan to-the-point (Bahasa Indonesia).
 Buat narasi singkat dari laporan keuangan berikut.
 
@@ -218,8 +303,8 @@ Tulis dalam format markdown ringan dengan struktur:
 Aturan: pakai angka rupiah yang ada di data, jangan mengarang angka. Maksimal 220 kata. Jangan pakai tabel.`;
 
   try {
-    const result = await withRetry(() => model.generateContent(prompt));
-    return result.response.text().trim();
+    const textRes = await generateWithFallbackModels(prompt);
+    return textRes.trim();
   } catch (err) {
     console.error('Gemini narasi error:', err.message || err);
     return null;
