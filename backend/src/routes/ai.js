@@ -1,10 +1,108 @@
 const express = require('express');
 const router = express.Router();
-const { Transaksi, Akun } = require('../models');
+const mongoose = require('mongoose');
+const { Transaksi, Akun, Anggaran } = require('../models');
 const { parseTransaksiDariTeks, tanyaAIAdvisor } = require('../services/gemini');
 const { authMiddleware } = require('../middleware/auth');
 
 router.use(authMiddleware);
+
+function isValidObjectId(id) {
+  if (!id) return false;
+  const s = String(id).trim();
+  return mongoose.Types.ObjectId.isValid(s) && String(new mongoose.Types.ObjectId(s)) === s;
+}
+
+// ── Fast Local Regex Parser (<1ms latency) ───────────────────────────────────
+function fastParseTransaksi(teks) {
+  if (!teks || typeof teks !== 'string') return null;
+  const t = teks.trim();
+  const lower = t.toLowerCase();
+
+  // 1. Ekstrak metode pembayaran
+  let metode = 'tunai';
+  if (/\b(transfer|trf|tf|bca|mandiri|bri|bni|jago)\b/i.test(lower)) metode = 'transfer';
+  else if (/\b(qris|qr)\b/i.test(lower)) metode = 'qris';
+  else if (/\b(debit|kartu debit)\b/i.test(lower)) metode = 'debit';
+  else if (/\b(kredit|cc|kartu kredit)\b/i.test(lower)) metode = 'kredit';
+  else if (/\b(gopay|ovo|dana|shopeepay|spay|linkaja)\b/i.test(lower)) metode = 'transfer';
+
+  // 2. Ekstrak nominal
+  let nominal = 0;
+  // Pola angka dengan multiplier (misal: 25rb, 50k, 1.5jt, 5 juta, 100 ribu, 25.000)
+  const numMultiplierMatch = lower.match(/(\d+(?:[.,]\d+)?)\s*(ribu|juta|jt|rb|k)\b/i);
+  const plainNumberMatch = lower.match(/(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})+|\d{4,9})\b/i);
+
+  if (numMultiplierMatch) {
+    let rawNum = parseFloat(numMultiplierMatch[1].replace(',', '.'));
+    const unit = numMultiplierMatch[2].toLowerCase();
+    if (unit === 'juta' || unit === 'jt') rawNum *= 1000000;
+    else rawNum *= 1000;
+    nominal = Math.round(rawNum);
+  } else if (plainNumberMatch) {
+    const rawDigits = plainNumberMatch[1].replace(/\./g, '');
+    nominal = parseInt(rawDigits, 10) || 0;
+  }
+
+  if (nominal <= 0) return null;
+
+  // 3. Tentukan jenis transaksi
+  const isPemasukan = /\b(gajian|gaji|dapat transfer|terima|bonus|pemasukan|inflow|penjualan|omset)\b/i.test(lower);
+  const jenis = isPemasukan ? 'pemasukan' : 'pengeluaran';
+
+  // 4. Tebak kategori
+  let kategori = 'Lainnya';
+  if (isPemasukan) {
+    if (/\b(gaji|gajian)\b/i.test(lower)) kategori = 'Gaji';
+    else if (/\b(bonus|thr|hadiah)\b/i.test(lower)) kategori = 'Bonus';
+    else if (/\b(investasi|dividen|profit)\b/i.test(lower)) kategori = 'Investasi';
+    else kategori = 'Transfer';
+  } else {
+    if (/\b(makan|minum|kopi|coffee|cafe|kafe|restoran|resto|warung|mie|nasi|ayam|bakso|jajan|snack|roti|sarapan|lunch|dinner)\b/i.test(lower)) {
+      kategori = 'Makan & Minum';
+    } else if (/\b(bensin|bbm|pertalite|pertamax|solar|parkir|tol|ojol|gojek|grab|maxim|angkot|bus|kereta|krl|mrt|trans)\b/i.test(lower)) {
+      kategori = 'Transportasi';
+    } else if (/\b(belanja|supermarket|minimarket|indomaret|alfamart|shopee|tokopedia|lazada|mall)\b/i.test(lower)) {
+      kategori = 'Belanja';
+    } else if (/\b(listrik|pln|pdam|air|pulsa|kuota|paket data|wifi|indihome|tagihan|bpjs)\b/i.test(lower)) {
+      kategori = 'Tagihan';
+    } else if (/\b(obat|apotek|dokter|klinik|rs|rumah sakit|vitamin|masker)\b/i.test(lower)) {
+      kategori = 'Kesehatan';
+    } else if (/\b(nonton|bioskop|cinema|game|steam|netflix|spotify|hiburan|wisata|rekreasi)\b/i.test(lower)) {
+      kategori = 'Hiburan';
+    } else if (/\b(baju|celana|sepatu|tas|kaos|jaket|pakaian)\b/i.test(lower)) {
+      kategori = 'Pakaian';
+    } else if (/\b(buku|kursus|kuliah|sekolah|spp|les|pendidikan)\b/i.test(lower)) {
+      kategori = 'Pendidikan';
+    }
+  }
+
+  // 5. Ekstrak deskripsi ringkas
+  let deskripsi = t
+    .replace(/^(tolong|bantu|catat|masukkan|input|tambahkan)\s+/i, '')
+    .replace(/\b(pakai|pake|via|lewat)\s+(tunai|cash|transfer|tf|qris|debit|kredit|gopay|ovo|dana)\b/gi, '')
+    .replace(/(\d+(?:[.,]\d+)?)\s*(ribu|juta|jt|rb|k)\b/gi, '')
+    .replace(/(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})+|\d{4,9})\b/gi, '')
+    .trim();
+
+  // Bersihkan kata kerja awal dari deskripsi (mis. "beli kopi" -> "Kopi")
+  deskripsi = deskripsi.replace(/^(beli|bayar|makan|minum|jajan|order|pesan|topup|top up)\s+/i, '').trim();
+  if (!deskripsi || deskripsi.length < 2) {
+    deskripsi = kategori === 'Lainnya' ? (jenis === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran') : kategori;
+  } else {
+    // Capitalize huruf pertama
+    deskripsi = deskripsi.charAt(0).toUpperCase() + deskripsi.slice(1);
+  }
+
+  return {
+    jenis,
+    nominal,
+    kategori,
+    deskripsi,
+    metode_pembayaran: metode,
+    tanggal: new Date().toISOString().split('T')[0]
+  };
+}
 
 // Chat dengan AI Advisor
 router.post('/chat', async (req, res) => {
@@ -14,9 +112,37 @@ router.post('/chat', async (req, res) => {
 
     const uid = req.user.id;
     const bulanIni = new Date().toISOString().slice(0, 7);
-    const [txs, akuns] = await Promise.all([
+
+    // 1. Fast Pattern Matching untuk transaksi (respons instan 0ms)
+    if (cekApakahTransaksi(pesan)) {
+      const fastParsed = fastParseTransaksi(pesan);
+      if (fastParsed && fastParsed.nominal > 0) {
+        return res.json({
+          tipe: 'transaksi_preview',
+          data: fastParsed,
+          pesan: `Saya mendeteksi transaksi:\n*${fastParsed.deskripsi}*\n💰 Rp ${Number(fastParsed.nominal).toLocaleString('id-ID')}\n📁 ${fastParsed.kategori}\n💳 ${fastParsed.metode_pembayaran}\n\nKonfirmasi untuk menyimpan?`
+        });
+      }
+
+      // Jika fast parser tidak pasti, coba Gemini parser
+      try {
+        const parsed = await parseTransaksiDariTeks(pesan);
+        if (parsed && parsed.nominal && Number(parsed.nominal) > 0 && parsed.deskripsi && parsed.deskripsi.trim().length > 0) {
+          return res.json({
+            tipe: 'transaksi_preview',
+            data: parsed,
+            pesan: `Saya mendeteksi transaksi:\n*${parsed.deskripsi}*\n💰 Rp ${Number(parsed.nominal).toLocaleString('id-ID')}\n📁 ${parsed.kategori}\n💳 ${parsed.metode_pembayaran}\n\nKonfirmasi untuk menyimpan?`
+          });
+        }
+      } catch (_) {}
+    }
+
+    // 2. Ambil data keuangan lengkap secara paralel
+    const [txs, akuns, anggarans, recentTxs] = await Promise.all([
       Transaksi.find({ user_id: uid, tanggal: { $regex: `^${bulanIni}` } }),
       Akun.find({ user_id: uid }),
+      Anggaran.find({ user_id: uid, periode: bulanIni }),
+      Transaksi.find({ user_id: uid }).sort({ tanggal: -1, created_at: -1 }).limit(10),
     ]);
 
     const pemasukan   = txs.filter(t => t.jenis === 'pemasukan').reduce((s, t) => s + t.nominal, 0);
@@ -41,29 +167,40 @@ router.post('/chat', async (req, res) => {
       .filter(t => t.jenis === 'pengeluaran' && t.tanggal === todayStr)
       .reduce((s, t) => s + t.nominal, 0);
 
+    const totalAnggaran = anggarans.reduce((s, a) => s + (a.batas || 0), 0);
+    const budgetHarian = totalAnggaran > 0 ? Math.round(totalAnggaran / lastDay) : 100000;
+
+    const anggaranList = anggarans.map(a => {
+      const terpakai = katMap[a.kategori] || 0;
+      return {
+        kategori: a.kategori,
+        batas: a.batas,
+        terpakai,
+        persentase: Math.round((terpakai / (a.batas || 1)) * 100)
+      };
+    });
+
     const konteks = {
-      bulanIni: bulanIni, pemasukan, pengeluaran,
-      saldoBersih: pemasukan - pengeluaran, saldoTotal,
+      bulanIni: bulanIni,
+      pemasukan,
+      pengeluaran,
+      saldoBersih: pemasukan - pengeluaran,
+      saldoTotal,
       rataHarian: hariIni > 0 ? Math.round(pengeluaran / hariIni) : 0,
       pengeluaranHariIni,
-      budgetHarian: 100000, // Default, bisa diambil dari user settings nanti
+      budgetHarian,
       topKategoriPengeluaran: topKategori,
+      anggaranList,
+      riwayatTransaksi: recentTxs.map(t => ({
+        tanggal: t.tanggal,
+        jenis: t.jenis,
+        nominal: t.nominal,
+        kategori: t.kategori,
+        deskripsi: t.deskripsi
+      })),
       sisaHariBulan: lastDay - hariIni,
       hariIni
     };
-
-    if (cekApakahTransaksi(pesan)) {
-      try {
-        const parsed = await parseTransaksiDariTeks(pesan);
-        if (parsed && parsed.nominal && Number(parsed.nominal) > 0 && parsed.deskripsi && parsed.deskripsi.trim().length > 0) {
-          return res.json({
-            tipe: 'transaksi_preview',
-            data: parsed,
-            pesan: `Saya mendeteksi transaksi:\n*${parsed.deskripsi}*\n💰 Rp ${Number(parsed.nominal).toLocaleString('id-ID')}\n📁 ${parsed.kategori}\n💳 ${parsed.metode_pembayaran}\n\nKonfirmasi untuk menyimpan?`
-          });
-        }
-      } catch (_) {}
-    }
 
     const jawaban = await tanyaAIAdvisor(pesan, konteks);
     res.json({ tipe: 'jawaban', pesan: jawaban });
@@ -134,17 +271,11 @@ function cekApakahTransaksi(teks) {
   const t = (teks || '').toLowerCase().trim();
   if (!t) return false;
 
-  // Kalimat tanya / analisis / status / sapaan → jangan parse sebagai transaksi
-  const kataAnalisis = [
-    'bagaimana', 'gimana', 'berapa', 'analisis', 'analisa', 'ringkasan', 'laporan',
-    'tips', 'hemat', 'saran', 'proyeksi', 'prediksi', 'akhir bulan', 'kondisi',
-    'persentase', 'apakah', 'kenapa', 'mengapa', 'bolehkah', 'bisakah', 'keuangan',
-    'keuanganku', 'keuangan saya', 'saldo', 'dompet', 'evaluasi', 'rekomendasi',
-    'halo', 'hai', 'pagi', 'siang', 'malam', 'bantu', 'help'
-  ];
-  if (kataAnalisis.some(k => t.includes(k))) return false;
+  // Kalimat tanya / analisis murni (tanpa maksud mencatat)
+  const isQuestionOrAnalysis = /^(bagaimana|gimana|berapa|apa|apakah|kenapa|mengapa|analisis|analisa|laporan|ringkasan|tips|saran|proyeksi|prediksi|cek saldo|kondisi)/i.test(t);
+  if (isQuestionOrAnalysis) return false;
 
-  // Kata kunci transaksi — harus ada kata kerja pencatatan transaksi
+  // Kata kunci transaksi
   const kata = [
     'beli', 'bayar', 'makan', 'minum', 'jajan', 'kopi', 'transfer', 'kirim',
     'top up', 'topup', 'belanja', 'gajian', 'gaji', 'bonus',

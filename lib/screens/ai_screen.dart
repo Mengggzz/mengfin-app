@@ -198,6 +198,59 @@ class _AiScreenState extends State<AiScreen> {
     );
   }
 
+  Widget _renderMessageText(String text, bool isUser) {
+    final baseColor = isUser ? Colors.white : AppColors.textPrimary;
+    final lines = text.split('\n');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: lines.map((line) {
+        if (line.trim().isEmpty) return const SizedBox(height: 6);
+
+        final isBullet = line.trimLeft().startsWith('•') ||
+            line.trimLeft().startsWith('-') ||
+            RegExp(r'^\d+\.').hasMatch(line.trimLeft());
+
+        final spans = <TextSpan>[];
+        final regex = RegExp(r'\*\*(.*?)\*\*');
+        int lastIndex = 0;
+
+        for (final match in regex.allMatches(line)) {
+          if (match.start > lastIndex) {
+            spans.add(TextSpan(
+              text: line.substring(lastIndex, match.start),
+              style: TextStyle(color: baseColor, fontSize: 13.5, height: 1.45),
+            ));
+          }
+          spans.add(TextSpan(
+            text: match.group(1),
+            style: TextStyle(
+              color: isUser ? Colors.white : AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+              height: 1.45,
+            ),
+          ));
+          lastIndex = match.end;
+        }
+
+        if (lastIndex < line.length) {
+          spans.add(TextSpan(
+            text: line.substring(lastIndex),
+            style: TextStyle(color: baseColor, fontSize: 13.5, height: 1.45),
+          ));
+        }
+
+        return Padding(
+          padding: EdgeInsets.only(bottom: 2, left: isBullet ? 4 : 0),
+          child: RichText(
+            text: TextSpan(children: spans),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _bubble(_Msg m) {
     final showConfirm = m.txData != null && _pendingMsgId == m.id && _pendingTx != null;
     return Align(
@@ -225,7 +278,7 @@ class _AiScreenState extends State<AiScreen> {
               border: m.isUser ? null : Border.all(color: AppColors.glassBorder),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(m.text, style: TextStyle(color: m.isUser ? Colors.white : AppColors.textPrimary, fontSize: 14, height: 1.4)),
+              _renderMessageText(m.text, m.isUser),
               if (showConfirm) ...[
                 const SizedBox(height: 12),
                 Row(children: [

@@ -7,7 +7,6 @@ const CANDIDATE_MODELS = [
   'gemini-1.5-flash',
   'gemini-2.0-flash',
   'gemini-1.5-pro',
-  'gemini-pro'
 ].filter(Boolean);
 
 // Daftar kategori tunggal — dipakai oleh parse teks, scan struk, dan narasi
@@ -22,17 +21,25 @@ const KATEGORI = [
 const KATEGORI_LIST = KATEGORI.map(k => `"${k}"`).join(', ');
 const METODE = ['tunai', 'transfer', 'qris', 'debit', 'kredit'];
 
+/// Timeout wrapper agar panggilan LLM tidak menggantung
+function withTimeout(promise, ms = 6000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('AI Request Timeout')), ms))
+  ]);
+}
+
 /// Retry helper — Gemini sering balas 503 (high demand) secara transien.
-async function withRetry(fn, attempts = 3) {
+async function withRetry(fn, attempts = 2) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
-      return await fn();
+      return await withTimeout(fn(), 5000);
     } catch (err) {
       lastErr = err;
       const status = err?.status || err?.response?.status;
-      if (status !== 503 && status !== 429) throw err;
-      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+      if (status !== 503 && status !== 429 && !err.message?.includes('Timeout')) throw err;
+      await new Promise(r => setTimeout(r, 600 * (i + 1)));
     }
   }
   throw lastErr;
@@ -155,6 +162,8 @@ function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
     pengeluaranHariIni = 0,
     budgetHarian = 100000,
     topKategoriPengeluaran = [],
+    anggaranList = [],
+    riwayatTransaksi = [],
     sisaHariBulan = 0,
     hariIni = 1
   } = konteksKeuangan || {};
@@ -162,10 +171,42 @@ function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
   const p = (pertanyaan || '').toLowerCase().trim();
   const fmt = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
+  // Tanya riwayat / daftar transaksi terakhir
+  if (p.includes('riwayat') || p.includes('terakhir') || p.includes('daftar transaksi') || p.includes('beli apa')) {
+    if (riwayatTransaksi.length === 0) {
+      return `📝 **Riwayat Transaksi:**\n\nBelum ada transaksi tercatat di akun Anda. Mulai catat dengan mengetik misalnya *"beli kopi 20rb"*!`;
+    }
+    let res = `📝 **${riwayatTransaksi.length} Transaksi Terakhir:**\n\n`;
+    riwayatTransaksi.forEach((t, i) => {
+      const sign = t.jenis === 'pemasukan' ? '(+) ' : '(-) ';
+      res += `${i + 1}. **${t.deskripsi || t.kategori}** — ${sign}${fmt(t.nominal)}\n   📅 ${t.tanggal} • 📁 ${t.kategori}\n`;
+    });
+    return res;
+  }
+
+  // Tanya sisa saldo / dompet
+  if (p.includes('saldo') || p.includes('dompet') || p.includes('uangku') || p.includes('sisa uang')) {
+    return `💰 **Informasi Saldo:**\n\n• Total Saldo Dompet: **${fmt(saldoTotal)}**\n• Pemasukan Bulan Ini: **${fmt(pemasukan)}**\n• Pengeluaran Bulan Ini: **${fmt(pengeluaran)}**\n• Saldo Bersih: **${saldoBersih >= 0 ? '+' : ''}${fmt(saldoBersih)}**`;
+  }
+
+  // Tanya status budget / anggaran
+  if (p.includes('budget') || p.includes('anggaran') || p.includes('batas')) {
+    if (anggaranList.length === 0) {
+      return `🎯 **Status Budget:**\n\n• Budget Harian: **${fmt(budgetHarian)}**\n• Pengeluaran Hari Ini: **${fmt(pengeluaranHariIni)}**\n• Sisa Budget Hari Ini: **${fmt(Math.max(0, budgetHarian - pengeluaranHariIni))}**\n\n*Tips: Buat batas anggaran kategori di menu Saldo/Budget untuk kontrol pengeluaran otomatis!*`;
+    }
+    let res = `🎯 **Status Anggaran Kategori (${bulanIni}):**\n\n`;
+    anggaranList.forEach((a, i) => {
+      const statusIcon = a.terpakai > a.batas ? '⚠️' : '✅';
+      res += `${i + 1}. ${statusIcon} **${a.kategori}**: ${fmt(a.terpakai)} / ${fmt(a.batas)} (${a.persentase}%)\n`;
+    });
+    return res;
+  }
+
+  // Tips hemat
   if (p.includes('tips') || p.includes('hemat') || p.includes('kurangi')) {
-    let tips = `💡 **Tips Hemat Berdasarkan Keuangan Anda Bulan Ini:**\n\n`;
+    let tips = `💡 **Tips Hemat Terarah (${bulanIni}):**\n\n`;
     if (topKategoriPengeluaran.length > 0) {
-      tips += `1. **Kendalikan Pos ${topKategoriPengeluaran[0].kategori}**: Pengeluaran pos ini mencapai **${fmt(topKategoriPengeluaran[0].total)}**. Tetapkan batas mingguan ketat.\n`;
+      tips += `1. **Fokus pada Pos ${topKategoriPengeluaran[0].kategori}**: Pengeluaran pos ini mencapai **${fmt(topKategoriPengeluaran[0].total)}**. Tetapkan batas mingguan ketat.\n`;
     } else {
       tips += `1. **Catat Pengeluaran Rutin**: Awasi setiap transaksi harian agar pos pengeluaran tidak bocor halus.\n`;
     }
@@ -186,7 +227,7 @@ function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
   out += `• **Total Pengeluaran**: ${fmt(pengeluaran)}\n`;
   out += `• **Arus Kas (Net)**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}${fmt(saldoBersih)}\n\n`;
 
-  out += `📈 **Pengeluaran Terbesar:**\n`;
+  out += `📈 **Top Pengeluaran:**\n`;
   if (topKategoriPengeluaran.length > 0) {
     topKategoriPengeluaran.slice(0, 3).forEach((k, idx) => {
       const pct = pengeluaran > 0 ? Math.round((k.total / pengeluaran) * 100) : 0;
