@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../constants/config.dart';
 import '../models/models.dart';
 import 'app_events.dart';
+import 'app_prefs.dart';
 import 'auth_service.dart';
 import 'local_db.dart';
 import 'connectivity_service.dart';
@@ -168,6 +169,19 @@ class ApiService {
   }
 
   static Future<Transaksi> createTransaksi(Map<String, dynamic> body) async {
+    // Pastikan akun_id selalu terisi jika belum ada
+    if (body['akun_id'] == null || body['akun_id'].toString().isEmpty || body['akun_id'].toString() == 'null') {
+      final defaultDompet = AppPrefs.instance.dompetUtama;
+      if (defaultDompet != null && defaultDompet.isNotEmpty) {
+        body['akun_id'] = defaultDompet;
+      } else if (!kIsWeb) {
+        final akuns = await LocalDb.getAkunList();
+        if (akuns.isNotEmpty) {
+          body['akun_id'] = akuns.first.id;
+        }
+      }
+    }
+
     // Di web: langsung kirim ke server
     if (kIsWeb) {
       final result = await createTransaksiRaw(body);
@@ -190,7 +204,7 @@ class ApiService {
         final tx = Transaksi.fromJson(result['data']);
         await LocalDb.replaceTransaksiLocalToServer(localId, tx.id);
         // Backend mengubah saldo akun di server — tarik ulang supaya
-        // menu Kazz & beranda langsung konsisten.
+        // menu Saldo & beranda langsung konsisten.
         await pullAkun();
         AppEvents.instance.transaksiBerubah();
         AppEvents.instance.akunBerubah();
@@ -344,13 +358,16 @@ class ApiService {
   static Future<void> updateTransaksi(dynamic id, Map<String, dynamic> body) async {
     if (kIsWeb) {
       await updateTransaksiRaw(id, body);
+      await pullAkun();
       AppEvents.instance.transaksiBerubah();
+      AppEvents.instance.akunBerubah();
       return;
     }
 
     // Perbarui baris lokal lebih dulu — perubahan terlihat walau upload gagal.
     await LocalDb.updateTransaksiLocal(id, body);
     AppEvents.instance.transaksiBerubah();
+    AppEvents.instance.akunBerubah();
 
     if (_online) {
       try {
@@ -359,6 +376,7 @@ class ApiService {
         // supaya saldo dompet langsung konsisten.
         await pullAkun();
         AppEvents.instance.transaksiBerubah();
+        AppEvents.instance.akunBerubah();
         return;
       } catch (_) {}
     }
@@ -419,6 +437,7 @@ class ApiService {
       'saldo': saldo,
       'warna': warna,
       'ikon': jenis,
+      'local_id': localId,
     };
 
     if (_online) {
@@ -771,6 +790,9 @@ class ApiService {
 
   static Future<void> konfirmasiTransaksi(Map<String, dynamic> body) async {
     await _post('/ai/konfirmasi-transaksi', body);
+    await pullAkun();
+    AppEvents.instance.transaksiBerubah();
+    AppEvents.instance.akunBerubah();
   }
 
   // ── Scan struk ─────────────────────────────────────────────────────────────

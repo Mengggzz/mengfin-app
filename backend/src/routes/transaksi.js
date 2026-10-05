@@ -101,6 +101,22 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Fallback: jika akun_id belum terhubung atau tidak ditemukan, hubungkan ke dompet default/pertama
+    if (!validAkunId) {
+      let defaultAkun = await Akun.findOne({ user_id: req.user.id }).sort({ jenis: 1, _id: 1 });
+      if (!defaultAkun) {
+        defaultAkun = await Akun.create({
+          user_id: req.user.id,
+          nama: 'Dompet Utama',
+          jenis: 'cashflow',
+          saldo: 0,
+          warna: '#2563EB',
+          ikon: 'cashflow',
+        });
+      }
+      validAkunId = defaultAkun._id;
+    }
+
     const tx = await Transaksi.create({
       user_id: req.user.id,
       tanggal, jenis,
@@ -112,13 +128,10 @@ router.post('/', async (req, res) => {
       local_id: local_id || null,
     });
 
-    // Update saldo akun milik user
+    // Update saldo akun milik user (pemasukan +, pengeluaran -)
     if (validAkunId) {
-      const akun = await Akun.findOne({ _id: validAkunId, user_id: req.user.id });
-      if (akun) {
-        const delta = jenis === 'pemasukan' ? Number(nominal) : -Number(nominal);
-        await Akun.findByIdAndUpdate(validAkunId, { $inc: { saldo: delta } });
-      }
+      const delta = jenis === 'pemasukan' ? Number(nominal) : -Number(nominal);
+      await Akun.findByIdAndUpdate(validAkunId, { $inc: { saldo: delta } });
     }
 
     res.status(201).json({
@@ -144,9 +157,15 @@ router.put('/:id', async (req, res) => {
     const old = await Transaksi.findOne(query);
     if (!old) return res.status(404).json({ error: 'Transaksi tidak ditemukan' });
 
-    if (old.akun_id) {
+    let oldAkunId = old.akun_id;
+    if (!oldAkunId) {
+      const def = await Akun.findOne({ user_id: req.user.id }).sort({ jenis: 1, _id: 1 });
+      if (def) oldAkunId = def._id;
+    }
+
+    if (oldAkunId) {
       const delta = old.jenis === 'pemasukan' ? -old.nominal : old.nominal;
-      await Akun.findByIdAndUpdate(old.akun_id, { $inc: { saldo: delta } });
+      await Akun.findByIdAndUpdate(oldAkunId, { $inc: { saldo: delta } });
     }
 
     const updateData = {};
@@ -170,9 +189,10 @@ router.put('/:id', async (req, res) => {
 
     const updated = await Transaksi.findByIdAndUpdate(old._id, updateData, { new: true });
 
-    if (updated.akun_id) {
+    const newAkunId = updated.akun_id || oldAkunId;
+    if (newAkunId) {
       const delta = updated.jenis === 'pemasukan' ? Number(updated.nominal) : -Number(updated.nominal);
-      await Akun.findByIdAndUpdate(updated.akun_id, { $inc: { saldo: delta } });
+      await Akun.findByIdAndUpdate(newAkunId, { $inc: { saldo: delta } });
     }
 
     res.json({ message: 'Transaksi berhasil diupdate', data: { id: updated._id, ...updated.toObject() } });
@@ -194,9 +214,15 @@ router.delete('/:id', async (req, res) => {
     const tx = await Transaksi.findOne(query);
     if (!tx) return res.status(404).json({ error: 'Transaksi tidak ditemukan' });
 
-    if (tx.akun_id) {
+    let targetAkunId = tx.akun_id;
+    if (!targetAkunId) {
+      const def = await Akun.findOne({ user_id: req.user.id }).sort({ jenis: 1, _id: 1 });
+      if (def) targetAkunId = def._id;
+    }
+
+    if (targetAkunId) {
       const delta = tx.jenis === 'pemasukan' ? -tx.nominal : tx.nominal;
-      await Akun.findByIdAndUpdate(tx.akun_id, { $inc: { saldo: delta } });
+      await Akun.findByIdAndUpdate(targetAkunId, { $inc: { saldo: delta } });
     }
 
     await tx.deleteOne();
@@ -231,16 +257,46 @@ router.post('/voice-save', async (req, res) => {
       return res.status(400).json({ error: 'Data transaksi tidak lengkap' });
     }
 
+    let validAkunId = req.body.akun_id || null;
+    if (validAkunId && isValidObjectId(validAkunId)) {
+      // ok
+    } else if (validAkunId) {
+      const akunByLocal = await Akun.findOne({ user_id: uid, local_id: String(validAkunId) });
+      validAkunId = akunByLocal ? akunByLocal._id : null;
+    }
+    if (!validAkunId) {
+      let defaultAkun = await Akun.findOne({ user_id: uid }).sort({ jenis: 1, _id: 1 });
+      if (!defaultAkun) {
+        defaultAkun = await Akun.create({
+          user_id: uid,
+          nama: 'Dompet Utama',
+          jenis: 'cashflow',
+          saldo: 0,
+          warna: '#2563EB',
+          ikon: 'cashflow',
+        });
+      }
+      validAkunId = defaultAkun._id;
+    }
+
     const today = new Date().toISOString().split('T')[0];
+    const jenis = type === 'income' ? 'pemasukan' : 'pengeluaran';
+    const nominal = Number(amount);
     const tx = await Transaksi.create({
       user_id: uid,
       tanggal: today,
-      jenis: type === 'income' ? 'pemasukan' : 'pengeluaran',
-      nominal: Number(amount),
+      jenis,
+      nominal,
       kategori: category,
       deskripsi: description,
-      metode_pembayaran: 'voice'
+      metode_pembayaran: 'voice',
+      akun_id: validAkunId,
     });
+
+    if (validAkunId) {
+      const delta = jenis === 'pemasukan' ? nominal : -nominal;
+      await Akun.findByIdAndUpdate(validAkunId, { $inc: { saldo: delta } });
+    }
 
     res.status(201).json({
       message: `✅ Transaksi dicatat: ${description}`,

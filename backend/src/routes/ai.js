@@ -80,10 +80,30 @@ router.post('/konfirmasi-transaksi', async (req, res) => {
       return res.status(400).json({ error: 'Field transaksi tidak lengkap' });
     }
 
-    let validAkunId = akun_id || null;
+    let validAkunId = null;
+    if (akun_id) {
+      const aidStr = String(akun_id).trim();
+      if (isValidObjectId(aidStr)) {
+        validAkunId = aidStr;
+      } else {
+        const akunByLocal = await Akun.findOne({ user_id: req.user.id, local_id: aidStr });
+        if (akunByLocal) validAkunId = akunByLocal._id;
+      }
+    }
+
     if (!validAkunId) {
-      const firstAkun = await Akun.findOne({ user_id: req.user.id }).sort({ created_at: 1 });
-      if (firstAkun) validAkunId = firstAkun._id;
+      let defaultAkun = await Akun.findOne({ user_id: req.user.id }).sort({ jenis: 1, _id: 1 });
+      if (!defaultAkun) {
+        defaultAkun = await Akun.create({
+          user_id: req.user.id,
+          nama: 'Dompet Utama',
+          jenis: 'cashflow',
+          saldo: 0,
+          warna: '#2563EB',
+          ikon: 'cashflow',
+        });
+      }
+      validAkunId = defaultAkun._id;
     }
 
     const tx = await Transaksi.create({

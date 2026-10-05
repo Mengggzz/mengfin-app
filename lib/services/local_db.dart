@@ -233,6 +233,7 @@ class LocalDb {
       final akuns = await d.query('akun', columns: ['id', 'local_id'], limit: 1);
       if (akuns.isNotEmpty) {
         akunId = akuns.first['id']?.toString() ?? akuns.first['local_id']?.toString();
+        data['akun_id'] = akunId;
       }
     }
 
@@ -288,6 +289,36 @@ class LocalDb {
   /// Terapkan perubahan body ke baris lokal yang id-nya [id].
   static Future<void> updateTransaksiLocal(dynamic id, Map<String, dynamic> data) async {
     final d = await db;
+    final rows = await d.query('transaksi', where: 'id = ? OR local_id = ?', whereArgs: [id, id]);
+    if (rows.isNotEmpty) {
+      final old = rows.first;
+      final oldAkunId = old['akun_id']?.toString();
+      final oldNominal = (old['nominal'] as num? ?? 0).toDouble();
+      final oldJenis = old['jenis'] as String?;
+
+      // Revert saldo transaksi lama
+      if (oldAkunId != null && oldAkunId.isNotEmpty) {
+        final revertDelta = oldJenis == 'pemasukan' ? -oldNominal : oldNominal;
+        await d.rawUpdate(
+          'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
+          [revertDelta, oldAkunId, oldAkunId],
+        );
+      }
+
+      // Terapkan saldo transaksi baru
+      final newAkunId = data.containsKey('akun_id') ? data['akun_id']?.toString() : oldAkunId;
+      final newNominal = data['nominal'] != null ? (data['nominal'] as num).toDouble() : oldNominal;
+      final newJenis = (data['jenis'] as String?) ?? oldJenis;
+
+      if (newAkunId != null && newAkunId.isNotEmpty) {
+        final applyDelta = newJenis == 'pemasukan' ? newNominal : -newNominal;
+        await d.rawUpdate(
+          'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
+          [applyDelta, newAkunId, newAkunId],
+        );
+      }
+    }
+
     final updated = <String, dynamic>{};
     if (data['tanggal'] != null) updated['tanggal'] = data['tanggal'];
     if (data['jenis'] != null) updated['jenis'] = data['jenis'];
@@ -299,7 +330,7 @@ class LocalDb {
     }
     if (data.containsKey('akun_id')) updated['akun_id'] = data['akun_id'];
     if (updated.isEmpty) return;
-    await d.update('transaksi', updated, where: 'id = ?', whereArgs: [id]);
+    await d.update('transaksi', updated, where: 'id = ? OR local_id = ?', whereArgs: [id, id]);
   }
 
   static Future<void> replaceTransaksiLocalToServer(String localId, dynamic serverId) async {

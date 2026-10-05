@@ -210,8 +210,13 @@ class SyncService {
             final ok = await kirim({...item, 'body': body});
             if (!ok) throw Exception('Pengiriman gagal');
           } else if (method == 'POST' && tableName == 'transaksi') {
-            // Resolusi akun_id jika masih berupa ID lokal
-            if (body.containsKey('akun_id') && body['akun_id'] != null) {
+            // Resolusi akun_id jika masih berupa ID lokal atau belum terisi
+            if (body['akun_id'] == null || body['akun_id'] == 'null' || body['akun_id'].toString().isEmpty) {
+              final akuns = await LocalDb.getAkunList();
+              if (akuns.isNotEmpty) {
+                body['akun_id'] = akuns.first.id;
+              }
+            } else {
               final aid = body['akun_id'].toString().trim();
               if (aid.startsWith('akun_') || aid == 'null' || aid == 'undefined' || aid.isEmpty) {
                 final serverAkunId = await LocalDb.getServerIdForAkun(aid);
