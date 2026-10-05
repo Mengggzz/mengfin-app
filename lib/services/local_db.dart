@@ -234,6 +234,21 @@ class LocalDb {
       if (akuns.isNotEmpty) {
         akunId = akuns.first['id']?.toString() ?? akuns.first['local_id']?.toString();
         data['akun_id'] = akunId;
+      } else {
+        // Jika belum ada dompet terdaftar sama sekali, buat 'Dompet Utama' default
+        const defaultAkunId = 'akun_utama_default';
+        await d.insert('akun', {
+          'id': defaultAkunId,
+          'local_id': defaultAkunId,
+          'nama': 'Dompet Utama',
+          'jenis': 'cashflow',
+          'saldo': 0,
+          'warna': '#2563EB',
+          'ikon': 'cashflow',
+          'synced': 0,
+        });
+        akunId = defaultAkunId;
+        data['akun_id'] = akunId;
       }
     }
 

@@ -17,12 +17,24 @@ router.get('/dashboard', async (req, res) => {
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const bulanLalu = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
 
-    const [txIni, txLalu, akuns, anggaran] = await Promise.all([
+    let [txIni, txLalu, akuns, anggaran] = await Promise.all([
       Transaksi.find({ user_id: uid, tanggal: { $regex: `^${bulanIni}` } }),
       Transaksi.find({ user_id: uid, tanggal: { $regex: `^${bulanLalu}` } }),
       Akun.find({ user_id: uid }),
       Anggaran.find({ user_id: uid, periode: bulanIni }),
     ]);
+
+    if (akuns.length === 0) {
+      const defaultAkun = await Akun.create({
+        user_id: uid,
+        nama: 'Dompet Utama',
+        jenis: 'cashflow',
+        saldo: 0,
+        warna: '#2563EB',
+        ikon: 'cashflow',
+      });
+      akuns = [defaultAkun];
+    }
 
     const sumTx = (txs, jenis) => txs.filter(t => t.jenis === jenis).reduce((s, t) => s + t.nominal, 0);
 

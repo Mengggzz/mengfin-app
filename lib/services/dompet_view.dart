@@ -33,16 +33,19 @@ class DompetView {
       return saldoServer;
     }
 
-    // dompet tampil kosong → pakai dompet utama.
+    // dompet tampil kosong → pakai dompet utama jika ada yang cocok.
     if (dompetUtama != null && dompetUtama.isNotEmpty) {
-      final utama = akun.firstWhere(
+      final utama = akun.where(
         (a) => AppPrefs.idKeTeks(a.id) == dompetUtama,
-        orElse: () => akun.first,
       );
-      return utama.saldo;
+      if (utama.isNotEmpty) {
+        return utama.first.saldo;
+      }
     }
 
-    return akun.first.saldo;
+    // Default ketika tidak ada filter spesifik ("Semua Dompet"):
+    // jumlahkan seluruh saldo dompet yang ada.
+    return akun.fold<double>(0, (s, a) => s + a.saldo);
   }
 
   /// Dompet yang dipakai sebagai default saat input transaksi baru.

@@ -40,14 +40,14 @@ void main() {
     expect(hasil, 50);
   });
 
-  test('dompet utama tidak diisi: pakai akun pertama', () {
+  test('tanpa dompet utama & tanpa dompet tampil: jumlahkan semua akun (Semua Dompet)', () {
     final hasil = DompetView.saldoTampil(
       akun: [akun(1, 'BCA', 100), akun(2, 'Mandiri', 50)],
       dompetUtama: null,
       dompetTampil: const [],
       saldoServer: 9999,
     );
-    expect(hasil, 100);
+    expect(hasil, 150);
   });
 
   test('id int dibandingkan sebagai teks (id lokal vs ObjectId server)', () {
