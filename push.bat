@@ -27,13 +27,11 @@ if "!STATUS!"=="" (
 :: Ambil pesan commit dari argumen atau prompt
 set "MSG=%~1"
 if "!MSG!"=="" (
-    set /p "MSG=Masukkan pesan commit (tekan Enter untuk auto-message): "
+    set /p "MSG=Masukkan pesan commit (tekan Enter untuk 'Initial commit'): "
 )
 
 if "!MSG!"=="" (
-    for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set "dt=%%I"
-    set "TIMESTAMP=!dt:~0,4!-!dt:~4,2!-!dt:~6,2! !dt:~8,2!:!dt:~10,2!"
-    set "MSG=update: !TIMESTAMP!"
+    set "MSG=Initial commit"
 )
 
 echo.

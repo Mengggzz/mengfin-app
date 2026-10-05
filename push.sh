@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 cd "C:/Users/NAN/Desktop/cashflow" || exit 1
 
-MSG="${1:-update: $(date +'%Y-%m-%d %H:%M:%S')}"
+MSG="${1:-Initial commit}"
 
 echo "========================================================"
 echo "          MengFin App - Auto Commit & Push"
