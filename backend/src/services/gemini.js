@@ -171,11 +171,52 @@ function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
   const p = (pertanyaan || '').toLowerCase().trim();
   const fmt = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
-  // Sapaan / Test / Ping
-  if (p === 'tes' || p === 'test' || p === 'ping' || p === 'p' || p === 'halo' || p === 'hai' || p === 'pagi' || p === 'siang' || p === 'malam' || p.startsWith('halo') || p.startsWith('hai') || p.startsWith('tes ') || p.startsWith('test ')) {
-    return `👋 Halo! Saya **MengFin AI**, asisten keuangan personal Anda.\n\nSistem AI aktif & siap membantu:\n• Tanya kondisi keuangan atau saldo (*"berapa saldo saya?"*)\n• Minta tips penghematan (*"tips hemat"*\)\n• Catat transaksi instan (contoh: *"beli kopi 25rb"* atau *"gajian 5jt"*)\n\nAda yang bisa saya bantu hari ini? 😊`;
+  const clean = p.replace(/[!.,?~]+/g, '').trim();
+  const greetings = [
+    'halo', 'hai', 'hi', 'hey', 'hei', 'tes', 'test', 'ping', 'p',
+    'pagi', 'selamat pagi', 'siang', 'selamat siang', 'sore', 'selamat sore',
+    'malam', 'selamat malam', 'assalamualaikum', 'halo mengfin', 'hai mengfin'
+  ];
+
+  // Sapaan murni
+  if (greetings.includes(clean)) {
+    return `👋 Halo! Saya **MengFin AI**, asisten keuangan personal Anda.\n\nSistem AI siap membantu:\n• Tanya kondisi keuangan atau saldo (*"berapa saldo saya?"*)\n• Cek pengeluaran kategori (*"berapa pengeluaran makan?"*)\n• Minta tips penghematan (*"tips hemat"*\)\n• Catat transaksi instan (contoh: *"beli kopi 25rb"* atau *"gajian 5jt"*)\n\nAda yang bisa saya bantu hari ini? 😊`;
   }
-  if (p.includes('riwayat') || p.includes('terakhir') || p.includes('daftar transaksi') || p.includes('beli apa')) {
+
+  // Tanya kategori spesifik
+  const katKamus = {
+    'Makan & Minum': /\b(makan|minum|kopi|coffee|cafe|kafe|restoran|resto|warung|mie|nasi|ayam|bakso|jajan|snack)\b/i,
+    'Transportasi': /\b(bensin|bbm|pertalite|pertamax|solar|parkir|tol|ojol|gojek|grab|maxim|angkot|bus|kereta|transportasi)\b/i,
+    'Belanja': /\b(belanja|supermarket|minimarket|indomaret|alfamart|shopee|tokopedia|mall)\b/i,
+    'Tagihan': /\b(listrik|pln|pdam|air|pulsa|kuota|paket data|wifi|tagihan|bpjs)\b/i,
+    'Kesehatan': /\b(obat|apotek|dokter|klinik|rs|rumah sakit|vitamin|kesehatan)\b/i,
+    'Hiburan': /\b(nonton|bioskop|cinema|game|steam|netflix|spotify|hiburan)\b/i,
+    'Pakaian': /\b(baju|celana|sepatu|tas|kaos|jaket|pakaian)\b/i,
+    'Pendidikan': /\b(buku|kursus|kuliah|sekolah|spp|les|pendidikan)\b/i,
+  };
+
+  for (const [katNama, katRegex] of Object.entries(katKamus)) {
+    if (katRegex.test(p)) {
+      const katItem = topKategoriPengeluaran.find(k => k.kategori.toLowerCase() === katNama.toLowerCase());
+      const total = katItem ? katItem.total : 0;
+      const anggaran = (anggaranList || []).find(a => a.kategori.toLowerCase() === katNama.toLowerCase());
+
+      let res = `📁 **Pengeluaran Kategori: ${katNama} (${bulanIni}):**\n\n• Total Pengeluaran: **${fmt(total)}**\n`;
+      if (anggaran && anggaran.batas > 0) {
+        res += `• Batas Anggaran: ${fmt(anggaran.batas)} (${anggaran.persentase}%)\n`;
+        res += total > anggaran.batas ? '• Status: ⚠️ Melebihi budget!\n' : '• Status: Aman ✅\n';
+      }
+      return res;
+    }
+  }
+
+  // Hari ini
+  if (p.includes('hari ini') || p.includes('today')) {
+    return `📅 **Status Hari Ini:**\n\n• Pengeluaran Hari Ini: **${fmt(pengeluaranHariIni)}**\n• Target Budget Harian: **${fmt(budgetHarian)}**\n• Sisa Budget Hari Ini: **${fmt(Math.max(0, budgetHarian - pengeluaranHariIni))}** (${pengeluaranHariIni > budgetHarian ? '⚠️ Melebihi target' : '✅ Aman'})`;
+  }
+
+  // Tanya riwayat / daftar transaksi terakhir
+  if (p.includes('riwayat transaksi') || p.includes('daftar transaksi') || p.includes('transaksi terakhir') || p.includes('mutasi') || p.includes('beli apa saja')) {
     if (riwayatTransaksi.length === 0) {
       return `📝 **Riwayat Transaksi:**\n\nBelum ada transaksi tercatat di akun Anda. Mulai catat dengan mengetik misalnya *"beli kopi 20rb"*!`;
     }
@@ -188,8 +229,8 @@ function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
   }
 
   // Tanya sisa saldo / dompet
-  if (p.includes('saldo') || p.includes('dompet') || p.includes('uangku') || p.includes('sisa uang')) {
-    return `💰 **Informasi Saldo:**\n\n• Total Saldo Dompet: **${fmt(saldoTotal)}**\n• Pemasukan Bulan Ini: **${fmt(pemasukan)}**\n• Pengeluaran Bulan Ini: **${fmt(pengeluaran)}**\n• Saldo Bersih: **${saldoBersih >= 0 ? '+' : ''}${fmt(saldoBersih)}**`;
+  if (p.includes('saldo') || p.includes('dompet') || p.includes('uangku') || p.includes('sisa uang') || p.includes('rekening') || p.includes('tabungan')) {
+    return `💰 **Informasi Saldo:**\n\n• Total Saldo Dompet: **${fmt(saldoTotal)}**\n• Pemasukan Bulan Ini: **${fmt(pemasukan)}**\n• Pengeluaran Bulan Ini: **${fmt(pengeluaran)}**\n• Arus Kas Bersih: **${saldoBersih >= 0 ? '+' : ''}${fmt(saldoBersih)}** (${saldoBersih >= 0 ? 'Surplus ✅' : 'Defisit ⚠️'})`;
   }
 
   // Tanya status budget / anggaran
@@ -206,7 +247,7 @@ function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
   }
 
   // Tips hemat
-  if (p.includes('tips') || p.includes('hemat') || p.includes('kurangi')) {
+  if (p.includes('tips') || p.includes('hemat') || p.includes('kurangi') || p.includes('berhemat') || p.includes('strategi')) {
     let tips = `💡 **Tips Hemat Terarah (${bulanIni}):**\n\n`;
     if (topKategoriPengeluaran.length > 0) {
       tips += `1. **Fokus pada Pos ${topKategoriPengeluaran[0].kategori}**: Pengeluaran pos ini mencapai **${fmt(topKategoriPengeluaran[0].total)}**. Tetapkan batas mingguan ketat.\n`;
@@ -221,6 +262,19 @@ function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
     tips += `3. **Alokasikan Tabungan di Awal**: Sisihkan minimal 10-20% segera saat pemasukan masuk ke akun tabungan atau goals.\n`;
     tips += `4. **Evaluasi Rutin**: Rata-rata pengeluaran Anda saat ini **${fmt(rataHarian)}/hari**.`;
     return tips;
+  }
+
+  // Dana darurat & investasi
+  if (p.includes('dana darurat') || p.includes('darurat')) {
+    return `🛡️ **Panduan Dana Darurat:**\n\n• **Ideal**: 3–6x pengeluaran bulananmu.\n• **Tempat Simpan**: Rekening terpisah atau Reksadana Pasar Uang (likuid & aman).\n• **Tujuan**: Mengatasi keadaan genting tanpa mengganggu investasi jangka panjang.`;
+  }
+
+  if (p.includes('investasi') || p.includes('saham') || p.includes('reksadana')) {
+    return `📈 **Panduan Investasi:**\n\n1. Lunasi utang konsumtif & siapkan dana darurat terlebih dahulu.\n2. Untuk jangka pendek (<1 th): Deposito / RPU.\n3. Untuk jangka panjang (>3 th): Saham Indeks, Reksadana Campuran/Saham, Emas Fisik.\n4. Diversifikasikan aset Anda.`;
+  }
+
+  if (p.includes('terima kasih') || p.includes('makasih') || p.includes('thanks') || p === 'ok' || p === 'siap') {
+    return `Sama-sama! Senang bisa membantu mengelola keuanganmu. Jika ada yang ingin ditanyakan lagi, silakan kabari ya! 😊`;
   }
 
   // Analisis keuangan default / pertanyaan umum

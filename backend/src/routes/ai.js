@@ -270,10 +270,10 @@ router.post('/konfirmasi-transaksi', async (req, res) => {
 
 function cekApakahTransaksi(teks) {
   const t = (teks || '').toLowerCase().trim();
-  if (!t) return false;
+  if (!t || t.length > 85) return false;
 
-  // Kalimat tanya / analisis murni (tanpa maksud mencatat)
-  const isQuestionOrAnalysis = /^(bagaimana|gimana|berapa|apa|apakah|kenapa|mengapa|analisis|analisa|laporan|ringkasan|tips|saran|proyeksi|prediksi|cek saldo|kondisi)/i.test(t);
+  // Kalimat tanya / konsultasi / evaluasi (jangan dicatat sebagai transaksi baru)
+  const isQuestionOrAnalysis = /(\?|\b(bagaimana|gimana|berapa|apa|apakah|kenapa|mengapa|analisis|analisa|laporan|ringkasan|tips|saran|proyeksi|prediksi|cek saldo|kondisi|menurutmu|menurut anda|menurut kamu|apakah wajar|apakah bijak|apakah boros|apakah aman|apakah cukup|apakah bisa|tolong jelaskan|jelaskan|hitung|hitungkan|hitungin|konsultasi|tanya|kemarin|tadi|minggu lalu|bulan lalu|kalau|jika|apabila|sebaiknya|harus|perlukah|layak|apa itu|maksudnya|definisi)\b)/i.test(t);
   if (isQuestionOrAnalysis) return false;
 
   // Kata kunci transaksi

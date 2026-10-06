@@ -843,27 +843,17 @@ class ApiService {
 
     final lower = t.toLowerCase();
 
-    // 1. Fast Greeting / Test / Ping (<1ms response)
-    if (lower == 'halo' ||
-        lower == 'hai' ||
-        lower == 'tes' ||
-        lower == 'test' ||
-        lower == 'ping' ||
-        lower == 'p' ||
-        lower == 'pagi' ||
-        lower == 'siang' ||
-        lower == 'malam' ||
-        lower.startsWith('halo') ||
-        lower.startsWith('hai') ||
-        lower.startsWith('tes ') ||
-        lower.startsWith('test ')) {
+    // 1. Fast Standalone Greeting / Ping (<1ms response)
+    // Hanya berlaku jika pesan HANYA berisi kata sapaan/tes singkat (bukan kalimat panjang)
+    if (_isStandaloneGreeting(lower)) {
       return {
         'tipe': 'jawaban',
-        'pesan': '👋 Halo! Saya **MengFin AI** siap membantu.\n\nKamu bisa:\n• Tanya kondisi keuangan atau saldo (*"berapa saldo saya?"*)\n• Minta tips hemat (*"tips hemat bulan ini"*)\n• Catat transaksi instan (misal: *"beli kopi 20rb"* atau *"gajian 5jt"*)\n\nAda yang ingin dicek? 😊'
+        'pesan': '👋 Halo! Saya **MengFin AI** siap membantu.\n\nKamu bisa:\n• Tanya kondisi keuangan atau saldo (*"berapa saldo saya?"*)\n• Cek pengeluaran kategori (*"berapa pengeluaran makan bulan ini?"*)\n• Minta tips hemat (*"tips hemat bulan ini"*)\n• Catat transaksi instan (misal: *"beli kopi 20rb"* atau *"gajian 5jt"*)\n\nAda yang ingin ditanyakan atau dicatat? 😊'
       };
     }
 
-    // 2. Fast Transaction Pattern (<1ms response)
+    // 2. Fast Transaction Record Command (<1ms response)
+    // Hanya berlaku jika MURNI perintah catat transaksi (bukan pertanyaan/konsultasi)
     if (_isTransactionText(lower)) {
       final parsed = _fastParseTransaksiLocal(t);
       if (parsed != null && ((parsed['nominal'] as num?)?.toDouble() ?? 0) > 0) {
@@ -877,13 +867,13 @@ class ApiService {
       }
     }
 
-    // 3. Online Server AI Query dengan strict timeout (3 detik)
+    // 3. Online Server AI Query dengan timeout responsif (4 detik)
     if (_online) {
       try {
         final res = await _post(
           '/ai/chat',
           {'pesan': t},
-          timeout: const Duration(seconds: 3),
+          timeout: const Duration(seconds: 4),
         );
         if (res.containsKey('tipe') || res.containsKey('pesan')) {
           final pesanText = res['pesan']?.toString() ?? '';
@@ -900,6 +890,16 @@ class ApiService {
     }
 
     return _localAIChat(t);
+  }
+
+  static bool _isStandaloneGreeting(String lower) {
+    final clean = lower.replaceAll(RegExp(r'[!.,?~]+'), '').trim();
+    const greetings = [
+      'halo', 'hai', 'hi', 'hey', 'hei', 'tes', 'test', 'ping', 'p',
+      'pagi', 'selamat pagi', 'siang', 'selamat siang', 'sore', 'selamat sore',
+      'malam', 'selamat malam', 'assalamualaikum', 'halo mengfin', 'hai mengfin'
+    ];
+    return greetings.contains(clean);
   }
 
   static Future<Map<String, dynamic>> _localAIChat(String pesan) async {
@@ -920,7 +920,7 @@ class ApiService {
       if (!kIsWeb) {
         try {
           dash = await LocalDb.getDashboardLocal(bulanIni);
-          txList = await LocalDb.getTransaksi(limit: 20);
+          txList = await LocalDb.getTransaksi(limit: 50);
           akuns = await LocalDb.getAkunList();
           anggarans = await LocalDb.getAnggaran(bulanIni);
         } catch (_) {}
@@ -937,15 +937,107 @@ class ApiService {
           .where((x) => x.jenis == 'pengeluaran' && x.tanggal == todayStr)
           .fold<double>(0.0, (s, x) => s + x.nominal);
 
-      // Kategori pengeluaran terbesar
+      // Kategori pengeluaran bulan ini
       final katMap = <String, double>{};
+      final katCount = <String, int>{};
+      final katItems = <String, List<Transaksi>>{};
+
       for (final x in txList.where((x) => x.jenis == 'pengeluaran' && x.tanggal.startsWith(bulanIni))) {
         katMap[x.kategori] = (katMap[x.kategori] ?? 0.0) + x.nominal;
+        katCount[x.kategori] = (katCount[x.kategori] ?? 0) + 1;
+        katItems.putIfAbsent(x.kategori, () => []).add(x);
       }
       final topKat = katMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
-      // A. Tanya Transaksi Terakhir / Riwayat
-      if (lower.contains('riwayat') || lower.contains('terakhir') || lower.contains('beli apa') || lower.contains('daftar')) {
+      // ── INTENT 1: Tanya Pengeluaran Kategori Spesifik ──────────────────
+      final matchedCategory = _detectCategoryIntent(lower);
+      if (matchedCategory != null) {
+        final totalKat = katMap[matchedCategory] ?? 0.0;
+        final countKat = katCount[matchedCategory] ?? 0;
+        final items = katItems[matchedCategory] ?? [];
+        final anggaranKat = anggarans.where((a) => a.kategori.toLowerCase() == matchedCategory.toLowerCase()).firstOrNull;
+
+        final sb = StringBuffer();
+        sb.writeln('📁 **Pengeluaran Kategori: $matchedCategory ($bulanIni)**\n');
+        sb.writeln('• Total Pengeluaran : **Rp ${_formatRp(totalKat)}**');
+        sb.writeln('• Frekuensi Transaksi: **$countKat transaksi**');
+        if (anggaranKat != null && anggaranKat.batas > 0) {
+          final pct = ((totalKat / anggaranKat.batas) * 100).round();
+          sb.writeln('• Batas Budget : Rp ${_formatRp(anggaranKat.batas)} ($pct%)');
+          if (totalKat > anggaranKat.batas) {
+            sb.writeln('• Status: ⚠️ Melebihi batas anggaran!');
+          } else {
+            sb.writeln('• Sisa Budget: Rp ${_formatRp(anggaranKat.batas - totalKat)} (Aman ✅)');
+          }
+        }
+        if (items.isNotEmpty) {
+          sb.writeln('\n**Rincian Transaksi:**');
+          for (final item in items.take(5)) {
+            sb.writeln('  • ${item.deskripsi.isNotEmpty ? item.deskripsi : item.kategori} — Rp ${_formatRp(item.nominal)} (${item.tanggal})');
+          }
+        } else {
+          sb.writeln('\n*Belum ada transaksi di kategori ini pada bulan $bulanIni.*');
+        }
+        return {'tipe': 'jawaban', 'pesan': sb.toString()};
+      }
+
+      // ── INTENT 2: Tanya Budget & Anggaran ──────────────────────────────
+      if (lower.contains('budget') || lower.contains('anggaran') || lower.contains('limit') || lower.contains('batas pengeluaran')) {
+        if (anggarans.isEmpty) {
+          return {
+            'tipe': 'jawaban',
+            'pesan': '🎯 **Status Budget:**\n\n• Pengeluaran Hari Ini: **Rp ${_formatRp(pengeluaranHariIni)}**\n• Rata-rata Harian: **Rp ${_formatRp(rataHarian)}/hari**\n\n*Kamu belum menetapkan batas anggaran kategori. Atur batas budget di tab Saldo/Budget agar pengeluaran terkontrol.*'
+          };
+        }
+        final sb = StringBuffer();
+        sb.writeln('🎯 **Status Anggaran Kategori ($bulanIni):**\n');
+        for (final a in anggarans) {
+          final terpakai = katMap[a.kategori] ?? 0.0;
+          final pct = (terpakai / (a.batas > 0 ? a.batas : 1) * 100).round();
+          final statusIcon = terpakai > a.batas ? '⚠️' : '✅';
+          sb.writeln('$statusIcon **${a.kategori}**: Rp ${_formatRp(terpakai)} / Rp ${_formatRp(a.batas)} ($pct%)');
+        }
+        return {'tipe': 'jawaban', 'pesan': sb.toString()};
+      }
+
+      // ── INTENT 3: Pengeluaran Hari Ini ─────────────────────────────────
+      if (lower.contains('hari ini') || lower.contains('today') || lower.contains('pengeluaran hari ini')) {
+        final todayTxs = txList.where((x) => x.tanggal == todayStr).toList();
+        final sb = StringBuffer();
+        sb.writeln('📅 **Status Pengeluaran Hari Ini ($todayStr):**\n');
+        sb.writeln('• Total Pengeluaran: **Rp ${_formatRp(pengeluaranHariIni)}**');
+        sb.writeln('• Rata-rata Harian Bulan Ini: **Rp ${_formatRp(rataHarian)}/hari**');
+        if (todayTxs.isNotEmpty) {
+          sb.writeln('\n**Transaksi Hari Ini:**');
+          for (final tx in todayTxs) {
+            final sign = tx.jenis == 'pemasukan' ? '(+) ' : '(-) ';
+            sb.writeln('  • $sign${tx.deskripsi.isNotEmpty ? tx.deskripsi : tx.kategori} — Rp ${_formatRp(tx.nominal)} (${tx.kategori})');
+          }
+        } else {
+          sb.writeln('\n*Belum ada pengeluaran atau pemasukan yang dicatat hari ini.*');
+        }
+        return {'tipe': 'jawaban', 'pesan': sb.toString()};
+      }
+
+      // ── INTENT 4: Tanya Saldo & Dompet ─────────────────────────────────
+      if (lower.contains('saldo') || lower.contains('dompet') || lower.contains('uangku') || lower.contains('sisa uang') || lower.contains('rekening') || lower.contains('tabungan')) {
+        final sb = StringBuffer();
+        sb.writeln('💰 **Informasi Saldo & Dompet:**\n');
+        sb.writeln('• Total Saldo Seluruh Dompet: **Rp ${_formatRp(saldoTotal)}**');
+        sb.writeln('• Pemasukan Bulan Ini: **Rp ${_formatRp(pemasukan)}**');
+        sb.writeln('• Pengeluaran Bulan Ini: **Rp ${_formatRp(pengeluaran)}**');
+        sb.writeln('• Arus Kas Bersih (Net): **${saldoBersih >= 0 ? '+' : ''}Rp ${_formatRp(saldoBersih)}** (${saldoBersih >= 0 ? 'Surplus ✅' : 'Defisit ⚠️'})');
+        if (akuns.isNotEmpty) {
+          sb.writeln('\n**Rincian per Dompet:**');
+          for (final a in akuns) {
+            sb.writeln('  • **${a.nama}**: Rp ${_formatRp(a.saldo)}');
+          }
+        }
+        return {'tipe': 'jawaban', 'pesan': sb.toString()};
+      }
+
+      // ── INTENT 5: Riwayat / Daftar Transaksi Terakhir ────────────────────
+      if (lower.contains('riwayat transaksi') || lower.contains('daftar transaksi') || lower.contains('transaksi terakhir') || lower.contains('mutasi') || lower.contains('beli apa saja') || lower.contains('histori')) {
         if (txList.isEmpty) {
           return {
             'tipe': 'jawaban',
@@ -964,75 +1056,80 @@ class ApiService {
         return {'tipe': 'jawaban', 'pesan': sb.toString()};
       }
 
-      // B. Tanya Saldo / Dompet
-      if (lower.contains('saldo') || lower.contains('dompet') || lower.contains('uangku') || lower.contains('sisa uang')) {
+      // ── INTENT 6: Tips Hemat & Penghematan ──────────────────────────────
+      if (lower.contains('tips') || lower.contains('hemat') || lower.contains('kurangi') || lower.contains('berhemat') || lower.contains('strategi')) {
         final sb = StringBuffer();
-        sb.writeln('💰 **Informasi Saldo:**\n');
-        sb.writeln('• Total Saldo: **Rp ${_formatRp(saldoTotal)}**');
-        sb.writeln('• Pemasukan Bulan Ini: **Rp ${_formatRp(pemasukan)}**');
-        sb.writeln('• Pengeluaran Bulan Ini: **Rp ${_formatRp(pengeluaran)}**');
-        sb.writeln('• Arus Kas Net: **${saldoBersih >= 0 ? '+' : ''}Rp ${_formatRp(saldoBersih)}**');
-        if (akuns.isNotEmpty) {
-          sb.writeln('\n**Daftar Dompet:**');
-          for (final a in akuns) {
-            sb.writeln('  • ${a.nama}: Rp ${_formatRp(a.saldo)}');
-          }
-        }
-        return {'tipe': 'jawaban', 'pesan': sb.toString()};
-      }
-
-      // C. Tanya Budget / Anggaran
-      if (lower.contains('budget') || lower.contains('anggaran') || lower.contains('batas')) {
-        if (anggarans.isEmpty) {
-          return {
-            'tipe': 'jawaban',
-            'pesan': '🎯 **Status Budget:**\n\n• Pengeluaran Hari Ini: **Rp ${_formatRp(pengeluaranHariIni)}**\n• Rata-rata Harian: **Rp ${_formatRp(rataHarian)}/hari**\n\n*Kamu belum menetapkan batas anggaran kategori di menu Saldo/Budget.*'
-          };
-        }
-        final sb = StringBuffer();
-        sb.writeln('🎯 **Status Anggaran Kategori:**\n');
-        for (final a in anggarans) {
-          final terpakai = katMap[a.kategori] ?? 0.0;
-          final pct = (terpakai / (a.batas > 0 ? a.batas : 1) * 100).round();
-          final statusIcon = terpakai > a.batas ? '⚠️' : '✅';
-          sb.writeln('$statusIcon **${a.kategori}**: Rp ${_formatRp(terpakai)} / Rp ${_formatRp(a.batas)} ($pct%)');
-        }
-        return {'tipe': 'jawaban', 'pesan': sb.toString()};
-      }
-
-      // D. Tips Hemat
-      if (lower.contains('tips') || lower.contains('hemat') || lower.contains('kurangi')) {
-        final sb = StringBuffer();
-        sb.writeln('💡 **Tips Hemat Terarah ($bulanIni):**\n');
+        sb.writeln('💡 **Tips Hemat Terarah untuk Keuanganmu:**\n');
         if (topKat.isNotEmpty) {
-          sb.writeln('1. **Fokus pada Pos ${topKat.first.key}**: Pengeluaran pos ini mencapai **Rp ${_formatRp(topKat.first.value)}**. Tetapkan batas mingguan ketat.');
+          sb.writeln('1. **Kendalikan Pos ${topKat.first.key}**: Pos ini menjadi pengeluaran terbesarmu (**Rp ${_formatRp(topKat.first.value)}**). Buat batas mingguan ketat untuk pos ini.');
         } else {
-          sb.writeln('1. **Catat Pengeluaran Rutin**: Awasi setiap pengeluaran harian agar tidak bocor halus.');
+          sb.writeln('1. **Catat Pengeluaran Rutin**: Awasi setiap pengeluaran kecil agar tidak terjadi kebocoran halus.');
         }
         sb.writeln('2. **Evaluasi Pengeluaran Harian**: Rata-rata pengeluaranmu saat ini **Rp ${_formatRp(rataHarian)}/hari**.');
-        sb.writeln('3. **Prioritaskan Tabungan**: Sisihkan 10-20% di awal setiap kali menerima pemasukan.');
+        sb.writeln('3. **Pay Yourself First**: Sisihkan minimal 10-20% saat menerima pemasukan langsung ke tabungan/goals.');
+        sb.writeln('4. **Gunakan Aturan 24 Jam**: Tunda pembelian barang non-primer selama 24 jam sebelum memutuskan beli.');
         return {'tipe': 'jawaban', 'pesan': sb.toString()};
       }
 
-      // E. Analisis / Default Ringkasan untuk semua input lain
+      // ── INTENT 7: Konsep Finansial (Dana Darurat, Investasi, 50/30/20) ──
+      if (lower.contains('dana darurat') || lower.contains('darurat')) {
+        final targetDarurat = pengeluaran > 0 ? pengeluaran * 3 : 15000000.0;
+        return {
+          'tipe': 'jawaban',
+          'pesan': '🛡️ **Panduan Dana Darurat:**\n\n• **Tujuan**: Cadangan likuid untuk situasi tak terduga (medis, PHK, perbaikan mendesak).\n• **Rekomendasi Ideal**: 3 - 6 kali pengeluaran bulananmu (sekitar **Rp ${_formatRp(targetDarurat)}**).\n• **Tempat Penyimpanan**: Simpan di instrumen likuid & aman seperti Rekening Terpisah atau Reksadana Pasar Uang.'
+        };
+      }
+
+      if (lower.contains('investasi') || lower.contains('saham') || lower.contains('reksadana') || lower.contains('crypto') || lower.contains('emas') || lower.contains('deposito')) {
+        return {
+          'tipe': 'jawaban',
+          'pesan': '📈 **Panduan Investasi Pemula:**\n\n1. **Pastikan Fondasi Kuat**: Lunasi utang konsumtif dan miliki dana darurat sebelum mulai berinvestasi.\n2. **Instrumen Rendah Risiko**: Reksadana Pasar Uang (RPU) & Deposito untuk jangka pendek (< 1 tahun).\n3. **Instrumen Menengah/Panjang**: Reksadana Obligasi, Saham Indeks (IHSG/LQ45), atau Emas Fisik untuk jangka > 3 tahun.\n4. **Diversifikasi**: Jangan taruh semua modal dalam satu jenis instrumen.'
+        };
+      }
+
+      if (lower.contains('50/30/20') || lower.contains('50 30 20') || lower.contains('alokasi')) {
+        final incomeBase = pemasukan > 0 ? pemasukan : (saldoTotal > 0 ? saldoTotal : 5000000.0);
+        return {
+          'tipe': 'jawaban',
+          'pesan': '📊 **Metode Alokasi Budget 50/30/20:**\n\nDari pemasukanmu (**Rp ${_formatRp(incomeBase)}**):\n• **50% Kebutuhan Pokok (Needs)** : Rp ${_formatRp(incomeBase * 0.5)} (Makan, Kos, Listrik, Transport)\n• **30% Keinginan (Wants)** : Rp ${_formatRp(incomeBase * 0.3)} (Hiburan, Jajan, Hobi, Liburan)\n• **20% Tabungan & Investasi (Savings)**: Rp ${_formatRp(incomeBase * 0.2)} (Dana darurat, Investasi, Goals)'
+        };
+      }
+
+      // ── INTENT 8: Bantuan & Fitur Aplikasi ──────────────────────────────
+      if (lower.contains('fitur') || lower.contains('cara pakai') || lower.contains('bisa apa') || lower.contains('bantuan') || lower.contains('panduan')) {
+        return {
+          'tipe': 'jawaban',
+          'pesan': '📱 **Fitur Utama MengFin:**\n\n1. **Catat Transaksi Instan**: Ketik langsung di chat (*"beli kopi 25rb"*) atau tekan tombol **(+)**.\n2. **Scan Struk AI**: Foto struk belanja dan data otomatis terinput.\n3. **Multi-Dompet (Kazz)**: Kelola rekening bank, e-wallet, dan uang tunai terpisah.\n4. **Budgeting Pintar**: Pantau batas pengeluaran per kategori secara real-time.\n5. **Laporan & Ekspor**: Ekspor data keuangan ke CSV, Excel, atau PDF di tab View.'
+        };
+      }
+
+      // ── INTENT 9: Sapaan Ramah / Penutup ────────────────────────────────
+      if (lower.contains('terima kasih') || lower.contains('makasih') || lower.contains('thanks') || lower == 'ok' || lower == 'siap' || lower == 'mantap') {
+        return {
+          'tipe': 'jawaban',
+          'pesan': 'Sama-sama! Senang bisa membantu mengelola keuanganmu. Jika ada yang ingin dicek atau dicatat lagi, kabari saya ya! 😊'
+        };
+      }
+
+      // ── INTENT 10: Analisis & Ringkasan Keuangan Komprehensif ───────────
       final sb = StringBuffer();
-      sb.writeln('📊 **Analisis Keuangan ($bulanIni):**\n');
+      sb.writeln('📊 **Analisis Keuangan (${bulanIni}):**\n');
       sb.writeln('• **Saldo Dompet**: Rp ${_formatRp(saldoTotal)}');
-      sb.writeln('• **Pemasukan**: Rp ${_formatRp(pemasukan)}');
-      sb.writeln('• **Pengeluaran**: Rp ${_formatRp(pengeluaran)}');
-      sb.writeln('• **Arus Kas Net**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}Rp ${_formatRp(saldoBersih)}');
+      sb.writeln('• **Total Pemasukan**: Rp ${_formatRp(pemasukan)}');
+      sb.writeln('• **Total Pengeluaran**: Rp ${_formatRp(pengeluaran)}');
+      sb.writeln('• **Arus Kas Bersih**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}Rp ${_formatRp(saldoBersih)}');
       if (topKat.isNotEmpty) {
-        sb.writeln('\n📈 **Pengeluaran Terbesar:**');
+        sb.writeln('\n📈 **Pengeluaran Terbesar Saat Ini:**');
         for (final k in topKat.take(3)) {
           final pct = pengeluaran > 0 ? (k.value / pengeluaran * 100).round() : 0;
           sb.writeln('  • **${k.key}**: Rp ${_formatRp(k.value)} ($pct%)');
         }
       }
-      sb.writeln('\n🎯 **Rekomendasi:**');
+      sb.writeln('\n🎯 **Rekomendasi Aksi:**');
       if (saldoBersih < 0) {
-        sb.writeln('• ⚠️ Arus kas saat ini sedang defisit. Batasi pengeluaran non-primer untuk menstabilkan saldo.');
+        sb.writeln('• Arus kas bulan ini mengalami defisit. Tekan pos sekunder untuk mengembalikan stabilitas saldo.');
       } else {
-        sb.writeln('• ✅ Kondisi keuangan terjaga baik. Pertahankan pencatatan rutin!');
+        sb.writeln('• Arus kas terjaga positif. Pastikan 10-20% surplus dialokasikan ke pos tabungan/investasi.');
       }
 
       return {'tipe': 'jawaban', 'pesan': sb.toString()};
@@ -1044,10 +1141,43 @@ class ApiService {
     }
   }
 
+  static String? _detectCategoryIntent(String lower) {
+    if (RegExp(r'\b(makan|minum|kopi|coffee|cafe|kafe|restoran|resto|warung|mie|nasi|ayam|bakso|jajan|snack|kuliner)\b').hasMatch(lower)) {
+      return 'Makan & Minum';
+    }
+    if (RegExp(r'\b(bensin|bbm|pertalite|pertamax|solar|parkir|tol|ojol|gojek|grab|maxim|angkot|bus|kereta|krl|mrt|transportasi|transport)\b').hasMatch(lower)) {
+      return 'Transportasi';
+    }
+    if (RegExp(r'\b(belanja|supermarket|minimarket|indomaret|alfamart|shopee|tokopedia|lazada|mall|olshop)\b').hasMatch(lower)) {
+      return 'Belanja';
+    }
+    if (RegExp(r'\b(listrik|pln|pdam|air|pulsa|kuota|paket data|wifi|indihome|tagihan|bpjs|iuran)\b').hasMatch(lower)) {
+      return 'Tagihan';
+    }
+    if (RegExp(r'\b(obat|apotek|dokter|klinik|rs|rumah sakit|vitamin|kesehatan|medis)\b').hasMatch(lower)) {
+      return 'Kesehatan';
+    }
+    if (RegExp(r'\b(nonton|bioskop|cinema|game|steam|netflix|spotify|hiburan|wisata|rekreasi|jalan-jalan)\b').hasMatch(lower)) {
+      return 'Hiburan';
+    }
+    if (RegExp(r'\b(baju|celana|sepatu|tas|kaos|jaket|pakaian|fashion)\b').hasMatch(lower)) {
+      return 'Pakaian';
+    }
+    if (RegExp(r'\b(buku|kursus|kuliah|sekolah|spp|les|pendidikan|seminar)\b').hasMatch(lower)) {
+      return 'Pendidikan';
+    }
+    return null;
+  }
+
   static bool _isTransactionText(String t) {
-    if (t.isEmpty) return false;
-    final isQuery = RegExp(r'^(bagaimana|gimana|berapa|apa|apakah|kenapa|mengapa|analisis|laporan|ringkasan|tips|saran|proyeksi|cek saldo)\b', caseSensitive: false).hasMatch(t);
-    if (isQuery) return false;
+    if (t.isEmpty || t.length > 85) return false;
+
+    // Jika mengandung kata tanya / konsultasi / evaluasi, JANGAN anggap sebagai perintah input transaksi
+    final isQueryOrAdvice = RegExp(
+      r'(\?|\b(apakah|gimana|bagaimana|kenapa|mengapa|berapa|menurutmu|menurut anda|menurut kamu|apakah wajar|apakah bijak|apakah boros|apakah aman|apakah cukup|apakah bisa|tolong jelaskan|jelaskan|hitung|hitungkan|hitungin|konsultasi|saran|tips|tanya|kemarin|tadi|minggu lalu|bulan lalu|kalau|jika|apabila|sebaiknya|harus|perlukah|layak|apa itu|maksudnya|definisi)\b)',
+      caseSensitive: false,
+    ).hasMatch(t);
+    if (isQueryOrAdvice) return false;
 
     final keywords = ['beli', 'bayar', 'makan', 'minum', 'jajan', 'kopi', 'transfer', 'kirim', 'top up', 'topup', 'belanja', 'gajian', 'gaji', 'bonus', 'pesan', 'order', 'parkir', 'bensin', 'tarik', 'setor', 'sewa', 'tagihan', 'listrik', 'pulsa'];
     final hasKeyword = keywords.any((k) => RegExp('\\b$k\\b', caseSensitive: false).hasMatch(t));
