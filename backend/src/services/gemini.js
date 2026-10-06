@@ -171,7 +171,10 @@ function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
   const p = (pertanyaan || '').toLowerCase().trim();
   const fmt = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
-  // Tanya riwayat / daftar transaksi terakhir
+  // Sapaan / Test / Ping
+  if (p === 'tes' || p === 'test' || p === 'ping' || p === 'p' || p === 'halo' || p === 'hai' || p === 'pagi' || p === 'siang' || p === 'malam' || p.startsWith('halo') || p.startsWith('hai') || p.startsWith('tes ') || p.startsWith('test ')) {
+    return `👋 Halo! Saya **MengFin AI**, asisten keuangan personal Anda.\n\nSistem AI aktif & siap membantu:\n• Tanya kondisi keuangan atau saldo (*"berapa saldo saya?"*)\n• Minta tips penghematan (*"tips hemat"*\)\n• Catat transaksi instan (contoh: *"beli kopi 25rb"* atau *"gajian 5jt"*)\n\nAda yang bisa saya bantu hari ini? 😊`;
+  }
   if (p.includes('riwayat') || p.includes('terakhir') || p.includes('daftar transaksi') || p.includes('beli apa')) {
     if (riwayatTransaksi.length === 0) {
       return `📝 **Riwayat Transaksi:**\n\nBelum ada transaksi tercatat di akun Anda. Mulai catat dengan mengetik misalnya *"beli kopi 20rb"*!`;

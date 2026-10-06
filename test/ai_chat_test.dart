@@ -39,5 +39,18 @@ void main() {
       expect(res['tipe'], 'jawaban');
       expect(res['pesan'], contains('Tips Hemat'));
     });
+
+    test('respons sapaan dan uji koneksi (tes/test/halo) ramah dan informatif', () async {
+      final res = await ApiService.chat('tes');
+      expect(res['tipe'], 'jawaban');
+      expect(res['pesan'], contains('MengFin AI'));
+      expect(res['pesan'], isNot(contains('tidak bisa memproses')));
+    });
+
+    test('respons fallback analisis keuangan jika pesan umum', () async {
+      final res = await ApiService.chat('kondisi keuanganku');
+      expect(res['tipe'], 'jawaban');
+      expect(res['pesan'], contains('Analisis Keuangan'));
+    });
   });
 }

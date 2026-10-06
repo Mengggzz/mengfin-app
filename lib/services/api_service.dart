@@ -837,7 +837,13 @@ class ApiService {
       try {
         final res = await _post('/ai/chat', {'pesan': pesan});
         if (res.containsKey('tipe') || res.containsKey('pesan')) {
-          return res;
+          final pesanText = res['pesan']?.toString() ?? '';
+          if (!pesanText.contains('tidak bisa memproses') &&
+              !pesanText.contains('terjadi kendala saat') &&
+              !pesanText.contains('Error') &&
+              pesanText.trim().isNotEmpty) {
+            return res;
+          }
         }
       } catch (_) {
         // Server gagal atau endpoint tidak tersedia → alihkan ke fallback lokal
@@ -973,11 +979,23 @@ class ApiService {
       return {'tipe': 'jawaban', 'pesan': sb.toString()};
     }
 
-    // E. Sapaan / Greeting
-    if (lower == 'halo' || lower == 'hai' || lower == 'pagi' || lower == 'siang' || lower == 'malam' || lower.startsWith('halo') || lower.startsWith('hai')) {
+    // E. Sapaan / Greeting / Tes
+    if (lower == 'halo' ||
+        lower == 'hai' ||
+        lower == 'tes' ||
+        lower == 'test' ||
+        lower == 'ping' ||
+        lower == 'p' ||
+        lower == 'pagi' ||
+        lower == 'siang' ||
+        lower == 'malam' ||
+        lower.startsWith('halo') ||
+        lower.startsWith('hai') ||
+        lower.startsWith('tes ') ||
+        lower.startsWith('test ')) {
       return {
         'tipe': 'jawaban',
-        'pesan': '👋 Halo! Saya **MengFin AI** siap membantu.\n\nKamu bisa:\n• Tanya kondisi keuangan atau saldo\n• Minta tips hemat\n• Catat transaksi (misal: *"beli kopi 20rb"* atau *"gajian 5jt"*)\n\nAda yang ingin dicek?'
+        'pesan': '👋 Halo! Saya **MengFin AI** siap membantu.\n\nKamu bisa:\n• Tanya kondisi keuangan atau saldo (*"berapa saldo saya?"*)\n• Minta tips hemat (*"tips hemat bulan ini"*)\n• Catat transaksi instan (misal: *"beli kopi 20rb"* atau *"gajian 5jt"*)\n\nAda yang ingin dicek? 😊'
       };
     }
 
