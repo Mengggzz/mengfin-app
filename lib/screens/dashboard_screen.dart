@@ -79,14 +79,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final bulan = currentBulan();
       final localStats = await LocalDb.getDashboardLocal(bulan);
-      final recentTx = await LocalDb.getTransaksi(limit: 10);
+      final allTx = await LocalDb.getTransaksi(limit: 200);
       final akun = await LocalDb.getAkunList();
       final prefs = await SharedPreferences.getInstance();
       final savedBudget = prefs.getDouble('budget_harian') ?? 0;
       final saldo = localStats['saldo'] ?? 0;
       final pemasukan = localStats['pemasukan'] ?? 0;
       final pengeluaran = localStats['pengeluaran'] ?? 0;
-      if (!mounted || _data != null) return;
+
+      final now = DateTime.now();
+      double todaySpend = 0;
+      final nowLocal = DateTime(now.year, now.month, now.day);
+      
+      for (final tx in allTx) {
+        try {
+          final txDateRaw = DateTime.tryParse(tx.tanggal)?.toLocal();
+          if (txDateRaw == null) continue;
+          final txDate = DateTime(txDateRaw.year, txDateRaw.month, txDateRaw.day);
+          
+          if (txDate.isAtSameMomentAs(nowLocal)) {
+            if (tx.jenis == 'pengeluaran') todaySpend += tx.nominal;
+          }
+        } catch (_) {}
+      }
+
+      List<double> last7 = List.filled(7, 0);
+      int overDays = 0;
+      for (int i = 0; i < 7; i++) {
+        final targetDay = now.subtract(Duration(days: 6 - i));
+        final targetDate = DateTime(targetDay.year, targetDay.month, targetDay.day);
+        
+        double daySpend = 0;
+        for (final tx in allTx) {
+          try {
+            final txDateRaw = DateTime.tryParse(tx.tanggal)?.toLocal();
+            if (txDateRaw == null) continue;
+            final txDate = DateTime(txDateRaw.year, txDateRaw.month, txDateRaw.day);
+            
+            if (txDate.isAtSameMomentAs(targetDate)) {
+              if (tx.jenis == 'pengeluaran') daySpend += tx.nominal;
+            }
+          } catch (_) {}
+        }
+        last7[i] = daySpend;
+        if (savedBudget > 0 && daySpend > savedBudget) overDays++;
+      }
+
+      final cutoff = now.subtract(const Duration(days: 30));
+      final katMap = <String, double>{};
+      for (final tx in allTx) {
+        if (tx.jenis != 'pengeluaran') continue;
+        try {
+          final txDateRaw = DateTime.tryParse(tx.tanggal)?.toLocal();
+          if (txDateRaw == null || txDateRaw.isBefore(cutoff)) continue;
+          final k = (tx.kategori ?? 'Lainnya').toString();
+          katMap[k] = (katMap[k] ?? 0) + tx.nominal;
+        } catch (_) {}
+      }
+      final katList = katMap.entries
+          .map((e) => {'kategori': e.key, 'total': e.value})
+          .toList()
+        ..sort((a, b) => (b['total'] as double).compareTo(a['total'] as double));
+
+      if (!mounted) return;
       setState(() {
         _updateNamaDompetAktif(akun);
         _saldoDompet = DompetView.saldoTampil(
@@ -100,18 +155,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
           pemasukanBulanIni: pemasukan,
           pengeluaranBulanIni: pengeluaran,
           bulanIni: bulan,
-          health: HealthScore(score: 0, status: 'Lokal', warna: '#606080', pesan: 'Memuat data...'),
+          health: HealthScore(score: 85, status: 'Lokal', warna: '#10B981', pesan: 'Data lokal'),
           rataHarian: pengeluaran > 0 ? pengeluaran / DateTime.now().day : 0,
-          mingguIniPengeluaran: 0,
+          mingguIniPengeluaran: last7.fold<double>(0.0, (a, b) => a + b),
           kenaikanPersen: 0,
-          kategoriTerbesar: '-',
+          kategoriTerbesar: katList.isNotEmpty ? (katList.first['kategori'] as String? ?? '-') : '-',
           mingguPeriode: '',
           prediksiSaldoAkhir: saldo,
           sisaHari: DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day - DateTime.now().day,
           prediksiStatus: 'aman',
         );
-        _recentTx = recentTx;
+        _recentTx = allTx.take(10).toList();
+        _kategoriBreakdown = katList;
         _budgetHarian = savedBudget;
+        _pengeluaranHariIni = todaySpend;
+        _last7DaysSpending = last7;
+        _overBudgetDays = overDays;
         _loading = false;
       });
     } catch (_) {}
@@ -119,6 +178,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _onDataBerubah() {
     if (!mounted) return;
+    _loadLocalCacheFirst();
     if (_loadInProgress) return;
     _loadInProgress = true;
     // Pastikan _load() dipanggil di frame berikutnya untuk hindari setState error

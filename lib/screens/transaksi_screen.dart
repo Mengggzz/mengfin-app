@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/app_events.dart';
+import '../services/local_db.dart';
 import '../utils/responsive.dart';
 import '../widgets/transaction_filter_dialog.dart';
 import '../widgets/widgets.dart';
@@ -47,6 +49,17 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
   }
 
   Future<void> _load() async {
+    if (_list.isEmpty && !kIsWeb) {
+      try {
+        final local = await LocalDb.getTransaksi(limit: 500);
+        if (mounted && local.isNotEmpty && _list.isEmpty) {
+          _list = local;
+          _applyAllFilters();
+          _loading = false;
+          setState(() {});
+        }
+      } catch (_) {}
+    }
     if (_list.isEmpty) {
       setState(() => _loading = true);
     }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/utils.dart';
@@ -6,6 +7,7 @@ import '../services/api_service.dart';
 import '../services/app_events.dart';
 import '../services/export_service.dart';
 import '../services/kazz_filter.dart';
+import '../services/local_db.dart';
 import '../services/penyimpanan.dart';
 import '../widgets/kazz_illustrations.dart';
 import '../widgets/widgets.dart';
@@ -55,6 +57,18 @@ class _KazzScreenState extends State<KazzScreen> {
   }
 
   Future<void> _load() async {
+    if (_wallets.isEmpty && _budgets.isEmpty && !kIsWeb) {
+      try {
+        final localWallets = await LocalDb.getAkunList();
+        final localBudgets = await LocalDb.getAnggaran(_budgetPeriode);
+        if (mounted && (localWallets.isNotEmpty || localBudgets.isNotEmpty) && _wallets.isEmpty && _budgets.isEmpty) {
+          _wallets = localWallets;
+          _budgets = localBudgets;
+          _loading = false;
+          setState(() {});
+        }
+      } catch (_) {}
+    }
     if (_wallets.isEmpty && _budgets.isEmpty) {
       setState(() => _loading = true);
     }

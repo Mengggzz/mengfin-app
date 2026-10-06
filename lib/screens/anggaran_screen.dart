@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
+import '../services/local_db.dart';
 import '../services/penyimpanan.dart';
 import '../widgets/widgets.dart';
 
@@ -20,6 +22,16 @@ class _AnggaranScreenState extends State<AnggaranScreen> {
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
+    if (_list.isEmpty && !kIsWeb) {
+      try {
+        final local = await LocalDb.getAnggaran(_periode);
+        if (mounted && local.isNotEmpty && _list.isEmpty) {
+          _list = local;
+          _loading = false;
+          setState(() {});
+        }
+      } catch (_) {}
+    }
     if (_list.isEmpty) {
       setState(() => _loading = true);
     }

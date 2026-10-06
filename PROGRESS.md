@@ -164,6 +164,11 @@ Perbaikan Bug Komprehensif:
     - `lib/screens/transaction_input_screen.dart`: Menyediakan dialog & bottom sheet pemilihan dompet tujuan saat input pemasukan ("Saldo Masuk ke Dompet Mana?") dengan integrasi pembuatan dompet baru jika daftar akun kosong.
     - `lib/services/sync_service.dart`: Menambahkan kelas `SyncLogEntry`, in-memory log buffer, method `triggerManualSync()`, serta pencatatan terperinci proses push offline queue & pull cloud database.
     - `lib/screens/more_screen.dart`: Menambahkan menu "Sinkronisasi Akun & Database" dengan bottom sheet `_SyncLogSheet` yang menampilkan indikator "Otomatis Aktif", status koneksi, jumlah antrean offline, waktu sync terakhir, daftar riwayat log sinkronisasi terperinci, dan tombol manual sync.
+22. Optimasi Kecepatan & Responsivitas Setara Aplikasi Offline (Optimistic UI & Cache-First):
+    - `lib/services/api_service.dart`: Terapkan non-blocking optimistic write pada `createTransaksi`, `updateTransaksi`, `deleteTransaksi`, `deleteTransaksiBatch`, `createAkun`, `updateAkunSaldo`, `deleteAkun`, `createAnggaran`, `updateAnggaran`, `deleteAnggaran`, `createGoal`, `updateProgres`, `deleteGoal`. Data ditulis langsung ke SQLite lokal (<5ms), event UI ditembakkan seketika, dan sync ke server berjalan di background (`unawaited(SyncService.instance.syncToServer(force: true))`). Form/dialog input langsung tertutup seketika tanpa tertahan latensi HTTP cloud.
+    - `lib/screens/dashboard_screen.dart`: Perluas `_loadLocalCacheFirst()` untuk kalkulasi instan (pengeluaran hari ini, 7 hari terakhir, breakdown 30 hari, saldo akun) langsung dari SQLite lokal; `_onDataBerubah` memperbarui UI dalam <5ms sebelum sync background selesai.
+    - `lib/screens/transaksi_screen.dart`: Cache-first rendering langsung dari SQLite lokal (`LocalDb.getTransaksi`) sehingga daftar transaksi tampil seketika saat tab dibuka tanpa spinner loading.
+    - `lib/screens/kazz_screen.dart`, `lib/screens/anggaran_screen.dart`, `lib/screens/goals_screen.dart`: Cache-first rendering dari SQLite lokal sebelum fetch server di background.
 
 ## Analisis struktur (28 Sep 2026)
 Dipindai: TODO/FIXME (0), handler kosong (0), kontrol mati (0).

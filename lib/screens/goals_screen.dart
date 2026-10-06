@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
+import '../services/local_db.dart';
 import '../services/penyimpanan.dart';
 import '../widgets/widgets.dart';
 
@@ -21,6 +23,16 @@ class _GoalsScreenState extends State<GoalsScreen> {
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
+    if (_goals.isEmpty && !kIsWeb) {
+      try {
+        final local = await LocalDb.getGoals();
+        if (mounted && local.isNotEmpty && _goals.isEmpty) {
+          _goals = local;
+          _loading = false;
+          setState(() {});
+        }
+      } catch (_) {}
+    }
     if (_goals.isEmpty) {
       setState(() => _loading = true);
     }

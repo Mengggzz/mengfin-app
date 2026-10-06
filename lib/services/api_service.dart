@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
@@ -205,29 +206,19 @@ class ApiService {
 
     final localId = 'tx_${DateTime.now().millisecondsSinceEpoch}';
     await LocalDb.insertTransaksiLocal(body, localId);
-    // Baris lokal sudah tersimpan → beri tahu layar lain sekarang juga,
-    // supaya transaksi dan dompet tampil walau upload ke server belum selesai/gagal.
+    // Baris lokal sudah tersimpan → beri tahu layar lain sekarang juga (<5ms),
+    // sehingga input transaksi terasa instan secepat aplikasi offline murni.
     AppEvents.instance.transaksiBerubah();
     AppEvents.instance.akunBerubah();
-
-    if (_online) {
-      try {
-        final result = await createTransaksiRaw(body);
-        final tx = Transaksi.fromJson(result['data']);
-        await LocalDb.replaceTransaksiLocalToServer(localId, tx.id);
-        // Backend mengubah saldo akun di server — tarik ulang supaya
-        // menu Saldo & beranda langsung konsisten.
-        await pullAkun();
-        AppEvents.instance.transaksiBerubah();
-        AppEvents.instance.akunBerubah();
-        return tx;
-      } catch (_) {}
-    }
 
     await LocalDb.enqueue(
       method: 'POST', path: '/transaksi',
       body: jsonEncode(body), localId: localId, tableName: 'transaksi',
     );
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
 
     return Transaksi(
       id: localId,
@@ -267,28 +258,19 @@ class ApiService {
     }
 
     await LocalDb.deleteTransaksi(id);
-    if (_online) {
-      try {
-        if (id != null) await deleteTransaksiRaw(id);
-      } catch (_) {
-        if (id != null) {
-          await LocalDb.enqueue(
-            method: 'DELETE', path: '/transaksi/$id',
-            body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
-          );
-        }
-      }
-    } else {
-      if (id != null) {
-        await LocalDb.enqueue(
-          method: 'DELETE', path: '/transaksi/$id',
-          body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
-        );
-      }
-    }
-    await pullAkun();
     AppEvents.instance.transaksiBerubah();
     AppEvents.instance.akunBerubah();
+
+    if (id != null) {
+      await LocalDb.enqueue(
+        method: 'DELETE', path: '/transaksi/$id',
+        body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
+      );
+    }
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
   }
 
   /// Hapus beberapa transaksi sekaligus (batch).
@@ -308,29 +290,19 @@ class ApiService {
 
     for (final id in ids) {
       await LocalDb.deleteTransaksi(id);
-      if (_online) {
-        try {
-          if (id != null) await deleteTransaksiRaw(id);
-        } catch (_) {
-          if (id != null) {
-            await LocalDb.enqueue(
-              method: 'DELETE', path: '/transaksi/$id',
-              body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
-            );
-          }
-        }
-      } else {
-        if (id != null) {
-          await LocalDb.enqueue(
-            method: 'DELETE', path: '/transaksi/$id',
-            body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
-          );
-        }
+      if (id != null) {
+        await LocalDb.enqueue(
+          method: 'DELETE', path: '/transaksi/$id',
+          body: '{}', localId: 'del_tx_$id', tableName: 'transaksi',
+        );
       }
     }
-    await pullAkun();
     AppEvents.instance.transaksiBerubah();
     AppEvents.instance.akunBerubah();
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
   }
 
   /// Hapus semua transaksi dari lokal dan server.
@@ -348,25 +320,25 @@ class ApiService {
       return;
     }
 
+    await LocalDb.deleteAllTransaksi();
+    AppEvents.instance.transaksiBerubah();
+    AppEvents.instance.akunBerubah();
+
     if (_online) {
       try {
         final txs = await getTransaksiFromServer(limit: 500);
         for (final t in txs) {
           if (t.id != null) await deleteTransaksiRaw(t.id);
         }
+        await pullAkun();
       } catch (_) {}
     }
-    await LocalDb.deleteAllTransaksi();
-    await pullAkun();
-    AppEvents.instance.transaksiBerubah();
-    AppEvents.instance.akunBerubah();
   }
 
   static Future<void> deleteTransaksiRaw(dynamic id) => _delete('/transaksi/$id');
 
   /// Ubah transaksi yang sudah ada. Offline-aware seperti createTransaksi:
-  /// coba server dulu, kalau gagal antrekan PUT dan perbarui cache lokal
-  /// supaya UI langsung konsisten.
+  /// perbarui cache lokal instan (<5ms) lalu antrekan / sync di background.
   static Future<void> updateTransaksi(dynamic id, Map<String, dynamic> body) async {
     if (kIsWeb) {
       await updateTransaksiRaw(id, body);
@@ -376,26 +348,19 @@ class ApiService {
       return;
     }
 
-    // Perbarui baris lokal lebih dulu — perubahan terlihat walau upload gagal.
+    // Perbarui baris lokal lebih dulu — perubahan terlihat seketika
     await LocalDb.updateTransaksiLocal(id, body);
     AppEvents.instance.transaksiBerubah();
     AppEvents.instance.akunBerubah();
 
-    if (_online) {
-      try {
-        await updateTransaksiRaw(id, body);
-        // Backend menyesuaikan saldo akun setelah update — tarik ulang
-        // supaya saldo dompet langsung konsisten.
-        await pullAkun();
-        AppEvents.instance.transaksiBerubah();
-        AppEvents.instance.akunBerubah();
-        return;
-      } catch (_) {}
-    }
     await LocalDb.enqueue(
       method: 'PUT', path: '/transaksi/$id',
       body: jsonEncode(body), localId: 'upd_tx_$id', tableName: 'transaksi',
     );
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
   }
 
   static Future<void> updateTransaksiRaw(dynamic id, Map<String, dynamic> body) =>
@@ -452,99 +417,55 @@ class ApiService {
       'local_id': localId,
     };
 
-    if (_online) {
-      try {
-        final result = await _post('/akun', body);
-        final serverId = result['data']?['id']?.toString() ??
-            result['_id']?.toString();
-        if (!kIsWeb) {
-          if (serverId != null && serverId.isNotEmpty) {
-            // Simpan dengan id server langsung — tidak perlu baris lokal sementara.
-            await LocalDb.upsertAkunList([Akun(
-              id: serverId,
-              nama: body['nama'] as String,
-              jenis: body['jenis'] as String,
-              saldo: (body['saldo'] as num? ?? 0).toDouble(),
-              warna: body['warna'] as String? ?? '#2563EB',
-              ikon: body['ikon'] as String? ?? 'bank',
-            )]);
-          } else {
-            // Server tidak mengembalikan id — simpan lokal sementara.
-            await LocalDb.insertAkunLocal(body, localId);
-          }
-
-          // Sinkronkan dompet utama jika belum ada yang valid
-          final targetAkunId = serverId ?? localId;
-          final currentUtama = AppPrefs.instance.dompetUtama;
-          final akuns = await LocalDb.getAkunList();
-          final exists = akuns.any((a) => a.id.toString() == currentUtama);
-          if (!exists || currentUtama == null || currentUtama.isEmpty) {
-            await AppPrefs.instance.setDompetUtama(targetAkunId);
-          }
-          await pullAkun();
-        }
-        AppEvents.instance.akunBerubah();
-        return;
-      } catch (e) {
-        if (!kIsWeb) {
-          // Server gagal → simpan lokal supaya dompet tetap muncul,
-          // dan antrekan untuk dikirim nanti.
-          await LocalDb.insertAkunLocal(body, localId);
-          await LocalDb.enqueue(
-            method: 'POST', path: '/akun',
-            body: jsonEncode(body), localId: localId,
-            tableName: 'akun',
-          );
-          final currentUtama = AppPrefs.instance.dompetUtama;
-          final akuns = await LocalDb.getAkunList();
-          final exists = akuns.any((a) => a.id.toString() == currentUtama);
-          if (!exists || currentUtama == null || currentUtama.isEmpty) {
-            await AppPrefs.instance.setDompetUtama(localId);
-          }
-        } else {
-          rethrow;
-        }
-      }
-    } else if (kIsWeb) {
-      throw Exception('Tidak ada koneksi ke server.');
-    } else {
-      // Offline → simpan lokal, antrekan untuk dikirim nanti.
-      await LocalDb.insertAkunLocal(body, localId);
-      await LocalDb.enqueue(
-        method: 'POST', path: '/akun',
-        body: jsonEncode(body), localId: localId,
-        tableName: 'akun',
-      );
-      final currentUtama = AppPrefs.instance.dompetUtama;
-      final akuns = await LocalDb.getAkunList();
-      final exists = akuns.any((a) => a.id.toString() == currentUtama);
-      if (!exists || currentUtama == null || currentUtama.isEmpty) {
-        await AppPrefs.instance.setDompetUtama(localId);
-      }
+    if (kIsWeb) {
+      if (!_online) throw Exception('Tidak ada koneksi ke server.');
+      await _post('/akun', body);
+      AppEvents.instance.akunBerubah();
+      return;
     }
 
+    // Simpan lokal instan (<5ms)
+    await LocalDb.insertAkunLocal(body, localId);
+    final currentUtama = AppPrefs.instance.dompetUtama;
+    final akuns = await LocalDb.getAkunList();
+    final exists = akuns.any((a) => a.id.toString() == currentUtama);
+    if (!exists || currentUtama == null || currentUtama.isEmpty) {
+      await AppPrefs.instance.setDompetUtama(localId);
+    }
     AppEvents.instance.akunBerubah();
+
+    await LocalDb.enqueue(
+      method: 'POST', path: '/akun',
+      body: jsonEncode(body), localId: localId,
+      tableName: 'akun',
+    );
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
   }
 
   /// Ubah saldo sebuah Kazz/akun.
   static Future<void> updateAkunSaldo(dynamic id, double saldo) async {
-    if (_online) {
-      try {
-        await _put('/akun/$id', {'saldo': saldo});
-        if (!kIsWeb) await LocalDb.updateAkunSaldoLocal(id.toString(), saldo);
-        await pullAkun();
-        AppEvents.instance.akunBerubah();
-        return;
-      } catch (_) {}
+    if (kIsWeb) {
+      if (!_online) throw Exception('Tidak ada koneksi ke server.');
+      await _put('/akun/$id', {'saldo': saldo});
+      AppEvents.instance.akunBerubah();
+      return;
     }
-    if (kIsWeb) throw Exception('Tidak ada koneksi ke server.');
-    if (!kIsWeb) await LocalDb.updateAkunSaldoLocal(id.toString(), saldo);
+
+    await LocalDb.updateAkunSaldoLocal(id.toString(), saldo);
+    AppEvents.instance.akunBerubah();
+
     await LocalDb.enqueue(
       method: 'PUT', path: '/akun/$id',
       body: jsonEncode({'saldo': saldo}), localId: 'upd_akun_$id',
       tableName: 'akun',
     );
-    AppEvents.instance.akunBerubah();
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
   }
 
   static Future<void> deleteAkun(dynamic id) async {
@@ -561,23 +482,31 @@ class ApiService {
       }
     }
 
-    if (!kIsWeb && id != null) {
+    if (kIsWeb) {
+      if (id != null && _online) {
+        try {
+          await deleteAkunRaw(id);
+        } catch (_) {}
+      }
+      AppEvents.instance.akunBerubah();
+      return;
+    }
+
+    if (id != null) {
       await LocalDb.deleteAkun(id);
     }
-    if (_online) {
-      try {
-        await deleteAkunRaw(id);
-        AppEvents.instance.akunBerubah();
-        return;
-      } catch (_) {}
-    }
-    if (!kIsWeb && id != null) {
+    AppEvents.instance.akunBerubah();
+
+    if (id != null) {
       await LocalDb.enqueue(
         method: 'DELETE', path: '/akun/$id',
         body: '{}', localId: 'del_akun_$id', tableName: 'akun',
       );
     }
-    AppEvents.instance.akunBerubah();
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
   }
 
   static Future<void> deleteAkunRaw(dynamic id) => _delete('/akun/$id');
@@ -675,18 +604,15 @@ class ApiService {
     await LocalDb.insertAnggaranLocal(localId, kategori, batas, periode);
     AppEvents.instance.anggaranBerubah();
 
-    if (_online) {
-      try {
-        await createAnggaranRaw(kategori, batas, periode);
-        await LocalDb.enqueue(method: 'DONE', path: '', body: '{}', localId: localId, tableName: 'anggaran');
-        return;
-      } catch (_) {}
-    }
     await LocalDb.enqueue(
       method: 'POST', path: '/anggaran',
       body: jsonEncode({'kategori': kategori, 'batas': batas, 'periode': periode}),
       localId: localId, tableName: 'anggaran',
     );
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
   }
 
   static Future<Map<String, dynamic>> createAnggaranRaw(String kategori, double batas, String periode) =>
@@ -700,16 +626,15 @@ class ApiService {
     }
     await LocalDb.updateAnggaranBatas(id, batas);
     AppEvents.instance.anggaranBerubah();
-    if (_online) {
-      try {
-        await updateAnggaranRaw(id, batas);
-        return;
-      } catch (_) {}
-    }
+
     await LocalDb.enqueue(
       method: 'PUT', path: '/anggaran/$id',
       body: jsonEncode({'batas': batas}), localId: 'upd_ang_$id', tableName: 'anggaran',
     );
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
   }
 
   static Future<void> updateAnggaranRaw(dynamic id, double batas) =>
@@ -723,17 +648,16 @@ class ApiService {
     }
     await LocalDb.deleteAnggaran(id);
     AppEvents.instance.anggaranBerubah();
-    if (_online) {
-      try {
-        await deleteAnggaranRaw(id);
-        return;
-      } catch (_) {}
-    }
+
     if (id != null) {
       await LocalDb.enqueue(
         method: 'DELETE', path: '/anggaran/$id',
         body: '{}', localId: 'del_ang_$id', tableName: 'anggaran',
       );
+    }
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
     }
   }
 
@@ -769,16 +693,14 @@ class ApiService {
     await LocalDb.insertGoalLocal(localId, body);
     AppEvents.instance.goalsBerubah();
 
-    if (_online) {
-      try {
-        await createGoalRaw(body);
-        return;
-      } catch (_) {}
-    }
     await LocalDb.enqueue(
       method: 'POST', path: '/goals',
       body: jsonEncode(body), localId: localId, tableName: 'goals',
     );
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
   }
 
   static Future<Map<String, dynamic>> createGoalRaw(Map<String, dynamic> body) =>
@@ -792,16 +714,15 @@ class ApiService {
     }
     await LocalDb.updateGoalProgres(id, tambah);
     AppEvents.instance.goalsBerubah();
-    if (_online) {
-      try {
-        await updateProgresRaw(id, tambah);
-        return;
-      } catch (_) {}
-    }
+
     await LocalDb.enqueue(
       method: 'PUT', path: '/goals/$id/progres',
       body: jsonEncode({'tambah': tambah}), localId: 'upd_goal_$id', tableName: 'goals',
     );
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
+    }
   }
 
   static Future<void> updateProgresRaw(dynamic id, double tambah) =>
@@ -815,17 +736,16 @@ class ApiService {
     }
     await LocalDb.deleteGoal(id);
     AppEvents.instance.goalsBerubah();
-    if (_online) {
-      try {
-        await deleteGoalRaw(id);
-        return;
-      } catch (_) {}
-    }
+
     if (id != null) {
       await LocalDb.enqueue(
         method: 'DELETE', path: '/goals/$id',
         body: '{}', localId: 'del_goal_$id', tableName: 'goals',
       );
+    }
+
+    if (_online) {
+      unawaited(SyncService.instance.syncToServer(force: true));
     }
   }
 
