@@ -1,8 +1,11 @@
+import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../constants/app_colors.dart';
 import '../services/auth_service.dart';
+import '../services/connectivity_service.dart';
+import '../services/sync_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -62,6 +65,9 @@ class _LoginScreenState extends State<LoginScreen>
         final ok = await AuthService.instance.signInWithGoogle();
         if (!mounted) return;
         if (ok) {
+          if (!kIsWeb && ConnectivityService.instance.isOnline) {
+            unawaited(SyncService.instance.pullFromServer());
+          }
           Navigator.of(context).pushReplacementNamed('/home');
         } else {
           // Bedakan antara user benar-benar membatalkan dan backend gagal —

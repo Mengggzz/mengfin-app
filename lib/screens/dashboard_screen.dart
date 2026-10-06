@@ -742,9 +742,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildContent() {
     final d = _data!;
     final saldo = _saldoDompet;
-    final totalFlow = d.pemasukanBulanIni + d.pengeluaranBulanIni;
-    final saldoPersen = totalFlow > 0 ? (saldo.abs() / totalFlow * 100).clamp(0.0, 100.0) : 0.0;
-    final pengeluaranPersen = totalFlow > 0 ? (d.pengeluaranBulanIni / totalFlow * 100) : 0.0;
+    final totalPool = (saldo > 0 ? saldo : 0) + d.pengeluaranBulanIni;
+    final saldoPersen = totalPool > 0 && saldo > 0
+        ? (saldo / totalPool * 100).clamp(0.0, 100.0)
+        : 0.0;
+    final pengeluaranPersen = totalPool > 0
+        ? (d.pengeluaranBulanIni / totalPool * 100).clamp(0.0, 100.0)
+        : (d.pengeluaranBulanIni > 0 ? 100.0 : 0.0);
 
     // Group recent transactions by date
     final groupedTx = <String, List<dynamic>>{};
@@ -957,6 +961,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final rataRata = totalWeek / 7;
     final progress = _budgetHarian > 0 ? (_pengeluaranHariIni / _budgetHarian).clamp(0.0, 1.0) : 0.0;
     final isOverToday = _budgetHarian > 0 && _pengeluaranHariIni > _budgetHarian;
+    final isExact = _budgetHarian > 0 && _pengeluaranHariIni == _budgetHarian;
+    final badgeColor = isOverToday ? AppColors.expense : (isExact ? AppColors.warning : AppColors.income);
     // max untuk skala chart — pakai budget sebagai referensi, clamp outlier biar bar lain tetap kelihatan
     double rawMax = _last7DaysSpending.isEmpty ? 0 : _last7DaysSpending.reduce((a, b) => a > b ? a : b);
     if (_budgetHarian > 0 && _budgetHarian > rawMax) rawMax = _budgetHarian;
@@ -1056,20 +1062,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
-            color: sisa >= 0 ? AppColors.income.withOpacity(0.10) : AppColors.expense.withOpacity(0.12),
+            color: badgeColor.withOpacity(0.12),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: (sisa >= 0 ? AppColors.income : AppColors.expense).withOpacity(0.18)),
+            border: Border.all(color: badgeColor.withOpacity(0.18)),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(sisa >= 0 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
-              size: 14, color: sisa >= 0 ? AppColors.income : AppColors.expense),
+            Icon(isOverToday ? Icons.warning_amber_rounded : (isExact ? Icons.info_outline : Icons.check_circle_outline),
+              size: 14, color: badgeColor),
             const SizedBox(width: 6),
             Text(
-              sisa >= 0
-                ? 'Sisa Rp ${formatAmount(sisa)} · hari ini'
-                : 'Over Rp ${formatAmount(sisa.abs())} · hari ini',
+              isOverToday
+                ? 'Over Rp ${formatAmount(sisa.abs())} · hari ini'
+                : (isExact ? 'Budget Habis (Pas) · hari ini' : 'Sisa Rp ${formatAmount(sisa)} · hari ini'),
               style: TextStyle(
-                color: sisa >= 0 ? AppColors.income : AppColors.expense,
+                color: badgeColor,
                 fontSize: 12, fontWeight: FontWeight.w700),
             ),
           ]),
@@ -1798,6 +1804,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Page 0 — donut saldo vs pengeluaran
   Widget _saldoPage(DashboardData d, double saldoPersen, double pengeluaranPersen) {
+    final saldoNegatif = _saldoDompet <= 0 && d.pengeluaranBulanIni > 0;
     return Row(children: [
       SizedBox(
         width: 100, height: 100,
@@ -1805,18 +1812,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
           PieChart(PieChartData(
             sections: [
               PieChartSectionData(
-                value: saldoPersen > 0 ? saldoPersen : 0.1,
-                color: AppColors.income, radius: 13, showTitle: false),
+                value: saldoPersen > 0 ? saldoPersen : (pengeluaranPersen == 0 ? 100.0 : 0.001),
+                color: saldoPersen > 0 ? AppColors.income : (pengeluaranPersen == 0 ? AppColors.bgElevated : Colors.transparent),
+                radius: 13, showTitle: false),
               PieChartSectionData(
-                value: pengeluaranPersen > 0 ? pengeluaranPersen : 0.1,
-                color: AppColors.expense, radius: 13, showTitle: false),
+                value: pengeluaranPersen > 0 ? pengeluaranPersen : (saldoPersen == 0 ? 100.0 : 0.001),
+                color: pengeluaranPersen > 0 ? AppColors.expense : (saldoPersen == 0 ? AppColors.bgElevated : Colors.transparent),
+                radius: 13, showTitle: false),
             ],
             centerSpaceRadius: 31, sectionsSpace: 2, startDegreeOffset: -90,
           )),
           Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('${saldoPersen.toStringAsFixed(0)}%',
-              style:  TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w800)),
-             Text('Saldo', style: TextStyle(color: AppColors.textMuted, fontSize: 9)),
+            Text(
+              saldoNegatif
+                ? '${pengeluaranPersen.toStringAsFixed(0)}%'
+                : '${saldoPersen.toStringAsFixed(0)}%',
+              style: TextStyle(
+                color: saldoNegatif ? AppColors.expense : AppColors.textPrimary,
+                fontSize: 15, fontWeight: FontWeight.w800)),
+            Text(saldoNegatif ? 'Pengeluaran' : 'Saldo',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 9)),
           ]),
         ]),
       ),
@@ -1826,7 +1841,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 8),
         _chartLegend('Pengeluaran', '${pengeluaranPersen.toStringAsFixed(0)}%',
           'Rp ${formatAmount(d.pengeluaranBulanIni)}', AppColors.expense),
-        if (d.pengeluaranBulanIni > _saldoDompet.abs() && _saldoDompet < 0) ...[
+        if ((d.pengeluaranBulanIni > _saldoDompet || _saldoDompet < 0) && d.pengeluaranBulanIni > 0) ...[
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1916,7 +1931,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Text(persen, style:  TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
     if (amount.isNotEmpty) ...[
       const SizedBox(width: 6),
-      Text(amount, style:  TextStyle(color: AppColors.textMuted, fontSize: 11)),
+      Flexible(
+        child: Text(
+          amount,
+          style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
     ],
   ]);
 }

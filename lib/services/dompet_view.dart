@@ -26,7 +26,9 @@ class DompetView {
           .where((a) => pilihan.contains(AppPrefs.idKeTeks(a.id)))
           .toList();
       if (dipilih.isNotEmpty) {
-        return dipilih.fold<double>(0, (s, a) => s + a.saldo);
+        final sum = dipilih.fold<double>(0, (s, a) => s + a.saldo);
+        if (sum == 0 && saldoServer != 0) return saldoServer;
+        return sum;
       }
       // Semua dompet tampil sudah hilang dari daftar akun (dihapus) —
       // jangan diam-diam pakai dompet lain; tampilkan saldo server saja.
@@ -39,13 +41,20 @@ class DompetView {
         (a) => AppPrefs.idKeTeks(a.id) == dompetUtama,
       );
       if (utama.isNotEmpty) {
+        if (utama.first.saldo == 0 && saldoServer != 0 && akun.length <= 1) {
+          return saldoServer;
+        }
         return utama.first.saldo;
       }
     }
 
     // Default ketika tidak ada filter spesifik ("Semua Dompet"):
     // jumlahkan seluruh saldo dompet yang ada.
-    return akun.fold<double>(0, (s, a) => s + a.saldo);
+    final total = akun.fold<double>(0, (s, a) => s + a.saldo);
+    if (total == 0 && saldoServer != 0) {
+      return saldoServer;
+    }
+    return total;
   }
 
   /// Dompet yang dipakai sebagai default saat input transaksi baru.

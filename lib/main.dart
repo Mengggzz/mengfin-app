@@ -198,12 +198,17 @@ class _MainNavState extends State<MainNav> {
 
   @override
   Widget build(BuildContext context) {
+    final bool bannerVisible = !_isOnline || _showSyncBanner || _pendingCount > 0;
     return Scaffold(
       body: Column(children: [
         // Offline / Sync Banner
         _buildBanner(),
         Expanded(
-          child: IndexedStack(index: _idx, children: _screens),
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: bannerVisible,
+            child: IndexedStack(index: _idx, children: _screens),
+          ),
         ),
       ]),
       // ── FAB for Quick Add Transaction ──────────────────────────

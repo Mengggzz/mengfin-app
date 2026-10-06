@@ -201,5 +201,52 @@ void main() {
       expect(akuns.first.saldo, equals(150000),
           reason: 'Saldo dompet baru harus terpotong 50.000');
     });
+
+    test('fresh login / clear data: akun bersaldo 0 direkonsiliasi otomatis dari transaksi', () async {
+      // 1. Simulasi akun dari server yang saldo dokumennya 0
+      await LocalDb.upsertAkunList([
+        Akun(
+          id: 'akun_utama_server',
+          nama: 'Dompet Utama',
+          jenis: 'cashflow',
+          saldo: 0, // Server belum update saldo akun
+          warna: '#2563EB',
+          ikon: 'cashflow',
+        ),
+      ]);
+
+      // 2. Simulasi transaksi ditarik dari server
+      await LocalDb.upsertTransaksiBatch([
+        Transaksi(
+          id: 'tx_1',
+          tanggal: '2026-10-01',
+          jenis: 'pemasukan',
+          nominal: 2000000,
+          kategori: 'Gaji',
+          deskripsi: 'Gaji Bulanan',
+          metodePembayaran: 'tunai',
+          akunId: 'akun_utama_server',
+        ),
+        Transaksi(
+          id: 'tx_2',
+          tanggal: '2026-10-02',
+          jenis: 'pengeluaran',
+          nominal: 500000,
+          kategori: 'Makan & Minum',
+          deskripsi: 'Resto',
+          metodePembayaran: 'tunai',
+          akunId: 'akun_utama_server',
+        ),
+      ]);
+
+      // 3. Saldo akun setelah rekonsiliasi harus 1.500.000 (2.000.000 - 500.000)
+      final akuns = await LocalDb.getAkunList();
+      expect(akuns.first.saldo, equals(1500000),
+          reason: 'Saldo akun harus otomatis terisi 1.500.000 dari riwayat transaksi');
+
+      // 4. Dashboard local juga harus mengembalikan saldo 1.500.000
+      final stats = await LocalDb.getDashboardLocal('2026-10');
+      expect(stats['saldo'], equals(1500000.0));
+    });
   });
 }
