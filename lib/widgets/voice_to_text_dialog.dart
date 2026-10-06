@@ -32,38 +32,47 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
   }
 
   Future<void> _startListening() async {
-    bool available = await _speech.initialize(
-      onStatus: (val) {
-        debugPrint('onStatus: $val');
-        if (!mounted) return;
-        if ((val == 'done' || val == 'notListening') &&
-            _isListening && _text.trim().isNotEmpty) {
-          _processVoice(_text);
-        }
-      },
-      onError: (val) => debugPrint('onError: $val'),
-    );
-    if (!mounted) return;
-    if (available) {
-      setState(() { _isListening = true; _stage = _VoiceStage.listening; });
-      _speech.listen(
-        localeId: 'id_ID',
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 3),
-        onResult: (val) {
+    try {
+      bool available = await _speech.initialize(
+        onStatus: (val) {
+          debugPrint('onStatus: $val');
           if (!mounted) return;
-          setState(() => _text = val.recognizedWords);
-          // Auto-proses begitu speech engine menandai hasil final
-          if (val.finalResult && val.recognizedWords.trim().isNotEmpty) {
-            _processVoice(val.recognizedWords);
+          if ((val == 'done' || val == 'notListening') &&
+              _isListening && _text.trim().isNotEmpty) {
+            _processVoice(_text);
           }
         },
+        onError: (val) => debugPrint('onError: $val'),
       );
-    } else {
+      if (!mounted) return;
+      if (available) {
+        setState(() { _isListening = true; _stage = _VoiceStage.listening; });
+        _speech.listen(
+          localeId: 'id_ID',
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 3),
+          onResult: (val) {
+            if (!mounted) return;
+            setState(() => _text = val.recognizedWords);
+            // Auto-proses begitu speech engine menandai hasil final
+            if (val.finalResult && val.recognizedWords.trim().isNotEmpty) {
+              _processVoice(val.recognizedWords);
+            }
+          },
+        );
+      } else {
+        setState(() {
+          _isListening = false;
+          _stage = _VoiceStage.error;
+          _errorMsg = 'Mikrofon tidak tersedia atau izin ditolak.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isListening = false;
         _stage = _VoiceStage.error;
-        _errorMsg = 'Mikrofon tidak tersedia atau izin ditolak.';
+        _errorMsg = 'Layanan pengenalan suara tidak tersedia di perangkat ini.';
       });
     }
   }
