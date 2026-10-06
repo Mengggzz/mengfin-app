@@ -481,6 +481,7 @@ class ApiService {
           if (!exists || currentUtama == null || currentUtama.isEmpty) {
             await AppPrefs.instance.setDompetUtama(targetAkunId);
           }
+          await pullAkun();
         }
         AppEvents.instance.akunBerubah();
         return;
@@ -531,6 +532,7 @@ class ApiService {
       try {
         await _put('/akun/$id', {'saldo': saldo});
         if (!kIsWeb) await LocalDb.updateAkunSaldoLocal(id.toString(), saldo);
+        await pullAkun();
         AppEvents.instance.akunBerubah();
         return;
       } catch (_) {}

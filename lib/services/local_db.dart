@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/models.dart';
+import 'app_prefs.dart';
 
 class LocalDb {
   static Future<Database>? _dbFuture;
@@ -267,13 +268,29 @@ class LocalDb {
       'synced': 0,
     });
 
-    if (akunId != null && akunId.isNotEmpty) {
-      final nominal = (data['nominal'] as num? ?? 0).toDouble();
-      final delta = data['jenis'] == 'pemasukan' ? nominal : -nominal;
-      await d.rawUpdate(
+    final nominal = (data['nominal'] as num? ?? 0).toDouble();
+    final delta = data['jenis'] == 'pemasukan' ? nominal : -nominal;
+    int updated = 0;
+    if (akunId != null && akunId.isNotEmpty && akunId != 'null') {
+      updated = await d.rawUpdate(
         'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
         [delta, akunId, akunId],
       );
+    }
+    if (updated == 0) {
+      final defaultId = AppPrefs.instance.dompetUtama;
+      if (defaultId != null && defaultId.isNotEmpty && defaultId != 'null') {
+        updated = await d.rawUpdate(
+          'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
+          [delta, defaultId, defaultId],
+        );
+      }
+      if (updated == 0) {
+        await d.rawUpdate(
+          'UPDATE akun SET saldo = saldo + ? WHERE id = (SELECT id FROM akun LIMIT 1)',
+          [delta],
+        );
+      }
     }
   }
 
@@ -283,14 +300,30 @@ class LocalDb {
     if (rows.isNotEmpty) {
       final row = rows.first;
       final akunId = row['akun_id']?.toString();
-      if (akunId != null && akunId.isNotEmpty) {
-        final nominal = (row['nominal'] as num? ?? 0).toDouble();
-        final jenis = row['jenis'] as String?;
-        final delta = jenis == 'pemasukan' ? -nominal : nominal;
-        await d.rawUpdate(
+      final nominal = (row['nominal'] as num? ?? 0).toDouble();
+      final jenis = row['jenis'] as String?;
+      final delta = jenis == 'pemasukan' ? -nominal : nominal;
+      int updated = 0;
+      if (akunId != null && akunId.isNotEmpty && akunId != 'null') {
+        updated = await d.rawUpdate(
           'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
           [delta, akunId, akunId],
         );
+      }
+      if (updated == 0) {
+        final defaultId = AppPrefs.instance.dompetUtama;
+        if (defaultId != null && defaultId.isNotEmpty && defaultId != 'null') {
+          updated = await d.rawUpdate(
+            'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
+            [delta, defaultId, defaultId],
+          );
+        }
+        if (updated == 0) {
+          await d.rawUpdate(
+            'UPDATE akun SET saldo = saldo + ? WHERE id = (SELECT id FROM akun LIMIT 1)',
+            [delta],
+          );
+        }
       }
     }
     await d.delete('transaksi', where: 'id = ? OR local_id = ?', whereArgs: [id, id]);
@@ -312,25 +345,57 @@ class LocalDb {
       final oldJenis = old['jenis'] as String?;
 
       // Revert saldo transaksi lama
-      if (oldAkunId != null && oldAkunId.isNotEmpty) {
-        final revertDelta = oldJenis == 'pemasukan' ? -oldNominal : oldNominal;
-        await d.rawUpdate(
+      final revertDelta = oldJenis == 'pemasukan' ? -oldNominal : oldNominal;
+      int oldUpdated = 0;
+      if (oldAkunId != null && oldAkunId.isNotEmpty && oldAkunId != 'null') {
+        oldUpdated = await d.rawUpdate(
           'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
           [revertDelta, oldAkunId, oldAkunId],
         );
+      }
+      if (oldUpdated == 0) {
+        final defaultId = AppPrefs.instance.dompetUtama;
+        if (defaultId != null && defaultId.isNotEmpty && defaultId != 'null') {
+          oldUpdated = await d.rawUpdate(
+            'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
+            [revertDelta, defaultId, defaultId],
+          );
+        }
+        if (oldUpdated == 0) {
+          await d.rawUpdate(
+            'UPDATE akun SET saldo = saldo + ? WHERE id = (SELECT id FROM akun LIMIT 1)',
+            [revertDelta],
+          );
+        }
       }
 
       // Terapkan saldo transaksi baru
       final newAkunId = data.containsKey('akun_id') ? data['akun_id']?.toString() : oldAkunId;
       final newNominal = data['nominal'] != null ? (data['nominal'] as num).toDouble() : oldNominal;
       final newJenis = (data['jenis'] as String?) ?? oldJenis;
+      final applyDelta = newJenis == 'pemasukan' ? newNominal : -newNominal;
+      int newUpdated = 0;
 
-      if (newAkunId != null && newAkunId.isNotEmpty) {
-        final applyDelta = newJenis == 'pemasukan' ? newNominal : -newNominal;
-        await d.rawUpdate(
+      if (newAkunId != null && newAkunId.isNotEmpty && newAkunId != 'null') {
+        newUpdated = await d.rawUpdate(
           'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
           [applyDelta, newAkunId, newAkunId],
         );
+      }
+      if (newUpdated == 0) {
+        final defaultId = AppPrefs.instance.dompetUtama;
+        if (defaultId != null && defaultId.isNotEmpty && defaultId != 'null') {
+          newUpdated = await d.rawUpdate(
+            'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
+            [applyDelta, defaultId, defaultId],
+          );
+        }
+        if (newUpdated == 0) {
+          await d.rawUpdate(
+            'UPDATE akun SET saldo = saldo + ? WHERE id = (SELECT id FROM akun LIMIT 1)',
+            [applyDelta],
+          );
+        }
       }
     }
 
@@ -769,10 +834,19 @@ class LocalDb {
       if (r['jenis'] == 'pemasukan') pemasukan = (r['total'] as num).toDouble();
       if (r['jenis'] == 'pengeluaran') pengeluaran = (r['total'] as num).toDouble();
     }
-    final saldoRows = await d.rawQuery(
-      "SELECT SUM(CASE WHEN jenis='pemasukan' THEN nominal ELSE -nominal END) as saldo FROM transaksi"
-    );
-    final saldo = (saldoRows.first['saldo'] as num? ?? 0).toDouble();
+
+    // Saldo dihitung dari total saldo seluruh akun/dompet aktif
+    final akunSaldoRows = await d.rawQuery("SELECT SUM(saldo) as total_saldo FROM akun");
+    double saldo = 0;
+    if (akunSaldoRows.isNotEmpty && akunSaldoRows.first['total_saldo'] != null) {
+      saldo = (akunSaldoRows.first['total_saldo'] as num).toDouble();
+    } else {
+      final saldoRows = await d.rawQuery(
+        "SELECT SUM(CASE WHEN jenis='pemasukan' THEN nominal ELSE -nominal END) as saldo FROM transaksi"
+      );
+      saldo = (saldoRows.first['saldo'] as num? ?? 0).toDouble();
+    }
+
     return {
       'saldo': saldo,
       'pemasukan': pemasukan,
