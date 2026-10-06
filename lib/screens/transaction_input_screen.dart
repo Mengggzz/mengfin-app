@@ -171,11 +171,13 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
   /// yang tidak pernah ia lihat (dulu "25 + 10" tersimpan sebagai 2510).
   double _parseAmount() {
     final exact = AmountExpression.evaluate(_amount);
-    if (exact != null) return exact;
+    if (exact != null) return exact > 0 ? exact : 0;
     if (AmountExpression.endsWithOperator(_amount)) {
-      return AmountExpression.lastNumber(_amount) ?? 0;
+      final last = AmountExpression.lastNumber(_amount) ?? 0;
+      return last > 0 ? last : 0;
     }
-    return AmountExpression.lastNumber(_amount) ?? 0;
+    final last = AmountExpression.lastNumber(_amount) ?? 0;
+    return last > 0 ? last : 0;
   }
 
   /// Tombol "=" : hitung ekspresi yang sedang diketik dan jadikan hasilnya
@@ -739,6 +741,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
           onDelete: _onDelete,
           onConfirm: _onConfirm,
           onEquals: _onEquals,
+          isSaving: _saving,
         ),
 
         SizedBox(height: MediaQuery.of(context).padding.bottom),

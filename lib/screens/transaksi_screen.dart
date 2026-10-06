@@ -566,7 +566,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
                     color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             const Text(
-                'Pasang filter untuk menarik transaksi dari dompet mana pun — ketuk untuk edit, tekan lama untuk opsi hapus.',
+                'Pasang filter untuk menarik transaksi dari dompet mana pun — ketuk untuk edit, tekan lama untuk opsi cepat/seleksi.',
                 style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.3)),
           ]),
         ),

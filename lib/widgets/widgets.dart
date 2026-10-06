@@ -598,6 +598,7 @@ class CalcNumpad extends StatelessWidget {
   final ValueChanged<String> onKey;
   final VoidCallback onDelete;
   final VoidCallback onConfirm;
+  final bool isSaving;
 
   /// Tombol "=". Wajib diisi — dulu opsional dengan default kosong, dan
   /// pemanggil mengirim `() {}` sehingga tombolnya tidak bereaksi sama sekali.
@@ -609,6 +610,7 @@ class CalcNumpad extends StatelessWidget {
     required this.onDelete,
     required this.onConfirm,
     required this.onEquals,
+    this.isSaving = false,
   });
 
   @override
@@ -620,7 +622,7 @@ class CalcNumpad extends StatelessWidget {
         // Row 1: 1, 2, 3, Backspace
         _row([
           _numKey('1'), _numKey('2'), _numKey('3'),
-          _specialKey(Icons.backspace_outlined, AppColors.numpadDel, onDelete),
+          _specialKey(Icons.backspace_outlined, AppColors.numpadDel, isSaving ? null : onDelete),
         ]),
         const SizedBox(height: 6),
         // Row 2: 4, 5, 6, +
@@ -642,8 +644,8 @@ class CalcNumpad extends StatelessWidget {
         const SizedBox(height: 6),
         // Row 5: hitung (=) dan simpan (✓)
         _row([
-          _wideKey(Icons.drag_handle, AppColors.numpadEq, onEquals),
-          _wideKey(Icons.check, AppColors.numpadOk, onConfirm),
+          _wideKey(Icons.drag_handle, AppColors.numpadEq, isSaving ? null : onEquals),
+          _wideConfirmKey(AppColors.numpadOk, isSaving ? null : onConfirm),
         ]),
       ]),
     );
@@ -657,7 +659,7 @@ class CalcNumpad extends StatelessWidget {
   );
 
   Widget _numKey(String val) => GestureDetector(
-    onTap: () => onKey(val),
+    onTap: isSaving ? null : () => onKey(val),
     child: Container(
       height: 52,
       decoration: BoxDecoration(
@@ -669,7 +671,7 @@ class CalcNumpad extends StatelessWidget {
     ),
   );
 
-  Widget _specialKey(IconData icon, Color color, VoidCallback action) => GestureDetector(
+  Widget _specialKey(IconData icon, Color color, VoidCallback? action) => GestureDetector(
     onTap: action,
     child: Container(
       height: 52,
@@ -687,7 +689,7 @@ class CalcNumpad extends StatelessWidget {
   /// dibungkus `GestureDetector(onTap: () {})`: `+` dan `−` jalan, `×` dan `÷`
   /// cuma teks hiasan, dan ketukan di sela-selanya ditelan oleh pembungkus mati.
   Widget _opKey(String op) => GestureDetector(
-    onTap: () => onKey(op),
+    onTap: isSaving ? null : () => onKey(op),
     child: Container(
       height: 52,
       decoration: BoxDecoration(
@@ -700,15 +702,36 @@ class CalcNumpad extends StatelessWidget {
   );
 
   /// Tombol aksi lebar (dipakai untuk "=" dan "✓").
-  Widget _wideKey(IconData icon, Color color, VoidCallback action) => GestureDetector(
+  Widget _wideKey(IconData icon, Color color, VoidCallback? action) => GestureDetector(
     onTap: action,
     child: Container(
       height: 52,
       decoration: BoxDecoration(
-        color: color,
+        color: isSaving ? color.withOpacity(0.5) : color,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Center(child: Icon(icon, color: Colors.white, size: 26)),
+    ),
+  );
+
+  Widget _wideConfirmKey(Color color, VoidCallback? action) => GestureDetector(
+    onTap: action,
+    child: Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: isSaving ? color.withOpacity(0.5) : color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: isSaving
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.2, color: Colors.white),
+              )
+            : const Icon(Icons.check, color: Colors.white, size: 26),
+      ),
     ),
   );
 }

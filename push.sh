@@ -10,7 +10,7 @@ echo ""
 
 git add -A
 git commit -m "$MSG"
-git -c credential.helper=wincred push origin main
+git push origin main
 
 echo ""
 echo "Selesai!"
