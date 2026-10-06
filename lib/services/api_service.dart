@@ -24,12 +24,12 @@ class ApiService {
   }
 
   // ── Low-level HTTP ─────────────────────────────────────────────────────────
-  static Future<Map<String, dynamic>> _get(String path) async {
+  static Future<Map<String, dynamic>> _get(String path, {Duration timeout = const Duration(seconds: 10)}) async {
     try {
       final res = await _client.get(
         Uri.parse('$kApiBaseUrl$path'),
         headers: _authHeaders,
-      );
+      ).timeout(timeout);
       ConnectivityService.instance.reportOnline();
       if (res.statusCode == 200) return jsonDecode(res.body);
       if (res.statusCode == 401) throw Exception('unauthorized');
@@ -42,13 +42,13 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
+  static Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body, {Duration timeout = const Duration(seconds: 10)}) async {
     try {
       final res = await _client.post(
         Uri.parse('$kApiBaseUrl$path'),
         headers: _authHeaders,
         body: jsonEncode(body),
-      );
+      ).timeout(timeout);
       ConnectivityService.instance.reportOnline();
       if (res.statusCode >= 200 && res.statusCode < 300) return jsonDecode(res.body);
       if (res.statusCode == 401) throw Exception('unauthorized');
@@ -61,13 +61,13 @@ class ApiService {
     }
   }
 
-  static Future<void> _put(String path, Map<String, dynamic> body) async {
+  static Future<void> _put(String path, Map<String, dynamic> body, {Duration timeout = const Duration(seconds: 10)}) async {
     try {
       final res = await _client.put(
         Uri.parse('$kApiBaseUrl$path'),
         headers: _authHeaders,
         body: jsonEncode(body),
-      );
+      ).timeout(timeout);
       ConnectivityService.instance.reportOnline();
       if (res.statusCode >= 200 && res.statusCode < 300) return;
       if (res.statusCode == 401) throw Exception('unauthorized');
@@ -80,12 +80,12 @@ class ApiService {
     }
   }
 
-  static Future<void> _delete(String path) async {
+  static Future<void> _delete(String path, {Duration timeout = const Duration(seconds: 10)}) async {
     try {
       final res = await _client.delete(
         Uri.parse('$kApiBaseUrl$path'),
         headers: _authHeaders,
-      );
+      ).timeout(timeout);
       ConnectivityService.instance.reportOnline();
       if (res.statusCode >= 200 && res.statusCode < 300) return;
       if (res.statusCode == 401) throw Exception('unauthorized');
@@ -833,153 +833,17 @@ class ApiService {
 
   // ── AI Chat ────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> chat(String pesan) async {
-    if (_online) {
-      try {
-        final res = await _post('/ai/chat', {'pesan': pesan});
-        if (res.containsKey('tipe') || res.containsKey('pesan')) {
-          final pesanText = res['pesan']?.toString() ?? '';
-          if (!pesanText.contains('tidak bisa memproses') &&
-              !pesanText.contains('terjadi kendala saat') &&
-              !pesanText.contains('Error') &&
-              pesanText.trim().isNotEmpty) {
-            return res;
-          }
-        }
-      } catch (_) {
-        // Server gagal atau endpoint tidak tersedia → alihkan ke fallback lokal
-      }
+    final t = pesan.trim();
+    if (t.isEmpty) {
+      return {
+        'tipe': 'jawaban',
+        'pesan': 'Silakan tulis pertanyaan seputar keuangan atau perintah catat transaksi.'
+      };
     }
 
-    return _localAIChat(pesan);
-  }
-
-  static Future<Map<String, dynamic>> _localAIChat(String pesan) async {
-    final t = pesan.trim();
     final lower = t.toLowerCase();
 
-    // 1. Cek apakah perintah transaksi
-    final isTx = _isTransactionText(lower);
-    if (isTx) {
-      final parsed = _fastParseTransaksiLocal(t);
-      if (parsed != null && ((parsed['nominal'] as num?)?.toDouble() ?? 0) > 0) {
-        final nominalNum = (parsed['nominal'] as num).toDouble();
-        final nominalFmt = _formatRp(nominalNum);
-        return {
-          'tipe': 'transaksi_preview',
-          'data': parsed,
-          'pesan': 'Saya mendeteksi transaksi:\n*${parsed['deskripsi']}*\n💰 Rp $nominalFmt\n📁 ${parsed['kategori']}\n💳 ${parsed['metode_pembayaran']}\n\nKonfirmasi untuk menyimpan?'
-        };
-      }
-    }
-
-    // 2. Ambil data lokal untuk analisis keuangan
-    final now = DateTime.now();
-    final bulanIni = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-    final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-
-    Map<String, double> dash = {};
-    List<Transaksi> txList = [];
-    List<Akun> akuns = [];
-    List<Anggaran> anggarans = [];
-
-    if (!kIsWeb) {
-      try {
-        dash = await LocalDb.getDashboardLocal(bulanIni);
-        txList = await LocalDb.getTransaksi(limit: 20);
-        akuns = await LocalDb.getAkunList();
-        anggarans = await LocalDb.getAnggaran(bulanIni);
-      } catch (_) {}
-    }
-
-    final double saldoTotal = akuns.fold<double>(0.0, (s, a) => s + a.saldo);
-    final double pemasukan = (dash['pemasukan'] ??
-        txList.where((x) => x.jenis == 'pemasukan' && x.tanggal.startsWith(bulanIni)).fold<double>(0.0, (s, x) => s + x.nominal)).toDouble();
-    final double pengeluaran = (dash['pengeluaran'] ??
-        txList.where((x) => x.jenis == 'pengeluaran' && x.tanggal.startsWith(bulanIni)).fold<double>(0.0, (s, x) => s + x.nominal)).toDouble();
-    final double saldoBersih = pemasukan - pengeluaran;
-    final double rataHarian = now.day > 0 ? (pengeluaran / now.day) : 0.0;
-    final double pengeluaranHariIni = txList
-        .where((x) => x.jenis == 'pengeluaran' && x.tanggal == todayStr)
-        .fold<double>(0.0, (s, x) => s + x.nominal);
-
-    // Kategori pengeluaran terbesar
-    final katMap = <String, double>{};
-    for (final x in txList.where((x) => x.jenis == 'pengeluaran' && x.tanggal.startsWith(bulanIni))) {
-      katMap[x.kategori] = (katMap[x.kategori] ?? 0.0) + x.nominal;
-    }
-    final topKat = katMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-
-    // A. Tanya Transaksi Terakhir / Riwayat
-    if (lower.contains('riwayat') || lower.contains('terakhir') || lower.contains('beli apa') || lower.contains('daftar')) {
-      if (txList.isEmpty) {
-        return {
-          'tipe': 'jawaban',
-          'pesan': '📝 **Riwayat Transaksi:**\n\nBelum ada transaksi tercatat. Ketik misalnya *"beli kopi 25rb"* untuk mencatat transaksi pertamamu!'
-        };
-      }
-      final sb = StringBuffer();
-      sb.writeln('📝 **${txList.take(7).length} Transaksi Terakhir:**\n');
-      int idx = 1;
-      for (final tx in txList.take(7)) {
-        final sign = tx.jenis == 'pemasukan' ? '(+) ' : '(-) ';
-        sb.writeln('$idx. **${tx.deskripsi.isNotEmpty ? tx.deskripsi : tx.kategori}** — $sign Rp ${_formatRp(tx.nominal)}');
-        sb.writeln('   📅 ${tx.tanggal} • 📁 ${tx.kategori}');
-        idx++;
-      }
-      return {'tipe': 'jawaban', 'pesan': sb.toString()};
-    }
-
-    // B. Tanya Saldo / Dompet
-    if (lower.contains('saldo') || lower.contains('dompet') || lower.contains('uangku') || lower.contains('sisa uang')) {
-      final sb = StringBuffer();
-      sb.writeln('💰 **Informasi Saldo:**\n');
-      sb.writeln('• Total Saldo: **Rp ${_formatRp(saldoTotal)}**');
-      sb.writeln('• Pemasukan Bulan Ini: **Rp ${_formatRp(pemasukan)}**');
-      sb.writeln('• Pengeluaran Bulan Ini: **Rp ${_formatRp(pengeluaran)}**');
-      sb.writeln('• Arus Kas Net: **${saldoBersih >= 0 ? '+' : ''}Rp ${_formatRp(saldoBersih)}**');
-      if (akuns.isNotEmpty) {
-        sb.writeln('\n**Daftar Dompet:**');
-        for (final a in akuns) {
-          sb.writeln('  • ${a.nama}: Rp ${_formatRp(a.saldo)}');
-        }
-      }
-      return {'tipe': 'jawaban', 'pesan': sb.toString()};
-    }
-
-    // C. Tanya Budget / Anggaran
-    if (lower.contains('budget') || lower.contains('anggaran') || lower.contains('batas')) {
-      if (anggarans.isEmpty) {
-        return {
-          'tipe': 'jawaban',
-          'pesan': '🎯 **Status Budget:**\n\n• Pengeluaran Hari Ini: **Rp ${_formatRp(pengeluaranHariIni)}**\n• Rata-rata Harian: **Rp ${_formatRp(rataHarian)}/hari**\n\n*Kamu belum menetapkan batas anggaran kategori di menu Saldo/Budget.*'
-        };
-      }
-      final sb = StringBuffer();
-      sb.writeln('🎯 **Status Anggaran Kategori:**\n');
-      for (final a in anggarans) {
-        final terpakai = katMap[a.kategori] ?? 0.0;
-        final pct = (terpakai / (a.batas > 0 ? a.batas : 1) * 100).round();
-        final statusIcon = terpakai > a.batas ? '⚠️' : '✅';
-        sb.writeln('$statusIcon **${a.kategori}**: Rp ${_formatRp(terpakai)} / Rp ${_formatRp(a.batas)} ($pct%)');
-      }
-      return {'tipe': 'jawaban', 'pesan': sb.toString()};
-    }
-
-    // D. Tips Hemat
-    if (lower.contains('tips') || lower.contains('hemat') || lower.contains('kurangi')) {
-      final sb = StringBuffer();
-      sb.writeln('💡 **Tips Hemat Terarah ($bulanIni):**\n');
-      if (topKat.isNotEmpty) {
-        sb.writeln('1. **Fokus pada Pos ${topKat.first.key}**: Pengeluaran pos ini mencapai **Rp ${_formatRp(topKat.first.value)}**. Tetapkan batas mingguan ketat.');
-      } else {
-        sb.writeln('1. **Catat Pengeluaran Rutin**: Awasi setiap pengeluaran harian agar tidak bocor halus.');
-      }
-      sb.writeln('2. **Evaluasi Pengeluaran Harian**: Rata-rata pengeluaranmu saat ini **Rp ${_formatRp(rataHarian)}/hari**.');
-      sb.writeln('3. **Prioritaskan Tabungan**: Sisihkan 10-20% di awal setiap kali menerima pemasukan.');
-      return {'tipe': 'jawaban', 'pesan': sb.toString()};
-    }
-
-    // E. Sapaan / Greeting / Tes
+    // 1. Fast Greeting / Test / Ping (<1ms response)
     if (lower == 'halo' ||
         lower == 'hai' ||
         lower == 'tes' ||
@@ -999,28 +863,185 @@ class ApiService {
       };
     }
 
-    // F. Analisis / Default Ringkasan
-    final sb = StringBuffer();
-    sb.writeln('📊 **Analisis Keuangan ($bulanIni):**\n');
-    sb.writeln('• **Saldo Dompet**: Rp ${_formatRp(saldoTotal)}');
-    sb.writeln('• **Pemasukan**: Rp ${_formatRp(pemasukan)}');
-    sb.writeln('• **Pengeluaran**: Rp ${_formatRp(pengeluaran)}');
-    sb.writeln('• **Arus Kas Net**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}Rp ${_formatRp(saldoBersih)}');
-    if (topKat.isNotEmpty) {
-      sb.writeln('\n📈 **Pengeluaran Terbesar:**');
-      for (final k in topKat.take(3)) {
-        final pct = pengeluaran > 0 ? (k.value / pengeluaran * 100).round() : 0;
-        sb.writeln('  • **${k.key}**: Rp ${_formatRp(k.value)} ($pct%)');
+    // 2. Fast Transaction Pattern (<1ms response)
+    if (_isTransactionText(lower)) {
+      final parsed = _fastParseTransaksiLocal(t);
+      if (parsed != null && ((parsed['nominal'] as num?)?.toDouble() ?? 0) > 0) {
+        final nominalNum = (parsed['nominal'] as num).toDouble();
+        final nominalFmt = _formatRp(nominalNum);
+        return {
+          'tipe': 'transaksi_preview',
+          'data': parsed,
+          'pesan': 'Saya mendeteksi transaksi:\n*${parsed['deskripsi']}*\n💰 Rp $nominalFmt\n📁 ${parsed['kategori']}\n💳 ${parsed['metode_pembayaran']}\n\nKonfirmasi untuk menyimpan?'
+        };
       }
     }
-    sb.writeln('\n🎯 **Rekomendasi:**');
-    if (saldoBersih < 0) {
-      sb.writeln('• ⚠️ Arus kas saat ini sedang defisit. Batasi pengeluaran non-primer untuk menstabilkan saldo.');
-    } else {
-      sb.writeln('• ✅ Kondisi keuangan terjaga baik. Pertahankan pencatatan rutin!');
+
+    // 3. Online Server AI Query dengan strict timeout (3 detik)
+    if (_online) {
+      try {
+        final res = await _post(
+          '/ai/chat',
+          {'pesan': t},
+          timeout: const Duration(seconds: 3),
+        );
+        if (res.containsKey('tipe') || res.containsKey('pesan')) {
+          final pesanText = res['pesan']?.toString() ?? '';
+          if (!pesanText.contains('tidak bisa memproses') &&
+              !pesanText.contains('terjadi kendala saat') &&
+              !pesanText.contains('Error') &&
+              pesanText.trim().isNotEmpty) {
+            return res;
+          }
+        }
+      } catch (_) {
+        // Timeout / server offline → alihkan ke fallback lokal seketika
+      }
     }
 
-    return {'tipe': 'jawaban', 'pesan': sb.toString()};
+    return _localAIChat(t);
+  }
+
+  static Future<Map<String, dynamic>> _localAIChat(String pesan) async {
+    try {
+      final t = pesan.trim();
+      final lower = t.toLowerCase();
+
+      // Ambil data lokal untuk analisis keuangan
+      final now = DateTime.now();
+      final bulanIni = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      Map<String, double> dash = {};
+      List<Transaksi> txList = [];
+      List<Akun> akuns = [];
+      List<Anggaran> anggarans = [];
+
+      if (!kIsWeb) {
+        try {
+          dash = await LocalDb.getDashboardLocal(bulanIni);
+          txList = await LocalDb.getTransaksi(limit: 20);
+          akuns = await LocalDb.getAkunList();
+          anggarans = await LocalDb.getAnggaran(bulanIni);
+        } catch (_) {}
+      }
+
+      final double saldoTotal = akuns.fold<double>(0.0, (s, a) => s + a.saldo);
+      final double pemasukan = (dash['pemasukan'] ??
+          txList.where((x) => x.jenis == 'pemasukan' && x.tanggal.startsWith(bulanIni)).fold<double>(0.0, (s, x) => s + x.nominal)).toDouble();
+      final double pengeluaran = (dash['pengeluaran'] ??
+          txList.where((x) => x.jenis == 'pengeluaran' && x.tanggal.startsWith(bulanIni)).fold<double>(0.0, (s, x) => s + x.nominal)).toDouble();
+      final double saldoBersih = pemasukan - pengeluaran;
+      final double rataHarian = now.day > 0 ? (pengeluaran / now.day) : 0.0;
+      final double pengeluaranHariIni = txList
+          .where((x) => x.jenis == 'pengeluaran' && x.tanggal == todayStr)
+          .fold<double>(0.0, (s, x) => s + x.nominal);
+
+      // Kategori pengeluaran terbesar
+      final katMap = <String, double>{};
+      for (final x in txList.where((x) => x.jenis == 'pengeluaran' && x.tanggal.startsWith(bulanIni))) {
+        katMap[x.kategori] = (katMap[x.kategori] ?? 0.0) + x.nominal;
+      }
+      final topKat = katMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
+      // A. Tanya Transaksi Terakhir / Riwayat
+      if (lower.contains('riwayat') || lower.contains('terakhir') || lower.contains('beli apa') || lower.contains('daftar')) {
+        if (txList.isEmpty) {
+          return {
+            'tipe': 'jawaban',
+            'pesan': '📝 **Riwayat Transaksi:**\n\nBelum ada transaksi tercatat. Ketik misalnya *"beli kopi 25rb"* untuk mencatat transaksi pertamamu!'
+          };
+        }
+        final sb = StringBuffer();
+        sb.writeln('📝 **${txList.take(7).length} Transaksi Terakhir:**\n');
+        int idx = 1;
+        for (final tx in txList.take(7)) {
+          final sign = tx.jenis == 'pemasukan' ? '(+) ' : '(-) ';
+          sb.writeln('$idx. **${tx.deskripsi.isNotEmpty ? tx.deskripsi : tx.kategori}** — $sign Rp ${_formatRp(tx.nominal)}');
+          sb.writeln('   📅 ${tx.tanggal} • 📁 ${tx.kategori}');
+          idx++;
+        }
+        return {'tipe': 'jawaban', 'pesan': sb.toString()};
+      }
+
+      // B. Tanya Saldo / Dompet
+      if (lower.contains('saldo') || lower.contains('dompet') || lower.contains('uangku') || lower.contains('sisa uang')) {
+        final sb = StringBuffer();
+        sb.writeln('💰 **Informasi Saldo:**\n');
+        sb.writeln('• Total Saldo: **Rp ${_formatRp(saldoTotal)}**');
+        sb.writeln('• Pemasukan Bulan Ini: **Rp ${_formatRp(pemasukan)}**');
+        sb.writeln('• Pengeluaran Bulan Ini: **Rp ${_formatRp(pengeluaran)}**');
+        sb.writeln('• Arus Kas Net: **${saldoBersih >= 0 ? '+' : ''}Rp ${_formatRp(saldoBersih)}**');
+        if (akuns.isNotEmpty) {
+          sb.writeln('\n**Daftar Dompet:**');
+          for (final a in akuns) {
+            sb.writeln('  • ${a.nama}: Rp ${_formatRp(a.saldo)}');
+          }
+        }
+        return {'tipe': 'jawaban', 'pesan': sb.toString()};
+      }
+
+      // C. Tanya Budget / Anggaran
+      if (lower.contains('budget') || lower.contains('anggaran') || lower.contains('batas')) {
+        if (anggarans.isEmpty) {
+          return {
+            'tipe': 'jawaban',
+            'pesan': '🎯 **Status Budget:**\n\n• Pengeluaran Hari Ini: **Rp ${_formatRp(pengeluaranHariIni)}**\n• Rata-rata Harian: **Rp ${_formatRp(rataHarian)}/hari**\n\n*Kamu belum menetapkan batas anggaran kategori di menu Saldo/Budget.*'
+          };
+        }
+        final sb = StringBuffer();
+        sb.writeln('🎯 **Status Anggaran Kategori:**\n');
+        for (final a in anggarans) {
+          final terpakai = katMap[a.kategori] ?? 0.0;
+          final pct = (terpakai / (a.batas > 0 ? a.batas : 1) * 100).round();
+          final statusIcon = terpakai > a.batas ? '⚠️' : '✅';
+          sb.writeln('$statusIcon **${a.kategori}**: Rp ${_formatRp(terpakai)} / Rp ${_formatRp(a.batas)} ($pct%)');
+        }
+        return {'tipe': 'jawaban', 'pesan': sb.toString()};
+      }
+
+      // D. Tips Hemat
+      if (lower.contains('tips') || lower.contains('hemat') || lower.contains('kurangi')) {
+        final sb = StringBuffer();
+        sb.writeln('💡 **Tips Hemat Terarah ($bulanIni):**\n');
+        if (topKat.isNotEmpty) {
+          sb.writeln('1. **Fokus pada Pos ${topKat.first.key}**: Pengeluaran pos ini mencapai **Rp ${_formatRp(topKat.first.value)}**. Tetapkan batas mingguan ketat.');
+        } else {
+          sb.writeln('1. **Catat Pengeluaran Rutin**: Awasi setiap pengeluaran harian agar tidak bocor halus.');
+        }
+        sb.writeln('2. **Evaluasi Pengeluaran Harian**: Rata-rata pengeluaranmu saat ini **Rp ${_formatRp(rataHarian)}/hari**.');
+        sb.writeln('3. **Prioritaskan Tabungan**: Sisihkan 10-20% di awal setiap kali menerima pemasukan.');
+        return {'tipe': 'jawaban', 'pesan': sb.toString()};
+      }
+
+      // E. Analisis / Default Ringkasan untuk semua input lain
+      final sb = StringBuffer();
+      sb.writeln('📊 **Analisis Keuangan ($bulanIni):**\n');
+      sb.writeln('• **Saldo Dompet**: Rp ${_formatRp(saldoTotal)}');
+      sb.writeln('• **Pemasukan**: Rp ${_formatRp(pemasukan)}');
+      sb.writeln('• **Pengeluaran**: Rp ${_formatRp(pengeluaran)}');
+      sb.writeln('• **Arus Kas Net**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}Rp ${_formatRp(saldoBersih)}');
+      if (topKat.isNotEmpty) {
+        sb.writeln('\n📈 **Pengeluaran Terbesar:**');
+        for (final k in topKat.take(3)) {
+          final pct = pengeluaran > 0 ? (k.value / pengeluaran * 100).round() : 0;
+          sb.writeln('  • **${k.key}**: Rp ${_formatRp(k.value)} ($pct%)');
+        }
+      }
+      sb.writeln('\n🎯 **Rekomendasi:**');
+      if (saldoBersih < 0) {
+        sb.writeln('• ⚠️ Arus kas saat ini sedang defisit. Batasi pengeluaran non-primer untuk menstabilkan saldo.');
+      } else {
+        sb.writeln('• ✅ Kondisi keuangan terjaga baik. Pertahankan pencatatan rutin!');
+      }
+
+      return {'tipe': 'jawaban', 'pesan': sb.toString()};
+    } catch (_) {
+      return {
+        'tipe': 'jawaban',
+        'pesan': '👋 Halo! Saya **MengFin AI** siap membantu pencatatan dan analisis keuanganmu. Ketik pertanyaan seperti *"berapa saldo saya?"* atau *"beli kopi 25rb"*.'
+      };
+    }
   }
 
   static bool _isTransactionText(String t) {

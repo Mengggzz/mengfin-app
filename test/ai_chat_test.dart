@@ -52,5 +52,19 @@ void main() {
       expect(res['tipe'], 'jawaban');
       expect(res['pesan'], contains('Analisis Keuangan'));
     });
+
+    test('respons untuk input kosong', () async {
+      final res = await ApiService.chat('   ');
+      expect(res['tipe'], 'jawaban');
+      expect(res['pesan'], isNotEmpty);
+    });
+
+    test('respons untuk pertanyaan budget & riwayat', () async {
+      final resBudget = await ApiService.chat('cek budget hari ini');
+      expect(resBudget['pesan'], contains('Budget'));
+
+      final resRiwayat = await ApiService.chat('daftar transaksi terakhir');
+      expect(resRiwayat['pesan'], contains('Transaksi'));
+    });
   });
 }
