@@ -10,6 +10,7 @@ import 'screens/transaksi_screen.dart';
 import 'screens/kazz_screen.dart';
 import 'screens/more_screen.dart';
 import 'screens/transaction_input_screen.dart';
+import 'screens/biometric_lock_screen.dart';
 import 'services/auth_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/sync_service.dart';
@@ -109,11 +110,13 @@ class MainNav extends StatefulWidget {
   @override State<MainNav> createState() => _MainNavState();
 }
 
-class _MainNavState extends State<MainNav> {
+class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
   int _idx = 0;
   bool _isOnline = true;
   bool _showSyncBanner = false;
   int _pendingCount = 0;
+  bool _isLocked = false;
+  DateTime? _pausedTime;
 
   // Sengaja BUKAN `static const`: kalau instance-nya sama persis, Flutter
   // melewati rebuild dan layar tidak ikut berubah warna saat mode tampilan
@@ -136,6 +139,10 @@ class _MainNavState extends State<MainNav> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (!kIsWeb && AuthService.instance.isLoggedIn && AppPrefs.instance.biometricAktif) {
+      _isLocked = true;
+    }
     _isOnline = ConnectivityService.instance.isOnline;
     _updatePendingCount();
     // Ganti mode tampilan → bangun ulang seluruh layar tab supaya warna
@@ -175,8 +182,28 @@ class _MainNavState extends State<MainNav> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     ThemeService.instance.removeListener(_onThemeBerubah);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (kIsWeb) return;
+    if (state == AppLifecycleState.paused) {
+      _pausedTime = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      if (AppPrefs.instance.biometricAktif && AuthService.instance.isLoggedIn) {
+        final now = DateTime.now();
+        if (_pausedTime != null && now.difference(_pausedTime!).inSeconds >= 2) {
+          if (mounted) {
+            setState(() {
+              _isLocked = true;
+            });
+          }
+        }
+      }
+    }
   }
 
   Future<void> _updatePendingCount() async {
@@ -198,6 +225,13 @@ class _MainNavState extends State<MainNav> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLocked) {
+      return BiometricLockScreen(
+        onUnlocked: () {
+          if (mounted) setState(() => _isLocked = false);
+        },
+      );
+    }
     final bool bannerVisible = !_isOnline || _showSyncBanner || _pendingCount > 0;
     return Scaffold(
       body: Column(children: [

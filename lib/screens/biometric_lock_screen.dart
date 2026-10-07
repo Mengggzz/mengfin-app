@@ -30,17 +30,21 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
       _errorMessage = null;
     });
 
-    final success = await BiometricService.instance.authenticate(
+    final res = await BiometricService.instance.authenticateWithDetails(
       localizedReason: 'Pindai sidik jari atau wajah untuk membuka MengFin',
     );
 
     if (mounted) {
       setState(() => _authenticating = false);
-      if (success) {
+      if (res.isSuccess) {
         widget.onUnlocked();
+      } else if (res.status == BiometricStatus.canceled) {
+        setState(() {
+          _errorMessage = 'Verifikasi biometrik dibatalkan.';
+        });
       } else {
         setState(() {
-          _errorMessage = 'Verifikasi biometrik gagal atau dibatalkan.';
+          _errorMessage = res.message;
         });
       }
     }
@@ -48,10 +52,8 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      backgroundColor: isDark ? AppColors.bgDark : AppColors.bgLight,
+      backgroundColor: AppColors.bg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -71,18 +73,19 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
                     width: 2,
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.fingerprint_rounded,
                   size: 48,
                   color: AppColors.primary,
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'MengFin Terkunci',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -91,7 +94,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
-                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                  color: AppColors.textMuted,
                   height: 1.4,
                 ),
               ),
@@ -107,12 +110,12 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error_outline, size: 16, color: AppColors.danger),
+                      Icon(Icons.error_outline, size: 16, color: AppColors.danger),
                       const SizedBox(width: 8),
                       Flexible(
                         child: Text(
                           _errorMessage!,
-                          style: const TextStyle(fontSize: 12, color: AppColors.danger),
+                          style: TextStyle(fontSize: 12, color: AppColors.danger),
                         ),
                       ),
                     ],
