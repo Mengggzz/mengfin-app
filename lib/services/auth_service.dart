@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/config.dart';
+import 'secure_storage_service.dart';
 import '../utils/web_auth_stub.dart'
     if (dart.library.html) '../utils/web_auth_web.dart' as webAuth;
 
@@ -38,11 +39,10 @@ class AuthService {
   Map<String, dynamic>? get user => _user;
   bool get isLoggedIn => _token != null;
 
-  /// Init: load JWT dari storage + proses callback OAuth (jika ada)
+  /// Init: load JWT dari secure storage + proses callback OAuth (jika ada)
   Future<bool> init() async {
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString(_tokenKey);
-    final userStr = prefs.getString(_userKey);
+    _token = await SecureStorageService.instance.read(_tokenKey);
+    final userStr = await SecureStorageService.instance.read(_userKey);
     if (userStr != null) {
       try { _user = jsonDecode(userStr); } catch (_) {}
     }
@@ -133,9 +133,8 @@ class AuthService {
       _token = data['token'] as String;
       _user  = data['user']  as Map<String, dynamic>;
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, _token!);
-      await prefs.setString(_userKey,  jsonEncode(_user));
+      await SecureStorageService.instance.write(_tokenKey, _token!);
+      await SecureStorageService.instance.write(_userKey, jsonEncode(_user));
       return true;
     } catch (e) {
       // Jaringan / timeout / server tidak terjangkau → beri tahu user
@@ -150,9 +149,8 @@ class AuthService {
     if (!kIsWeb) await _googleSignIn.signOut();
     _token = null;
     _user  = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_userKey);
+    await SecureStorageService.instance.delete(_tokenKey);
+    await SecureStorageService.instance.delete(_userKey);
   }
 
   void dispose() => _loginResult.close();

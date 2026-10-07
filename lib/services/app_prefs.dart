@@ -20,6 +20,8 @@ class AppPrefs {
   static const _kNotifAktif = 'notif_auto_aktif';
   static const _kKataKunci = 'notif_kata_kunci';
   static const _kAppPantau = 'notif_app_dipantau';
+  static const _kNotifReviewDraft = 'notif_review_draft';
+  static const _kBiometricAktif = 'security_biometric_aktif';
 
   // Pengaturan beranda & kustomisasi
   static const _kHomeDataMode = 'home_data_mode';
@@ -35,6 +37,8 @@ class AppPrefs {
   List<String> _dompetTampil = const [];
   String? _dompetUtama;
   bool _notifAktif = false;
+  bool _notifReviewDraft = true;
+  bool _biometricAktif = false;
 
   int _homeDataMode = 0; // 0 = 7 hari terakhir, 1 = siklus aktif
   bool _homeShowChart = true;
@@ -47,6 +51,8 @@ class AppPrefs {
   List<String> get dompetTampil => List.unmodifiable(_dompetTampil);
   String? get dompetUtama => _dompetUtama;
   bool get notifAktif => _notifAktif;
+  bool get notifReviewDraft => _notifReviewDraft;
+  bool get biometricAktif => _biometricAktif;
 
   int get homeDataMode => _homeDataMode;
   bool get homeShowChart => _homeShowChart;
@@ -62,6 +68,8 @@ class AppPrefs {
   Future<void> init() async {
     final p = await SharedPreferences.getInstance();
     _notifAktif = p.getBool(_kNotifAktif) ?? false;
+    _notifReviewDraft = p.getBool(_kNotifReviewDraft) ?? true;
+    _biometricAktif = p.getBool(_kBiometricAktif) ?? false;
     _dompetUtama = p.getString(_kDompetUtama);
 
     final kw = p.getStringList(_kKataKunci);
@@ -135,6 +143,18 @@ class AppPrefs {
     await p.setBool(_kNotifAktif, aktif);
   }
 
+  Future<void> setNotifReviewDraft(bool reviewDraft) async {
+    _notifReviewDraft = reviewDraft;
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_kNotifReviewDraft, reviewDraft);
+  }
+
+  Future<void> setBiometricAktif(bool aktif) async {
+    _biometricAktif = aktif;
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_kBiometricAktif, aktif);
+  }
+
   Future<void> setKataKunci(List<String> kata) async {
     _kataKunci = List.of(kata);
     final p = await SharedPreferences.getInstance();
@@ -163,6 +183,8 @@ class AppPrefs {
     _dompetTampil = const [];
     _dompetUtama = null;
     _notifAktif = false;
+    _notifReviewDraft = true;
+    _biometricAktif = false;
     _homeDataMode = 0;
     _homeShowChart = true;
     _homeShowBudget = true;

@@ -4,9 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
+import '../models/models.dart';
 import 'api_service.dart';
 import 'app_events.dart';
 import 'app_prefs.dart';
+import 'local_db.dart';
 import 'notif_parser.dart';
 
 /// Auto-catat dari notifikasi.
@@ -122,7 +124,87 @@ class NotifService {
     );
     if (hasil == null) return;
 
-    await simpan(hasil);
+    final draftId = 'draft_${DateTime.now().millisecondsSinceEpoch}_${hasil.hashCode.abs()}';
+    final appName = _namaAplikasi(paket);
+
+    // Simpan draft notifikasi
+    final draft = NotifDraft(
+      id: draftId,
+      packageName: paket,
+      appName: appName,
+      title: title,
+      body: content,
+      nominal: hasil.nominal,
+      jenis: hasil.jenis,
+      kategori: hasil.kategori,
+      waktu: DateTime.now().toIso8601String(),
+      status: AppPrefs.instance.notifReviewDraft ? 'draft' : 'approved',
+      akunId: AppPrefs.instance.dompetUtama,
+    );
+    await LocalDb.insertNotifDraft(draft);
+    AppEvents.instance.notifDraftBerubah();
+
+    // Jika mode review draft tidak aktif, langsung masukkan ke transaksi resmi
+    if (!AppPrefs.instance.notifReviewDraft) {
+      await simpan(hasil);
+    } else {
+      terakhir.value = hasil;
+      jumlahTercatat.value = jumlahTercatat.value + 1;
+    }
+  }
+
+  /// Konversi draft menjadi transaksi resmi
+  Future<bool> setujuiDraft(NotifDraft draft) async {
+    try {
+      await ApiService.createTransaksi({
+        'tanggal': _tanggalHariIni(),
+        'jenis': draft.jenis,
+        'nominal': draft.nominal,
+        'kategori': draft.kategori,
+        'deskripsi': draft.body.isNotEmpty ? draft.body : draft.title,
+        'metode_pembayaran': 'auto-notifikasi (${draft.appName})',
+        if (draft.akunId != null && draft.akunId!.isNotEmpty) 'akun_id': draft.akunId,
+      });
+      await LocalDb.updateNotifDraftStatus(draft.id, 'approved');
+      AppEvents.instance.notifDraftBerubah();
+      AppEvents.instance.transaksiBerubah();
+      return true;
+    } catch (e) {
+      debugPrint('Gagal setujui draft: $e');
+      return false;
+    }
+  }
+
+  /// Setujui semua draft pending
+  Future<int> setujuiSemuaDraft() async {
+    final drafts = await LocalDb.getNotifDrafts(status: 'draft');
+    int berhasil = 0;
+    for (final d in drafts) {
+      final ok = await setujuiDraft(d);
+      if (ok) berhasil++;
+    }
+    return berhasil;
+  }
+
+  /// Abaikan / tolak draft
+  Future<void> abaikanDraft(String id) async {
+    await LocalDb.updateNotifDraftStatus(id, 'ignored');
+    AppEvents.instance.notifDraftBerubah();
+  }
+
+  static String _namaAplikasi(String packageName) {
+    if (packageName.contains('gojek')) return 'GoPay / Gojek';
+    if (packageName.contains('dana')) return 'DANA';
+    if (packageName.contains('ovo')) return 'OVO';
+    if (packageName.contains('shopee')) return 'ShopeePay';
+    if (packageName.contains('bca')) return 'BCA';
+    if (packageName.contains('brimo') || packageName.contains('bri')) return 'BRImo';
+    if (packageName.contains('livin') || packageName.contains('bmri')) return 'Livin Mandiri';
+    if (packageName.contains('bni')) return 'BNI Mobile';
+    if (packageName.contains('jenius')) return 'Jenius';
+    if (packageName.contains('seabank')) return 'SeaBank';
+    if (packageName.contains('jago')) return 'Bank Jago';
+    return packageName.split('.').last;
   }
 
   /// Simpan hasil bacaan sebagai transaksi. Terpisah dari [_tangani] supaya

@@ -25,9 +25,13 @@ class AppEvents {
   /// Nilai bertambah setiap kali pengaturan atau judul beranda berubah.
   final ValueNotifier<int> berandaSettings = ValueNotifier<int>(0);
 
+  /// Nilai bertambah setiap kali ada draft notifikasi baru atau status draft berubah.
+  final ValueNotifier<int> notifDraft = ValueNotifier<int>(0);
+
   void transaksiBerubah() => transaksi.value++;
   void anggaranBerubah() => anggaran.value++;
   void goalsBerubah() => goals.value++;
   void akunBerubah() => akun.value++;
   void berandaSettingsBerubah() => berandaSettings.value++;
+  void notifDraftBerubah() => notifDraft.value++;
 }

@@ -48,6 +48,8 @@ dependencies:
   share_plus: ^12.0.2
   path_provider: ^2.1.6
   notification_listener_service: ^1.0.0
+  flutter_secure_storage: ^10.3.4
+  local_auth: ^3.0.2
 
 dev_dependencies:
   flutter_test:
@@ -59,3 +61,12 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/icons/
+    - assets/icons/category/
+    - assets/icons/category-custom/
+    - assets/icons/kazz/
+    - assets/icons/kazz-2/
+    - assets/icons/menu/
+    - assets/icons/menu-line/
+    - assets/icons/chart/
+    - assets/icons/nav/

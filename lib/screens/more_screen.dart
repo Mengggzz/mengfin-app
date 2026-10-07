@@ -4,7 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
+import '../services/app_events.dart';
+import '../services/app_prefs.dart';
 import '../services/auth_service.dart';
+import '../services/biometric_service.dart';
+import '../services/connectivity_service.dart';
 import '../services/theme_service.dart';
 import '../services/sync_service.dart';
 import '../services/local_db.dart';
@@ -12,6 +16,7 @@ import '../widgets/home_settings_sheet.dart';
 import '../widgets/update_dialog.dart';
 import 'ai_screen.dart';
 import 'goals_screen.dart';
+import 'notification_inbox_screen.dart';
 import 'settings_screen.dart';
 
 class MoreScreen extends StatelessWidget {
@@ -35,6 +40,13 @@ class MoreScreen extends StatelessWidget {
           // ── Features ─────────────────────────────────────────
           _sectionLabel('FITUR'),
           _menuTile(
+            icon: Icons.inbox,
+            color: AppColors.primary,
+            title: 'Inbox Notifikasi Keuangan',
+            subtitle: 'Review & setujui draft transaksi dari m-banking',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationInboxScreen())),
+          ),
+          _menuTile(
             icon: Icons.auto_awesome,
             color: AppColors.primary,
             title: 'MengFin AI',
@@ -52,6 +64,13 @@ class MoreScreen extends StatelessWidget {
 
           // ── Settings ─────────────────────────────────────────
           _sectionLabel('PENGATURAN'),
+          _menuTile(
+            icon: Icons.fingerprint,
+            color: AppColors.success,
+            title: 'Kunci Biometrik (Sidik Jari / Wajah)',
+            subtitle: 'Amankan aplikasi dengan biometrik perangkat',
+            onTap: () => _showBiometricDialog(context),
+          ),
           _menuTile(
             icon: Icons.wallet,
             color: AppColors.info,
@@ -148,6 +167,13 @@ class MoreScreen extends StatelessWidget {
           // ── Account ──────────────────────────────────────────
           _sectionLabel('AKUN'),
           _menuTile(
+            icon: Icons.cleaning_services_outlined,
+            color: AppColors.warning,
+            title: 'Reset & Bersihkan Data Lokal',
+            subtitle: 'Lihat ringkasan dan reset database lokal',
+            onTap: () => _showResetDataPreview(context),
+          ),
+          _menuTile(
             icon: Icons.info_outline,
             color: AppColors.textMuted,
             title: 'Tentang MengFin',
@@ -210,6 +236,193 @@ class MoreScreen extends StatelessWidget {
       ]),
     ),
   );
+
+  void _showBiometricDialog(BuildContext context) async {
+    final canAuth = await BiometricService.instance.canAuthenticate();
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final isEnabled = AppPrefs.instance.biometricAktif;
+          return AlertDialog(
+            backgroundColor: AppColors.bgCard,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Icon(Icons.fingerprint, color: AppColors.success),
+                const SizedBox(width: 8),
+                Text('Kunci Biometrik', style: TextStyle(color: AppColors.textPrimary)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Gunakan sidik jari atau wajah perangkat untuk mengamankan data transaksi dan saldo MengFin.',
+                  style: TextStyle(color: AppColors.textSecond, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                if (!canAuth)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Perangkat ini tidak memiliki sensor biometrik atau belum didaftarkan sidik jari di pengaturan HP.',
+                      style: TextStyle(color: AppColors.warning, fontSize: 12),
+                    ),
+                  )
+                else
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Aktifkan Kunci Biometrik',
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      isEnabled ? 'Aplikasi terkunci saat dibuka' : 'Kunci aplikasi nonaktif',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    ),
+                    value: isEnabled,
+                    activeColor: AppColors.primary,
+                    onChanged: (val) async {
+                      if (val) {
+                        final ok = await BiometricService.instance.authenticate(
+                          localizedReason: 'Konfirmasi biometrik untuk mengaktifkan kunci MengFin',
+                        );
+                        if (ok) {
+                          await AppPrefs.instance.setBiometricAktif(true);
+                          setDialogState(() {});
+                        }
+                      } else {
+                        await AppPrefs.instance.setBiometricAktif(false);
+                        setDialogState(() {});
+                      }
+                    },
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Tutup', style: TextStyle(color: AppColors.primary)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showResetDataPreview(BuildContext context) async {
+    final summary = await LocalDb.getAccountDataSummary();
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+            const SizedBox(width: 8),
+            Text('Ringkasan Data Lokal', style: TextStyle(color: AppColors.textPrimary)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Berikut ringkasan data yang tersimpan di perangkat ini:',
+              style: TextStyle(color: AppColors.textSecond, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.bgInput,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.glassBorder),
+              ),
+              child: Column(
+                children: [
+                  _summaryRow('Transaksi', summary['transaksi'] ?? 0),
+                  const Divider(height: 10),
+                  _summaryRow('Dompet / Akun', summary['akun'] ?? 0),
+                  const Divider(height: 10),
+                  _summaryRow('Anggaran (Budget)', summary['anggaran'] ?? 0),
+                  const Divider(height: 10),
+                  _summaryRow('Goals Tabungan', summary['goals'] ?? 0),
+                  const Divider(height: 10),
+                  _summaryRow('Draft Notifikasi', summary['notif_draft'] ?? 0),
+                  const Divider(height: 10),
+                  _summaryRow('Antrean Sync Offline', summary['sync_queue'] ?? 0),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Mereset data lokal akan membersihkan seluruh tabel di HP dan menarik ulang data dari server cloud.',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await LocalDb.clearAll();
+              AppEvents.instance.transaksiBerubah();
+              AppEvents.instance.akunBerubah();
+              AppEvents.instance.anggaranBerubah();
+              AppEvents.instance.goalsBerubah();
+              AppEvents.instance.notifDraftBerubah();
+              if (ConnectivityService.instance.isOnline) {
+                SyncService.instance.pullFromServer();
+              }
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Data lokal berhasil dibersihkan!'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
+            },
+            child: const Text('Bersihkan & Reset'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _summaryRow(String title, int count) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: TextStyle(color: AppColors.textSecond, fontSize: 12)),
+        Text(
+          '$count item',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
 
   void _showSyncLog(BuildContext context) {
     showModalBottomSheet(

@@ -162,3 +162,63 @@ class DashboardData {
     prediksiStatus: j['prediksi']?['status'] ?? 'aman',
   );
 }
+
+class NotifDraft {
+  final String id;
+  final String packageName;
+  final String appName;
+  final String title;
+  final String body;
+  final double nominal;
+  final String jenis; // 'pengeluaran' / 'pemasukan'
+  final String kategori;
+  final String waktu;
+  final String status; // 'draft', 'approved', 'ignored'
+  final String? akunId;
+  final String? akunNama;
+
+  NotifDraft({
+    required this.id,
+    required this.packageName,
+    required this.appName,
+    required this.title,
+    required this.body,
+    required this.nominal,
+    required this.jenis,
+    required this.kategori,
+    required this.waktu,
+    this.status = 'draft',
+    this.akunId,
+    this.akunNama,
+  });
+
+  factory NotifDraft.fromMap(Map<String, dynamic> m) => NotifDraft(
+    id: m['id']?.toString() ?? '',
+    packageName: m['package_name']?.toString() ?? '',
+    appName: m['app_name']?.toString() ?? '',
+    title: m['title']?.toString() ?? '',
+    body: m['body']?.toString() ?? '',
+    nominal: (m['nominal'] as num? ?? 0).toDouble(),
+    jenis: m['jenis']?.toString() ?? 'pengeluaran',
+    kategori: m['kategori']?.toString() ?? 'Lainnya',
+    waktu: m['waktu']?.toString() ?? '',
+    status: m['status']?.toString() ?? 'draft',
+    akunId: m['akun_id']?.toString(),
+    akunNama: m['akun_nama']?.toString(),
+  );
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'package_name': packageName,
+    'app_name': appName,
+    'title': title,
+    'body': body,
+    'nominal': nominal,
+    'jenis': jenis,
+    'kategori': kategori,
+    'waktu': waktu,
+    'status': status,
+    'akun_id': akunId,
+    'akun_nama': akunNama,
+  };
+}

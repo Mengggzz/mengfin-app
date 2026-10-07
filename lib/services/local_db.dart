@@ -31,7 +31,7 @@ class LocalDb {
     final path = _pathOverride ?? join(await getDatabasesPath(), 'mengfin.db');
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: (db, _) async {
         await _createSchema(db);
       },
@@ -82,6 +82,25 @@ class LocalDb {
           try {
             await db.execute('ALTER TABLE sync_queue ADD COLUMN status TEXT DEFAULT "pending"');
           } catch (_) {}
+        }
+        // v4 → v5: tambah tabel 'notif_draft'
+        if (oldVersion < 5) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS notif_draft (
+              id TEXT PRIMARY KEY,
+              package_name TEXT,
+              app_name TEXT,
+              title TEXT,
+              body TEXT,
+              nominal REAL,
+              jenis TEXT,
+              kategori TEXT,
+              waktu TEXT,
+              status TEXT DEFAULT 'draft',
+              akun_id TEXT,
+              akun_nama TEXT
+            )
+          ''');
         }
       },
     );
@@ -153,6 +172,22 @@ class LocalDb {
         last_attempt TEXT DEFAULT '',
         status TEXT DEFAULT 'pending',
         created_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS notif_draft (
+        id TEXT PRIMARY KEY,
+        package_name TEXT,
+        app_name TEXT,
+        title TEXT,
+        body TEXT,
+        nominal REAL,
+        jenis TEXT,
+        kategori TEXT,
+        waktu TEXT,
+        status TEXT DEFAULT 'draft',
+        akun_id TEXT,
+        akun_nama TEXT
       )
     ''');
   }
@@ -893,7 +928,90 @@ class LocalDb {
     };
   }
 
-  // ── Hapus semua data lokal (untuk fresh pull) ─────────────────────────────
+  // ── Notifikasi Draft (Inbox & Staging) ──────────────────────────────────
+  static Future<void> insertNotifDraft(NotifDraft draft) async {
+    final d = await db;
+    await d.insert(
+      'notif_draft',
+      draft.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<List<NotifDraft>> getNotifDrafts({String? status, int limit = 100}) async {
+    final d = await db;
+    final List<Map<String, dynamic>> rows;
+    if (status != null && status.isNotEmpty) {
+      rows = await d.query(
+        'notif_draft',
+        where: 'status = ?',
+        whereArgs: [status],
+        orderBy: 'waktu DESC',
+        limit: limit,
+      );
+    } else {
+      rows = await d.query(
+        'notif_draft',
+        orderBy: 'waktu DESC',
+        limit: limit,
+      );
+    }
+    return rows.map((r) => NotifDraft.fromMap(r)).toList();
+  }
+
+  static Future<int> getNotifDraftCount({String status = 'draft'}) async {
+    final d = await db;
+    final rows = await d.rawQuery(
+      'SELECT COUNT(*) as count FROM notif_draft WHERE status = ?',
+      [status],
+    );
+    if (rows.isNotEmpty && rows.first['count'] != null) {
+      return (rows.first['count'] as num).toInt();
+    }
+    return 0;
+  }
+
+  static Future<void> updateNotifDraftStatus(String id, String status) async {
+    final d = await db;
+    await d.update(
+      'notif_draft',
+      {'status': status},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  static Future<void> deleteNotifDraft(String id) async {
+    final d = await db;
+    await d.delete('notif_draft', where: 'id = ?', whereArgs: [id]);
+  }
+
+  static Future<void> clearNotifDrafts() async {
+    final d = await db;
+    await d.delete('notif_draft');
+  }
+
+  // ── Ringkasan Data Akun (untuk Reset Preview) ───────────────────────────
+  static Future<Map<String, int>> getAccountDataSummary() async {
+    final d = await db;
+    final txCount = Sqflite.firstIntValue(await d.rawQuery('SELECT COUNT(*) FROM transaksi')) ?? 0;
+    final akunCount = Sqflite.firstIntValue(await d.rawQuery('SELECT COUNT(*) FROM akun')) ?? 0;
+    final anggaranCount = Sqflite.firstIntValue(await d.rawQuery('SELECT COUNT(*) FROM anggaran')) ?? 0;
+    final goalsCount = Sqflite.firstIntValue(await d.rawQuery('SELECT COUNT(*) FROM goals')) ?? 0;
+    final draftCount = Sqflite.firstIntValue(await d.rawQuery('SELECT COUNT(*) FROM notif_draft')) ?? 0;
+    final syncQueueCount = Sqflite.firstIntValue(await d.rawQuery('SELECT COUNT(*) FROM sync_queue')) ?? 0;
+
+    return {
+      'transaksi': txCount,
+      'akun': akunCount,
+      'anggaran': anggaranCount,
+      'goals': goalsCount,
+      'notif_draft': draftCount,
+      'sync_queue': syncQueueCount,
+    };
+  }
+
+  // ── Hapus semua data lokal (untuk fresh pull / reset) ─────────────────────
   static Future<void> clearAll() async {
     final d = await db;
     await d.delete('transaksi');
@@ -901,5 +1019,6 @@ class LocalDb {
     await d.delete('goals');
     await d.delete('akun');
     await d.delete('sync_queue');
+    await d.delete('notif_draft');
   }
 }
