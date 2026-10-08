@@ -405,6 +405,13 @@ class ApiService {
     required String jenis,
     double saldo = 0,
     String warna = '#2563EB',
+    double? targetNominal,
+    String? targetTanggal,
+    double? limitKartu,
+    int? tglCetak,
+    int? tglTempo,
+    double? gram,
+    double? hargaBeliPerGram,
   }) async {
     final localId = 'akun_${DateTime.now().millisecondsSinceEpoch}';
     final serverJenis = normalizeJenisForServer(jenis);
@@ -415,6 +422,13 @@ class ApiService {
       'warna': warna,
       'ikon': jenis,
       'local_id': localId,
+      if (targetNominal != null) 'target_nominal': targetNominal,
+      if (targetTanggal != null) 'target_tanggal': targetTanggal,
+      if (limitKartu != null) 'limit_kartu': limitKartu,
+      if (tglCetak != null) 'tgl_cetak': tglCetak,
+      if (tglTempo != null) 'tgl_tempo': tglTempo,
+      if (gram != null) 'gram': gram,
+      if (hargaBeliPerGram != null) 'harga_beli_per_gram': hargaBeliPerGram,
     };
 
     if (kIsWeb) {
@@ -787,13 +801,13 @@ class ApiService {
       }
     }
 
-    // 3. Online Server AI Query dengan timeout responsif (4 detik)
+    // 3. Online Server AI Query dengan timeout responsif (20 detik)
     if (_online) {
       try {
         final res = await _post(
           '/ai/chat',
           {'pesan': t},
-          timeout: const Duration(seconds: 4),
+          timeout: const Duration(seconds: 20),
         );
         if (res.containsKey('tipe') || res.containsKey('pesan')) {
           final pesanText = res['pesan']?.toString() ?? '';
@@ -1031,32 +1045,108 @@ class ApiService {
         };
       }
 
-      // ── INTENT 10: Analisis & Ringkasan Keuangan Komprehensif ───────────
-      final sb = StringBuffer();
-      sb.writeln('📊 **Analisis Keuangan (${bulanIni}):**\n');
-      sb.writeln('• **Saldo Dompet**: Rp ${_formatRp(saldoTotal)}');
-      sb.writeln('• **Total Pemasukan**: Rp ${_formatRp(pemasukan)}');
-      sb.writeln('• **Total Pengeluaran**: Rp ${_formatRp(pengeluaran)}');
-      sb.writeln('• **Arus Kas Bersih**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}Rp ${_formatRp(saldoBersih)}');
-      if (topKat.isNotEmpty) {
-        sb.writeln('\n📈 **Pengeluaran Terbesar Saat Ini:**');
-        for (final k in topKat.take(3)) {
-          final pct = pengeluaran > 0 ? (k.value / pengeluaran * 100).round() : 0;
-          sb.writeln('  • **${k.key}**: Rp ${_formatRp(k.value)} ($pct%)');
+      // ── INTENT 10: Hapus Transaksi Terpandu ────────────────────────────
+      if (lower.contains('hapus') || lower.contains('batalkan') || lower.contains('delete')) {
+        if (txList.isEmpty) {
+          return {
+            'tipe': 'jawaban',
+            'pesan': 'Belum ada transaksi yang bisa dihapus.',
+            'saran': ['Catat Transaksi', 'Cek Saldo'],
+          };
         }
-      }
-      sb.writeln('\n🎯 **Rekomendasi Aksi:**');
-      if (saldoBersih < 0) {
-        sb.writeln('• Arus kas bulan ini mengalami defisit. Tekan pos sekunder untuk mengembalikan stabilitas saldo.');
-      } else {
-        sb.writeln('• Arus kas terjaga positif. Pastikan 10-20% surplus dialokasikan ke pos tabungan/investasi.');
+        final lastTx = txList.first;
+        final isIncome = lastTx.jenis == 'pemasukan';
+        final sign = isIncome ? '(+)' : '(-)';
+        return {
+          'tipe': 'hapus_preview',
+          'data': {'id': lastTx.id, 'deskripsi': lastTx.deskripsi, 'nominal': lastTx.nominal},
+          'pesan': 'Apakah kamu ingin menghapus transaksi terakhir ini?\n\n• **${lastTx.deskripsi.isNotEmpty ? lastTx.deskripsi : lastTx.kategori}**\n• Nominal: $sign Rp ${_formatRp(lastTx.nominal)}\n• Tanggal: ${lastTx.tanggal}\n\nKonfirmasi di bawah:',
+          'saran': ['Batal'],
+        };
       }
 
-      return {'tipe': 'jawaban', 'pesan': sb.toString()};
+      // ── INTENT 11: Panduan Fitur Spesifik ──────────────────────────────
+      if (lower.contains('scan') || lower.contains('struk')) {
+        return {
+          'tipe': 'jawaban',
+          'pesan': '📸 **Cara Scan Struk & Bukti Transfer:**\n\n1. Buka fitur **Scan Struk** dari tombol aksi cepat di Beranda.\n2. Pilih mode **"Struk Belanja"** atau **"Bukti Transfer"**.\n3. Foto struk atau pilih screenshot dari galeri.\n4. Sistem akan mengekstrak total, toko, dan tanggal otomatis on-device & via AI.\n5. Periksa data lalu tekan **Simpan Transaksi**.',
+          'saran': ['Cek Saldo', 'Tips Hemat'],
+        };
+      }
+
+      if (lower.contains('auto catat') || lower.contains('notifikasi') || lower.contains('m-banking')) {
+        return {
+          'tipe': 'jawaban',
+          'pesan': '🔔 **Cara Mengaktifkan Auto-Catat Notifikasi:**\n\n1. Buka menu **Lainnya** -> **Auto-catat dari notifikasi**.\n2. Nyalakan saklar **"Aktifkan"** dan ikuti wizard izin Android.\n3. Berikan izin **Akses Notifikasi** untuk MengFin di pengaturan HP.\n4. Setiap transaksi transfer/QRIS dari GoPay, OVO, DANA, BCA, BRI, Mandiri, dll akan otomatis masuk ke Inbox Transaksi.',
+          'saran': ['Inbox Notifikasi', 'Cek Saldo'],
+        };
+      }
+
+      if (lower.contains('tema') || lower.contains('mode gelap') || lower.contains('musim')) {
+        return {
+          'tipe': 'jawaban',
+          'pesan': '🎨 **Pengaturan Tema & Musim:**\n\n1. Buka menu **Lainnya** di bagian kanan bawah.\n2. Kamu bisa beralih antara **Mode Gelap** dan **Mode Terang**.\n3. Pilih **Tema Musim** (Default, Semi, Panas, Gugur, Dingin) untuk mengganti palet warna aksen & partikel latar belakang.',
+          'saran': ['Gimana kondisi keuanganku?', 'Tips Hemat'],
+        };
+      }
+
+      // ── INTENT 12: Pengaturan Gaya Bahasa ──────────────────────────────
+      if (lower.contains('bahasa gaul') || lower.contains('gaya gaul') || lower.contains('santai')) {
+        return {
+          'tipe': 'jawaban',
+          'pesan': 'Siap bos! Mulai sekarang saya bakal ngobrol santai ala bahasa gaul 😎 Ada yang mau dicatat atau dicek lagi?',
+          'saran': ['Berapa saldo gue?', 'Tips hemat dong', 'Beli kopi 25rb'],
+        };
+      }
+
+      if (lower.contains('bahasa formal') || lower.contains('bahasa baku') || lower.contains('sopan')) {
+        return {
+          'tipe': 'jawaban',
+          'pesan': 'Baik, preferensi bahasa formal telah diterapkan. Saya siap membantu mengelola keuangan Anda dengan profesional.',
+          'saran': ['Berapa saldo saya?', 'Analisis keuangan saya', 'Tips hemat bulan ini'],
+        };
+      }
+
+      // ── INTENT 13: Analisis & Ringkasan Keuangan Eksplisit ──────────────
+      if (lower.contains('analisis') || lower.contains('ringkasan') || lower.contains('laporan') || lower.contains('kondisi') || lower.contains('insight') || lower.contains('rekap') || lower.contains('evaluasi')) {
+        final sb = StringBuffer();
+        sb.writeln('📊 **Analisis Keuangan (${bulanIni}):**\n');
+        sb.writeln('• **Saldo Dompet**: Rp ${_formatRp(saldoTotal)}');
+        sb.writeln('• **Total Pemasukan**: Rp ${_formatRp(pemasukan)}');
+        sb.writeln('• **Total Pengeluaran**: Rp ${_formatRp(pengeluaran)}');
+        sb.writeln('• **Arus Kas Bersih**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}Rp ${_formatRp(saldoBersih)}');
+        if (topKat.isNotEmpty) {
+          sb.writeln('\n📈 **Pengeluaran Terbesar Saat Ini:**');
+          for (final k in topKat.take(3)) {
+            final pct = pengeluaran > 0 ? (k.value / pengeluaran * 100).round() : 0;
+            sb.writeln('  • **${k.key}**: Rp ${_formatRp(k.value)} ($pct%)');
+          }
+        }
+        sb.writeln('\n🎯 **Rekomendasi Aksi:**');
+        if (saldoBersih < 0) {
+          sb.writeln('• Arus kas bulan ini mengalami defisit. Tekan pos sekunder untuk mengembalikan stabilitas saldo.');
+        } else {
+          sb.writeln('• Arus kas terjaga positif. Pastikan 10-20% surplus dialokasikan ke pos tabungan/investasi.');
+        }
+
+        return {
+          'tipe': 'jawaban',
+          'pesan': sb.toString(),
+          'saran': ['Tips hemat', 'Cek budget', 'Riwayat transaksi'],
+        };
+      }
+
+      // ── DEFAULT FALLBACK JUJUR ─────────────────────────────────────────
+      return {
+        'tipe': 'jawaban',
+        'pesan': 'Maaf, saya belum memahami pesan tersebut.\n\nSaya asisten keuangan MengFin dan bisa membantu:\n• Mencatat transaksi (*"beli makan 30rb"*)\n• Cek saldo dan rekening (*"berapa saldo saya?"*)\n• Analisis & ringkasan (*"analisis keuanganku"*)\n• Tips penghematan (*"tips hemat"*)\n• Panduan fitur aplikasi (*"cara scan struk"*)\n\nApa yang ingin kamu lakukan?',
+        'saran': ['Berapa saldo saya?', 'Gimana kondisi keuanganku?', 'Tips hemat bulan ini', 'Beli kopi 25rb'],
+      };
     } catch (_) {
       return {
         'tipe': 'jawaban',
-        'pesan': '👋 Halo! Saya **MengFin AI** siap membantu pencatatan dan analisis keuanganmu. Ketik pertanyaan seperti *"berapa saldo saya?"* atau *"beli kopi 25rb"*.'
+        'pesan': '👋 Halo! Saya **MengFin AI** siap membantu pencatatan dan analisis keuanganmu. Ketik pertanyaan seperti *"berapa saldo saya?"* atau *"beli kopi 25rb"*.',
+        'saran': ['Berapa saldo saya?', 'Tips hemat bulan ini'],
       };
     }
   }
@@ -1206,8 +1296,22 @@ class ApiService {
     final res = await _post('/scan', {
       'imageBase64': imageBase64,
       'mimeType': mimeType,
-    });
+    }, timeout: const Duration(seconds: 60));
     return Map<String, dynamic>.from(res['data'] as Map);
+  }
+
+  /// Kirim gambar bukti transfer / screenshot mutasi (base64) ke backend.
+  static Future<List<Map<String, dynamic>>> scanMutasi(
+    String imageBase64, String mimeType,
+  ) async {
+    final res = await _post('/scan/mutasi', {
+      'imageBase64': imageBase64,
+      'mimeType': mimeType,
+    }, timeout: const Duration(seconds: 60));
+    final list = (res['data'] as List?)
+        ?.map((e) => Map<String, dynamic>.from(e as Map))
+        .toList() ?? [];
+    return list;
   }
 
   // ── Laporan: narasi AI ─────────────────────────────────────────────────────

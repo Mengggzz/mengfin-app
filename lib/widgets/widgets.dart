@@ -361,6 +361,11 @@ class KazzWalletCard extends StatelessWidget {
   final VoidCallback? onMenuTap;
   final bool isSelected;
 
+  final double? targetNominal;
+  final double? limitKartu;
+  final int? tglTempo;
+  final double? gram;
+
   const KazzWalletCard({
     super.key,
     required this.name,
@@ -370,10 +375,18 @@ class KazzWalletCard extends StatelessWidget {
     this.onTap,
     this.onMenuTap,
     this.isSelected = false,
+    this.targetNominal,
+    this.limitKartu,
+    this.tglTempo,
+    this.gram,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isTabungan = jenis == 'tabungan' && targetNominal != null && targetNominal! > 0;
+    final isKredit = jenis == 'kredit';
+    final isAset = jenis == 'aset' && gram != null && gram! > 0;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -388,7 +401,7 @@ class KazzWalletCard extends StatelessWidget {
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            KazzIllustration.forJenis(jenis, size: 40),
+            KazzIllustration.forJenis(jenis, size: 38),
             // Area sentuh dibesarkan supaya tidak salah tekan kartunya.
             GestureDetector(
               onTap: onMenuTap,
@@ -399,18 +412,52 @@ class KazzWalletCard extends StatelessWidget {
               ),
             ),
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
+              color: AppColors.textPrimary, fontSize: 13.5, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(
             '${balance < 0 ? '-' : ''}Rp ${formatAmount(balance.abs())}',
             style: TextStyle(
               color: balanceColor ??
-                  (balance < 0 ? AppColors.expense : AppColors.textSecond),
-              fontSize: 13, fontWeight: FontWeight.w500),
+                  (isKredit ? AppColors.expense : (balance < 0 ? AppColors.expense : AppColors.textSecond)),
+              fontSize: 12.5, fontWeight: FontWeight.w600),
           ),
+          if (isTabungan) ...[
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: (balance / targetNominal!).clamp(0.0, 1.0),
+                backgroundColor: AppColors.bgElevated,
+                valueColor: AlwaysStoppedAnimation(AppColors.income),
+                minHeight: 4,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${(balance / targetNominal! * 100).toStringAsFixed(0)}% dari Rp ${formatAmount(targetNominal!)}',
+              style: TextStyle(color: AppColors.income, fontSize: 9.5, fontWeight: FontWeight.w600),
+            ),
+          ] else if (isKredit && limitKartu != null && limitKartu! > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Sisa limit: Rp ${formatAmount((limitKartu! - balance.abs()).clamp(0, limitKartu!))}',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 9.5),
+            ),
+            if (tglTempo != null)
+              Text(
+                'Jatuh tempo: Tgl $tglTempo',
+                style: TextStyle(color: AppColors.warning, fontSize: 9.5, fontWeight: FontWeight.w600),
+              ),
+          ] else if (isAset) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${gram!.toStringAsFixed(2)} gram emas',
+              style: TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.w600),
+            ),
+          ],
         ]),
       ),
     );

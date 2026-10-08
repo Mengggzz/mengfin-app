@@ -8,9 +8,11 @@ import 'package:image_picker/image_picker.dart';
 import '../constants/app_colors.dart';
 import '../constants/utils.dart';
 import '../services/api_service.dart';
+import '../services/ocr_service.dart';
 
-/// Scan struk → OCR AI → preview → simpan sebagai transaksi.
-/// Mengembalikan `true` lewat Navigator.pop kalau ada transaksi tersimpan.
+enum ScanMode { struk, mutasi }
+
+/// Scan struk / bukti transfer → OCR (Lokal ML Kit / Gemini AI) → preview → simpan transaksi.
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
   @override
@@ -20,15 +22,18 @@ class ScanScreen extends StatefulWidget {
 class _ScanScreenState extends State<ScanScreen> {
   final _picker = ImagePicker();
 
+  ScanMode _mode = ScanMode.struk;
   Uint8List? _imageBytes;
+  String? _imagePath;
   String _mimeType = 'image/jpeg';
 
   bool _scanning = false;
   bool _saving = false;
   String? _error;
   String? _info;
+  String _sumberOcr = 'lokal'; // 'lokal' atau 'ai'
 
-  // Hasil scan (editable)
+  // Hasil scan struk tunggal (editable)
   Map<String, dynamic>? _hasil;
   final _nominalCtrl = TextEditingController();
   final _deskripsiCtrl = TextEditingController();
@@ -37,6 +42,10 @@ class _ScanScreenState extends State<ScanScreen> {
   String _jenis = 'pengeluaran';
   DateTime _tanggal = DateTime.now();
   List<Map<String, dynamic>> _items = [];
+
+  // Hasil scan bukti transfer / mutasi multi-transaksi
+  List<Map<String, dynamic>> _mutasiList = [];
+  final Set<int> _selectedMutasiIndices = {};
 
   @override
   void dispose() {
@@ -62,10 +71,17 @@ class _ScanScreenState extends State<ScanScreen> {
       if (!mounted) return;
       setState(() {
         _imageBytes = bytes;
+        _imagePath = file.path;
         _mimeType = mime;
         _hasil = null;
+        _mutasiList = [];
+        _selectedMutasiIndices.clear();
       });
-      await _scan();
+      if (_mode == ScanMode.struk) {
+        await _scanStruk(forceAi: false);
+      } else {
+        await _scanMutasi();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = 'Gagal mengambil gambar: $e');
@@ -80,14 +96,34 @@ class _ScanScreenState extends State<ScanScreen> {
     return 'image/jpeg';
   }
 
-  // ── Kirim ke backend untuk OCR ─────────────────────────────────────────────
-  Future<void> _scan() async {
+  // ── OCR Struk (Lokal ML Kit dengan Fallback Gemini) ────────────────────────
+  Future<void> _scanStruk({bool forceAi = false}) async {
     final bytes = _imageBytes;
     if (bytes == null) return;
 
     setState(() { _scanning = true; _error = null; _info = null; });
     try {
-      final data = await ApiService.scanStruk(base64Encode(bytes), _mimeType);
+      Map<String, dynamic>? data;
+
+      // 1. Coba scan lokal jika mobile dan tidak dipaksa AI
+      if (!kIsWeb && !forceAi && _imagePath != null && _imagePath!.isNotEmpty) {
+        try {
+          final localRes = await OcrService.instance.scanFile(_imagePath!);
+          final conf = (localRes['confidence'] as num?)?.toDouble() ?? 0.0;
+          final nom = (localRes['nominal'] as num?)?.toDouble() ?? 0.0;
+          if (conf >= 0.6 && nom > 0) {
+            data = localRes;
+            _sumberOcr = 'lokal';
+          }
+        } catch (_) {}
+      }
+
+      // 2. Fallback ke Gemini AI jika lokal gagal / kurang yakin / diminta user
+      if (data == null) {
+        data = await ApiService.scanStruk(base64Encode(bytes), _mimeType);
+        _sumberOcr = 'ai';
+      }
+
       if (!mounted) return;
 
       final nominal = (data['nominal'] as num?)?.toDouble() ?? 0;
@@ -98,7 +134,7 @@ class _ScanScreenState extends State<ScanScreen> {
       final conf = data['confidence'];
       setState(() {
         _hasil = data;
-        _jenis = (data['jenis'] ?? 'pengeluaran').toString();
+        _jenis = (data!['jenis'] ?? 'pengeluaran').toString();
         _nominalCtrl.text = nominal > 0 ? nominal.toStringAsFixed(0) : '';
         _deskripsiCtrl.text = (data['deskripsi'] ?? '').toString();
         _kategori = _matchKategori((data['kategori'] ?? '').toString());
@@ -107,9 +143,45 @@ class _ScanScreenState extends State<ScanScreen> {
         _items = items;
         _scanning = false;
         if (nominal <= 0) {
-          _error = 'Total tidak terbaca. Cek lagi nominalnya di bawah.';
-        } else if (conf is num && conf < 0.5) {
-          _info = 'Hasil kurang yakin — mohon periksa nominal & toko.';
+          _error = 'Total tidak terbaca. Periksa nominal di bawah atau coba dengan AI.';
+        } else if (conf is num && conf < 0.6) {
+          _info = 'Hasil kurang yakin — periksa nominal & toko.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _scanning = false;
+        _error = _prettyError(e);
+      });
+    }
+  }
+
+  // ── Scan Bukti Transfer / Mutasi Multi-Transaksi ───────────────────────────
+  Future<void> _scanMutasi() async {
+    final bytes = _imageBytes;
+    if (bytes == null) return;
+
+    setState(() {
+      _scanning = true;
+      _error = null;
+      _info = null;
+      _mutasiList = [];
+      _selectedMutasiIndices.clear();
+    });
+
+    try {
+      final list = await ApiService.scanMutasi(base64Encode(bytes), _mimeType);
+      if (!mounted) return;
+
+      setState(() {
+        _scanning = false;
+        _mutasiList = list;
+        for (int i = 0; i < list.length; i++) {
+          _selectedMutasiIndices.add(i);
+        }
+        if (list.isEmpty) {
+          _error = 'Tidak ada transaksi mutasi yang terdeteksi pada screenshot ini.';
         }
       });
     } catch (e) {
@@ -179,6 +251,41 @@ class _ScanScreenState extends State<ScanScreen> {
     }
   }
 
+  // ── Simpan transaksi mutasi multi-pilih ────────────────────────────────────
+  Future<void> _simpanMutasiTerpilih() async {
+    final selected = _selectedMutasiIndices.map((i) => _mutasiList[i]).toList();
+    if (selected.isEmpty) {
+      setState(() => _error = 'Pilih minimal satu transaksi untuk disimpan.');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    try {
+      for (final tx in selected) {
+        await ApiService.createTransaksi({
+          'jenis': tx['jenis'] ?? 'pengeluaran',
+          'nominal': (tx['nominal'] as num).toDouble(),
+          'kategori': tx['kategori'] ?? 'Lainnya',
+          'deskripsi': tx['deskripsi'] ?? 'Mutasi Transfer',
+          'metode_pembayaran': tx['metode_pembayaran'] ?? 'transfer',
+          'tanggal': tx['tanggal'] ?? _tanggal.toIso8601String().split('T').first,
+        });
+      }
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = _prettyError(e);
+      });
+    }
+  }
+
   Future<void> _pickTanggal() async {
     final picked = await showDatePicker(
       context: context,
@@ -208,28 +315,112 @@ class _ScanScreenState extends State<ScanScreen> {
           icon:  Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context, false),
         ),
-        title:  Text('Scan Struk', style: TextStyle(
-          color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+        title:  Text(
+          _mode == ScanMode.struk ? 'Scan Struk' : 'Scan Bukti Transfer',
+          style: TextStyle(
+            color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         actions: [
           if (_imageBytes != null && !_scanning)
             IconButton(
               tooltip: 'Scan ulang',
               icon:  Icon(Icons.refresh_rounded, color: AppColors.textSecond),
-              onPressed: _scan,
+              onPressed: () => _mode == ScanMode.struk ? _scanStruk() : _scanMutasi(),
             ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
+          _buildModeSelector(),
+          const SizedBox(height: 12),
           _buildImageArea(),
           const SizedBox(height: 14),
           if (_error != null) _banner(_error!, AppColors.expense, Icons.error_outline),
           if (_info != null) _banner(_info!, AppColors.warning, Icons.info_outline),
           if (_error != null || _info != null) const SizedBox(height: 14),
-          if (_hasil != null && !_scanning) _buildForm(),
-          if (_hasil == null && !_scanning) _buildTips(),
+          if (_mode == ScanMode.struk && _hasil != null && !_scanning) _buildForm(),
+          if (_mode == ScanMode.mutasi && _mutasiList.isNotEmpty && !_scanning) _buildMutasiList(),
+          if (_hasil == null && _mutasiList.isEmpty && !_scanning) _buildTips(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildModeSelector() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _modeTab(
+              mode: ScanMode.struk,
+              icon: Icons.receipt_long_rounded,
+              label: 'Struk Belanja',
+            ),
+          ),
+          Expanded(
+            child: _modeTab(
+              mode: ScanMode.mutasi,
+              icon: Icons.receipt_rounded,
+              label: 'Bukti Transfer',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeTab({
+    required ScanMode mode,
+    required IconData icon,
+    required String label,
+  }) {
+    final active = _mode == mode;
+    return InkWell(
+      onTap: () {
+        if (_mode == mode) return;
+        setState(() {
+          _mode = mode;
+          _hasil = null;
+          _mutasiList = [];
+          _error = null;
+          _info = null;
+        });
+        if (_imageBytes != null) {
+          if (_mode == ScanMode.struk) {
+            _scanStruk();
+          } else {
+            _scanMutasi();
+          }
+        }
+      },
+      borderRadius: BorderRadius.circular(9),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: active ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: active ? Colors.white : AppColors.textMuted),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: active ? Colors.white : AppColors.textMuted,
+                fontSize: 12.5,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -387,11 +578,24 @@ class _ScanScreenState extends State<ScanScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: AppColors.income.withOpacity(0.12),
+            color: _sumberOcr == 'lokal'
+                ? AppColors.primary.withValues(alpha: 0.15)
+                : AppColors.income.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppColors.income.withOpacity(0.3))),
-          child:  Text('AI', style: TextStyle(
-            color: AppColors.income, fontSize: 10, fontWeight: FontWeight.w800)),
+            border: Border.all(
+              color: _sumberOcr == 'lokal'
+                  ? AppColors.primary.withValues(alpha: 0.4)
+                  : AppColors.income.withValues(alpha: 0.4),
+            ),
+          ),
+          child: Text(
+            _sumberOcr == 'lokal' ? '⚡ Dibaca di perangkat' : '✨ Gemini AI',
+            style: TextStyle(
+              color: _sumberOcr == 'lokal' ? AppColors.primary : AppColors.income,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
       ]),
       const SizedBox(height: 12),
@@ -492,6 +696,21 @@ class _ScanScreenState extends State<ScanScreen> {
             onTap: () => setState(() => _metode = m))).toList()),
       ),
 
+      if (_sumberOcr == 'lokal') ...[
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: _scanning ? null : () => _scanStruk(forceAi: true),
+          icon: const Icon(Icons.auto_awesome_rounded, size: 16),
+          label: const Text('Coba dengan AI (Gemini)'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.accent,
+            side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+          ),
+        ),
+      ],
+
       if (_items.isNotEmpty) ...[
         const SizedBox(height: 10),
         Container(
@@ -572,6 +791,165 @@ class _ScanScreenState extends State<ScanScreen> {
         )),
       ]),
     ]);
+  }
+
+  // ── Form hasil scan mutasi multi-transaksi ──────────────────────────────────
+  Widget _buildMutasiList() {
+    final allSelected = _selectedMutasiIndices.length == _mutasiList.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 3,
+              height: 16,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: AppColors.gradientPrimary,
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Mutasi Terdeteksi (${_mutasiList.length})',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  if (allSelected) {
+                    _selectedMutasiIndices.clear();
+                  } else {
+                    for (int i = 0; i < _mutasiList.length; i++) {
+                      _selectedMutasiIndices.add(i);
+                    }
+                  }
+                });
+              },
+              child: Text(
+                allSelected ? 'Batal Pilih Semua' : 'Pilih Semua',
+                style: TextStyle(color: AppColors.primary, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        ...List.generate(_mutasiList.length, (index) {
+          final tx = _mutasiList[index];
+          final isSelected = _selectedMutasiIndices.contains(index);
+          final isExpense = tx['jenis'] != 'pemasukan';
+          final nom = (tx['nominal'] as num?)?.toDouble() ?? 0.0;
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: AppColors.bgCard,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected
+                    ? AppColors.primary.withValues(alpha: 0.5)
+                    : AppColors.glassBorder,
+              ),
+            ),
+            child: CheckboxListTile(
+              value: isSelected,
+              onChanged: (val) {
+                setState(() {
+                  if (val == true) {
+                    _selectedMutasiIndices.add(index);
+                  } else {
+                    _selectedMutasiIndices.remove(index);
+                  }
+                });
+              },
+              activeColor: AppColors.primary,
+              title: Text(
+                (tx['deskripsi'] ?? 'Transaksi').toString(),
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                '${tx['tanggal'] ?? ''} · ${tx['kategori'] ?? 'Lainnya'} (${tx['metode_pembayaran'] ?? 'transfer'})',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+              ),
+              secondary: Text(
+                '${isExpense ? '-' : '+'}Rp ${formatAmount(nom)}',
+                style: TextStyle(
+                  color: isExpense ? AppColors.expense : AppColors.income,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          );
+        }),
+
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: TextButton(
+                onPressed: _saving
+                    ? null
+                    : () => setState(() {
+                          _mutasiList = [];
+                          _selectedMutasiIndices.clear();
+                          _imageBytes = null;
+                        }),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: AppColors.glassBorder),
+                  ),
+                ),
+                child: Text('Batal', style: TextStyle(color: AppColors.textMuted)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _simpanMutasiTerpilih,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.income,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        'Simpan (${_selectedMutasiIndices.length}) Transaksi',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   Widget _fieldCard({

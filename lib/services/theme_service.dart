@@ -13,9 +13,16 @@ class ThemeService extends ChangeNotifier {
   static final ThemeService instance = ThemeService._();
 
   static const _key = 'app_theme_mode';
+  static const _seasonKey = 'app_theme_season';
+  static const _animasiBgKey = 'app_theme_animasi_bg';
 
   ThemeMode _mode = ThemeMode.dark;
+  Season _season = Season.defaut;
+  bool _animasiBackground = true;
+
   ThemeMode get mode => _mode;
+  Season get season => _season;
+  bool get animasiBackground => _animasiBackground;
 
   /// Label singkat untuk ditampilkan di menu Lainnya.
   String get label {
@@ -59,11 +66,41 @@ class ThemeService extends ChangeNotifier {
         'system' => ThemeMode.system,
         _ => ThemeMode.dark,
       };
+
+      final savedSeason = prefs.getString(_seasonKey);
+      _season = Season.values.firstWhere(
+        (s) => s.name == savedSeason,
+        orElse: () => Season.defaut,
+      );
+
+      _animasiBackground = prefs.getBool(_animasiBgKey) ?? true;
     } catch (_) {
       _mode = ThemeMode.dark;
+      _season = Season.defaut;
+      _animasiBackground = true;
     }
     AppColors.applyBrightnessForMode(_mode);
+    AppColors.setSeason(_season);
     notifyListeners();
+  }
+
+  Future<void> setSeason(Season s) async {
+    _season = s;
+    AppColors.setSeason(s);
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_seasonKey, s.name);
+    } catch (_) {}
+  }
+
+  Future<void> setAnimasiBackground(bool val) async {
+    _animasiBackground = val;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_animasiBgKey, val);
+    } catch (_) {}
   }
 
   /// Ganti mode: Sistem → Terang → Gelap → Sistem.

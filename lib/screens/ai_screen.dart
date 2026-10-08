@@ -8,7 +8,14 @@ class _Msg {
   final bool isUser;
   final String text;
   final Map<String, dynamic>? txData;
-  _Msg({required this.id, required this.isUser, required this.text, this.txData});
+  final String? type; // 'transaksi_preview', 'hapus_preview', 'jawaban'
+  _Msg({
+    required this.id,
+    required this.isUser,
+    required this.text,
+    this.txData,
+    this.type,
+  });
 }
 
 class AiScreen extends StatefulWidget {
@@ -18,30 +25,53 @@ class AiScreen extends StatefulWidget {
 
 class _AiScreenState extends State<AiScreen> {
   final _msgs = <_Msg>[
-    _Msg(id: 'welcome', isUser: false, text:
-      '👋 Hai! Saya MengFin AI, asisten keuangan personalmu.\n\n'
-      'Kamu bisa:\n• Tanya analisis keuanganmu\n• Catat transaksi langsung (contoh: "beli mie ayam 25rb")\n• Minta saran penghematan\n\nAda yang bisa saya bantu? 😊'),
+    _Msg(
+      id: 'welcome',
+      isUser: false,
+      text: '👋 Hai! Saya **MengFin AI**, asisten keuangan personalmu.\n\n'
+          'Kamu bisa:\n• Tanya analisis keuangan & saldo\n• Catat transaksi langsung (misal: "beli kopi 25rb")\n• Minta tips hemat & kelola budget\n• Hapus transaksi terakhir\n\nAda yang bisa saya bantu? 😊',
+    ),
   ];
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
   bool _sending = false;
+  bool _cancelled = false;
   Map<String, dynamic>? _pendingTx;
+  Map<String, dynamic>? _pendingHapus;
   String? _pendingMsgId;
 
-  static const _quickPrompts = [
+  List<String> _currentSuggestions = [
+    'Berapa saldo saya?',
     'Gimana kondisi keuanganku?',
     'Tips hemat bulan ini',
-    'Beli kopi 25rb cash',
-    'Gajian 5 juta',
+    'Beli kopi 25rb',
+    'Riwayat transaksi',
   ];
 
   void _addMsg(_Msg m) {
     setState(() => _msgs.add(m));
     Future.delayed(const Duration(milliseconds: 100), () {
       if (!mounted) return;
-      if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
+  }
+
+  void _batalKirim() {
+    setState(() {
+      _cancelled = true;
+      _sending = false;
+    });
+    _addMsg(_Msg(
+      id: 'c${DateTime.now().millisecondsSinceEpoch}',
+      isUser: false,
+      text: 'Permintaan dibatalkan.',
+    ));
   }
 
   Future<void> _send([String? text]) async {
@@ -49,6 +79,7 @@ class _AiScreenState extends State<AiScreen> {
     if (msg.isEmpty || _sending) return;
 
     _ctrl.clear();
+    _cancelled = false;
     setState(() => _sending = true);
 
     final uid = 'u${DateTime.now().millisecondsSinceEpoch}';
@@ -56,18 +87,75 @@ class _AiScreenState extends State<AiScreen> {
 
     try {
       final res = await ApiService.chat(msg);
+      if (_cancelled || !mounted) return;
+
       final aid = 'a${DateTime.now().millisecondsSinceEpoch}';
+
+      // Update quick reply suggestions jika ada
+      if (res['saran'] is List) {
+        final rawSaran = (res['saran'] as List).map((s) => s.toString()).toList();
+        if (rawSaran.isNotEmpty) {
+          setState(() => _currentSuggestions = rawSaran);
+        }
+      }
+
       if (res['tipe'] == 'transaksi_preview') {
-        setState(() { _pendingTx = res['data']; _pendingMsgId = aid; });
-        _addMsg(_Msg(id: aid, isUser: false, text: res['pesan'] ?? '', txData: res['data']));
+        setState(() {
+          _pendingTx = res['data'];
+          _pendingHapus = null;
+          _pendingMsgId = aid;
+        });
+        _addMsg(_Msg(
+          id: aid,
+          isUser: false,
+          text: res['pesan'] ?? '',
+          txData: res['data'],
+          type: 'transaksi_preview',
+        ));
+      } else if (res['tipe'] == 'hapus_preview') {
+        setState(() {
+          _pendingHapus = res['data'];
+          _pendingTx = null;
+          _pendingMsgId = aid;
+        });
+        _addMsg(_Msg(
+          id: aid,
+          isUser: false,
+          text: res['pesan'] ?? '',
+          txData: res['data'],
+          type: 'hapus_preview',
+        ));
       } else {
-        _addMsg(_Msg(id: aid, isUser: false, text: res['pesan'] ?? '...'));
+        // Multi-bubble splitting untuk analisis panjang
+        final fullText = (res['pesan'] ?? '...').toString();
+        if (fullText.length > 350 && fullText.contains('\n\n')) {
+          final sections = fullText.split('\n\n').where((s) => s.trim().isNotEmpty).toList();
+          if (sections.length > 1) {
+            for (int sIdx = 0; sIdx < sections.length; sIdx++) {
+              final sText = sections[sIdx];
+              final subId = 'a_${DateTime.now().millisecondsSinceEpoch}_$sIdx';
+              _addMsg(_Msg(id: subId, isUser: false, text: sText));
+              if (sIdx < sections.length - 1) {
+                await Future.delayed(const Duration(milliseconds: 300));
+              }
+            }
+          } else {
+            _addMsg(_Msg(id: aid, isUser: false, text: fullText));
+          }
+        } else {
+          _addMsg(_Msg(id: aid, isUser: false, text: fullText));
+        }
       }
     } catch (_) {
-      _addMsg(_Msg(id: 'e${DateTime.now().millisecondsSinceEpoch}', isUser: false,
-        text: '⚠️ Maaf, terjadi kendala saat memproses pesan. Silakan coba lagi.'));
+      if (!_cancelled && mounted) {
+        _addMsg(_Msg(
+          id: 'e${DateTime.now().millisecondsSinceEpoch}',
+          isUser: false,
+          text: '⚠️ Maaf, terjadi kendala saat memproses pesan. Silakan coba lagi.',
+        ));
+      }
     } finally {
-      setState(() => _sending = false);
+      if (mounted) setState(() => _sending = false);
     }
   }
 
@@ -76,21 +164,65 @@ class _AiScreenState extends State<AiScreen> {
     setState(() => _sending = true);
     try {
       await ApiService.konfirmasiTransaksi(_pendingTx!);
-      setState(() { _pendingTx = null; _pendingMsgId = null; });
-      _addMsg(_Msg(id: 'k${DateTime.now().millisecondsSinceEpoch}', isUser: false,
-        text: '✅ Transaksi berhasil dicatat! Cek di tab Transaksi.'));
+      setState(() {
+        _pendingTx = null;
+        _pendingMsgId = null;
+      });
+      _addMsg(_Msg(
+        id: 'k${DateTime.now().millisecondsSinceEpoch}',
+        isUser: false,
+        text: '✅ Transaksi berhasil dicatat! Cek di tab Transaksi.',
+      ));
     } catch (_) {
-      _addMsg(_Msg(id: 'ke${DateTime.now().millisecondsSinceEpoch}', isUser: false,
-        text: '❌ Gagal menyimpan transaksi. Coba lagi.'));
+      _addMsg(_Msg(
+        id: 'ke${DateTime.now().millisecondsSinceEpoch}',
+        isUser: false,
+        text: '❌ Gagal menyimpan transaksi. Coba lagi.',
+      ));
+    } finally {
+      setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _konfirmasiHapus() async {
+    if (_pendingHapus == null) return;
+    final id = _pendingHapus!['id'];
+    setState(() => _sending = true);
+    try {
+      if (id != null) {
+        await ApiService.deleteTransaksi(id);
+      }
+      setState(() {
+        _pendingHapus = null;
+        _pendingMsgId = null;
+      });
+      _addMsg(_Msg(
+        id: 'dh${DateTime.now().millisecondsSinceEpoch}',
+        isUser: false,
+        text: '🗑️ Transaksi berhasil dihapus.',
+      ));
+    } catch (e) {
+      _addMsg(_Msg(
+        id: 'dhe${DateTime.now().millisecondsSinceEpoch}',
+        isUser: false,
+        text: '❌ Gagal menghapus transaksi: $e',
+      ));
     } finally {
       setState(() => _sending = false);
     }
   }
 
   void _tolak() {
-    setState(() { _pendingTx = null; _pendingMsgId = null; });
-    _addMsg(_Msg(id: 't${DateTime.now().millisecondsSinceEpoch}', isUser: false,
-      text: 'Ok, transaksi dibatalkan. Ada yang lain? 😊'));
+    setState(() {
+      _pendingTx = null;
+      _pendingHapus = null;
+      _pendingMsgId = null;
+    });
+    _addMsg(_Msg(
+      id: 't${DateTime.now().millisecondsSinceEpoch}',
+      isUser: false,
+      text: 'Ok, dibatalkan. Ada yang lain yang bisa saya bantu? 😊',
+    ));
   }
 
   @override
@@ -138,19 +270,36 @@ class _AiScreenState extends State<AiScreen> {
           },
         )),
 
-        // Quick prompts (only at start)
-        if (_msgs.length <= 1)
-          SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: _quickPrompts.map((p) => GestureDetector(
-              onTap: () => _send(p),
-              child: Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.glassBorder)),
-                child: Text(p, style:  TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w500)),
-              ),
-            )).toList(),
-          )),
+        // Quick reply suggestions chips (always accessible)
+        if (_currentSuggestions.isNotEmpty)
+          Container(
+            height: 42,
+            margin: const EdgeInsets.only(bottom: 6),
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              children: _currentSuggestions.map((p) => GestureDetector(
+                onTap: _sending ? null : () => _send(p),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgCard,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    p,
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              )).toList(),
+            ),
+          ),
 
         // Input bar
         Container(
@@ -245,7 +394,9 @@ class _AiScreenState extends State<AiScreen> {
   }
 
   Widget _bubble(_Msg m) {
-    final showConfirm = m.txData != null && _pendingMsgId == m.id && _pendingTx != null;
+    final showConfirmTx = m.type == 'transaksi_preview' && _pendingMsgId == m.id && _pendingTx != null;
+    final showConfirmHapus = m.type == 'hapus_preview' && _pendingMsgId == m.id && _pendingHapus != null;
+
     return Align(
       alignment: m.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
@@ -254,8 +405,8 @@ class _AiScreenState extends State<AiScreen> {
         children: [
           if (!m.isUser) ...[
             Container(width: 30, height: 30, margin: const EdgeInsets.only(right: 8, bottom: 2),
-              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
-              child:  Icon(Icons.auto_awesome, size: 14, color: AppColors.primary)),
+              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
+              child: Icon(Icons.auto_awesome, size: 14, color: AppColors.primary)),
           ],
           Flexible(child: Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -272,17 +423,17 @@ class _AiScreenState extends State<AiScreen> {
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               _renderMessageText(m.text, m.isUser),
-              if (showConfirm) ...[
+              if (showConfirmTx) ...[
                 const SizedBox(height: 12),
                 Row(children: [
                   Expanded(child: GestureDetector(
                     onTap: _konfirmasi,
                     child: Container(padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(color: AppColors.success.withOpacity(0.15), borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.success.withOpacity(0.4))),
-                      child:  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.success.withValues(alpha: 0.4))),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Icon(Icons.check_circle_outline, size: 16, color: AppColors.success),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text('Simpan', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 13)),
                       ])),
                   )),
@@ -290,12 +441,38 @@ class _AiScreenState extends State<AiScreen> {
                   Expanded(child: GestureDetector(
                     onTap: _tolak,
                     child: Container(padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(color: AppColors.danger.withOpacity(0.15), borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.danger.withOpacity(0.4))),
-                      child:  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      decoration: BoxDecoration(color: AppColors.danger.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.danger.withValues(alpha: 0.4))),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Icon(Icons.cancel_outlined, size: 16, color: AppColors.danger),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text('Batal', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600, fontSize: 13)),
+                      ])),
+                  )),
+                ]),
+              ],
+              if (showConfirmHapus) ...[
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(child: GestureDetector(
+                    onTap: _konfirmasiHapus,
+                    child: Container(padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(color: AppColors.danger.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.danger.withValues(alpha: 0.4))),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(Icons.delete_outline_rounded, size: 16, color: AppColors.danger),
+                        const SizedBox(width: 4),
+                        Text('Ya, Hapus', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600, fontSize: 13)),
+                      ])),
+                  )),
+                  const SizedBox(width: 8),
+                  Expanded(child: GestureDetector(
+                    onTap: _tolak,
+                    child: Container(padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(color: AppColors.bgElevated, borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.glassBorder)),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text('Batal', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600, fontSize: 13)),
                       ])),
                   )),
                 ]),
@@ -311,9 +488,33 @@ class _AiScreenState extends State<AiScreen> {
     alignment: Alignment.centerLeft,
     child: Container(
       margin: const EdgeInsets.only(bottom: 12, left: 38),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.glassBorder)),
-      child:  SizedBox(width: 40, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+          const SizedBox(width: 10),
+          Text('Mengetik...', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: _batalKirim,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.bgElevated,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.glassBorder),
+              ),
+              child: Text('Batal', style: TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 

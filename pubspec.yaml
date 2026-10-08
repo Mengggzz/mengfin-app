@@ -50,6 +50,8 @@ dependencies:
   notification_listener_service: ^1.0.0
   flutter_secure_storage: ^10.3.4
   local_auth: ^3.0.2
+  google_mlkit_text_recognition: ^0.14.0
+  file_picker: ^8.0.0
 
 dev_dependencies:
   flutter_test:

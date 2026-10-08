@@ -33,9 +33,8 @@ class BiometricService {
   Future<bool> canAuthenticate() async {
     if (kIsWeb) return false;
     try {
-      final canCheck = await _auth.canCheckBiometrics;
-      final isSupported = await _auth.isDeviceSupported();
-      return canCheck || isSupported;
+      final enrolled = await _auth.getAvailableBiometrics();
+      return enrolled.isNotEmpty;
     } catch (e) {
       debugPrint('BiometricService canAuthenticate error: $e');
       return false;

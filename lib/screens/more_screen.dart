@@ -16,6 +16,7 @@ import '../widgets/home_settings_sheet.dart';
 import '../widgets/update_dialog.dart';
 import 'ai_screen.dart';
 import 'goals_screen.dart';
+import 'import_csv_screen.dart';
 import 'notification_inbox_screen.dart';
 import 'settings_screen.dart';
 
@@ -60,6 +61,13 @@ class MoreScreen extends StatelessWidget {
             subtitle: 'Tetapkan dan lacak tujuan keuanganmu',
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GoalsScreen())),
           ),
+          _menuTile(
+            icon: Icons.table_chart_outlined,
+            color: AppColors.accent,
+            title: 'Import Mutasi (CSV)',
+            subtitle: 'Impor riwayat transaksi dari berkas e-statement bank',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ImportCsvScreen())),
+          ),
           const SizedBox(height: 16),
 
           // ── Settings ─────────────────────────────────────────
@@ -98,56 +106,161 @@ class MoreScreen extends StatelessWidget {
           Consumer<ThemeService>(
             builder: (context, theme, _) {
               final isDark = theme.isDark;
+              final currentSeason = theme.season;
+              final animasiBg = theme.animasiBackground;
+
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.bgCard,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppColors.glassBorder),
                 ),
-                child: Row(children: [
-                  Container(
-                    width: 40, height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                      color: AppColors.accent,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(
-                        'Mode Gelap',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Mode Gelap Switch
+                    Row(children: [
+                      Container(
+                        width: 38, height: 38,
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                          color: AppColors.accent,
+                          size: 20,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isDark ? 'Tema gelap aktif' : 'Tema terang aktif',
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                        ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(
+                            'Mode Gelap',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            isDark ? 'Tema gelap aktif' : 'Tema terang aktif',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ]),
+                      ),
+                      Switch.adaptive(
+                        value: isDark,
+                        activeThumbColor: AppColors.primary,
+                        onChanged: (val) {
+                          theme.setMode(val ? ThemeMode.dark : ThemeMode.light);
+                        },
                       ),
                     ]),
-                  ),
-                  Switch.adaptive(
-                    value: isDark,
-                    activeColor: AppColors.primary,
-                    onChanged: (val) {
-                      theme.setMode(val ? ThemeMode.dark : ThemeMode.light);
-                    },
-                  ),
-                ]),
+
+                    const Divider(height: 20),
+
+                    // Tema Musim
+                    Text(
+                      'Tema Musim (Warna Aksen)',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _seasonChip(
+                            label: 'Default',
+                            icon: '⚡',
+                            color: const Color(0xFF00E5FF),
+                            isSelected: currentSeason == Season.defaut,
+                            onTap: () => theme.setSeason(Season.defaut),
+                          ),
+                          const SizedBox(width: 8),
+                          _seasonChip(
+                            label: 'Semi',
+                            icon: '🌸',
+                            color: const Color(0xFFF472B6),
+                            isSelected: currentSeason == Season.semi,
+                            onTap: () => theme.setSeason(Season.semi),
+                          ),
+                          const SizedBox(width: 8),
+                          _seasonChip(
+                            label: 'Panas',
+                            icon: '☀️',
+                            color: const Color(0xFFFB923C),
+                            isSelected: currentSeason == Season.panas,
+                            onTap: () => theme.setSeason(Season.panas),
+                          ),
+                          const SizedBox(width: 8),
+                          _seasonChip(
+                            label: 'Gugur',
+                            icon: '🍂',
+                            color: const Color(0xFFF59E0B),
+                            isSelected: currentSeason == Season.gugur,
+                            onTap: () => theme.setSeason(Season.gugur),
+                          ),
+                          const SizedBox(width: 8),
+                          _seasonChip(
+                            label: 'Dingin',
+                            icon: '❄️',
+                            color: const Color(0xFF7DD3FC),
+                            isSelected: currentSeason == Season.dingin,
+                            onTap: () => theme.setSeason(Season.dingin),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const Divider(height: 20),
+
+                    // Animasi Partikel Latar
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Animasi Background',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Efek partikel musim di layar beranda',
+                                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Switch.adaptive(
+                          value: animasiBg,
+                          activeThumbColor: AppColors.primary,
+                          onChanged: (val) {
+                            theme.setAnimasiBackground(val);
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               );
             },
           ),
@@ -198,6 +311,44 @@ class MoreScreen extends StatelessWidget {
     child: Text(label, style:  TextStyle(
       color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
   );
+
+  Widget _seasonChip({
+    required String label,
+    required String icon,
+    required Color color,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) =>
+      InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withValues(alpha: 0.2) : AppColors.bgElevated,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? color : AppColors.glassBorder,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(icon, style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? color : AppColors.textSecond,
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 
   Widget _menuTile({
     required IconData icon,
@@ -292,12 +443,21 @@ class MoreScreen extends StatelessWidget {
                     activeColor: AppColors.primary,
                     onChanged: (val) async {
                       if (val) {
-                        final ok = await BiometricService.instance.authenticate(
+                        final result = await BiometricService.instance.authenticateWithDetails(
                           localizedReason: 'Konfirmasi biometrik untuk mengaktifkan kunci MengFin',
                         );
-                        if (ok) {
+                        if (result.isSuccess) {
                           await AppPrefs.instance.setBiometricAktif(true);
                           setDialogState(() {});
+                        } else {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(result.message),
+                                backgroundColor: AppColors.expense,
+                              ),
+                            );
+                          }
                         }
                       } else {
                         await AppPrefs.instance.setBiometricAktif(false);

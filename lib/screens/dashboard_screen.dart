@@ -132,7 +132,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         try {
           final txDateRaw = DateTime.tryParse(tx.tanggal)?.toLocal();
           if (txDateRaw == null || txDateRaw.isBefore(cutoff)) continue;
-          final k = (tx.kategori ?? 'Lainnya').toString();
+          final k = tx.kategori;
           katMap[k] = (katMap[k] ?? 0) + tx.nominal;
         } catch (_) {}
       }
@@ -315,7 +315,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         try {
           final txDateRaw = DateTime.tryParse(tx.tanggal)?.toLocal();
           if (txDateRaw == null || txDateRaw.isBefore(cutoff)) continue;
-          final k = (tx.kategori ?? 'Lainnya').toString();
+          final k = tx.kategori;
           katMap[k] = (katMap[k] ?? 0) + tx.nominal;
         } catch (_) {}
       }
@@ -1663,18 +1663,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Widget> _buildQuickActions() {
     final order = AppPrefs.instance.quickActionOrder;
     final Map<String, Widget> actionMap = {
-      'voice': QuickActionButton(
-        icon: Icons.mic,
-        label: 'Voice Text',
-        iconColor: AppColors.primary,
-        onTap: () async {
-          final saved = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => const VoiceToTextDialog(),
-          );
-          if (saved == true && mounted) _load();
-        },
-      ),
       'ai': QuickActionButton(
         icon: Icons.auto_awesome,
         label: 'MengFin AI',
@@ -1694,7 +1682,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'budget': QuickActionButton(
         icon: Icons.pie_chart,
         label: 'Budget',
-        iconColor: AppColors.expense,
+        iconColor: AppColors.warning,
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnggaranScreen())),
       ),
     };

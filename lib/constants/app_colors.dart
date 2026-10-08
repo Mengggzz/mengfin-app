@@ -1,19 +1,88 @@
 import 'package:flutter/material.dart';
 
+enum Season { defaut, semi, panas, gugur, dingin }
+
+class SeasonPalette {
+  final Color primaryDark;
+  final Color primaryLight;
+  final Color primaryLightDark;
+  final Color primaryDarkDark;
+  final Color accentDark;
+  final Color accentLight;
+  final List<Color> gradient;
+
+  const SeasonPalette({
+    required this.primaryDark,
+    required this.primaryLight,
+    required this.primaryLightDark,
+    required this.primaryDarkDark,
+    required this.accentDark,
+    required this.accentLight,
+    required this.gradient,
+  });
+}
+
 /// Palet warna aplikasi.
 ///
-/// Sebagian warna berubah mengikuti mode terang/gelap: latar, teks, border,
-/// aksen, dan warna status. Nilai mode GELAP sama dengan palet lama, jadi
-/// tampilan gelap tidak berubah.
-///
-/// Karena warnanya dinamis, JANGAN menaruhnya di dalam `const`
-/// (mis. `const TextStyle(color: AppColors.textPrimary)`) — itu gagal
-/// dikompilasi. Pakai `TextStyle(color: AppColors.textPrimary)` biasa.
-/// Gradien tetap `const` sehingga aman dipakai di dalam `const`.
+/// Sebagian warna berubah mengikuti mode terang/gelap dan tema musim.
 class AppColors {
   AppColors._();
 
   static Brightness _brightness = Brightness.dark;
+  static Season _activeSeason = Season.defaut;
+
+  static const Map<Season, SeasonPalette> _seasonPalettes = {
+    Season.defaut: SeasonPalette(
+      primaryDark: Color(0xFF00E5FF),
+      primaryLight: Color(0xFF0E7490),
+      primaryLightDark: Color(0xFF84FFFF),
+      primaryDarkDark: Color(0xFF155E75),
+      accentDark: Color(0xFFB388FF),
+      accentLight: Color(0xFF6D28D9),
+      gradient: [Color(0xFF00E5FF), Color(0xFF00B8D4)],
+    ),
+    Season.semi: SeasonPalette(
+      primaryDark: Color(0xFFF472B6),
+      primaryLight: Color(0xFFDB2777),
+      primaryLightDark: Color(0xFFFBCFE8),
+      primaryDarkDark: Color(0xFF9D174D),
+      accentDark: Color(0xFF34D399),
+      accentLight: Color(0xFF059669),
+      gradient: [Color(0xFFF472B6), Color(0xFFEC4899)],
+    ),
+    Season.panas: SeasonPalette(
+      primaryDark: Color(0xFFFB923C),
+      primaryLight: Color(0xFFEA580C),
+      primaryLightDark: Color(0xFFFED7AA),
+      primaryDarkDark: Color(0xFFC2410C),
+      accentDark: Color(0xFFFBBF24),
+      accentLight: Color(0xFFD97706),
+      gradient: [Color(0xFFFB923C), Color(0xFFF97316)],
+    ),
+    Season.gugur: SeasonPalette(
+      primaryDark: Color(0xFFF59E0B),
+      primaryLight: Color(0xFFD97706),
+      primaryLightDark: Color(0xFFFDE68A),
+      primaryDarkDark: Color(0xFFB45309),
+      accentDark: Color(0xFFFB7185),
+      accentLight: Color(0xFFE11D48),
+      gradient: [Color(0xFFF59E0B), Color(0xFFD97706)],
+    ),
+    Season.dingin: SeasonPalette(
+      primaryDark: Color(0xFF7DD3FC),
+      primaryLight: Color(0xFF0284C7),
+      primaryLightDark: Color(0xFFBAE6FD),
+      primaryDarkDark: Color(0xFF0369A1),
+      accentDark: Color(0xFFA5B4FC),
+      accentLight: Color(0xFF4F46E5),
+      gradient: [Color(0xFF7DD3FC), Color(0xFF38BDF8)],
+    ),
+  };
+
+  static void setSeason(Season s) => _activeSeason = s;
+  static Season get activeSeason => _activeSeason;
+  static SeasonPalette get currentSeasonPalette =>
+      _seasonPalettes[_activeSeason] ?? _seasonPalettes[Season.defaut]!;
 
   /// Dipanggil ThemeService setiap mode tampilan berubah.
   static void applyBrightness(Brightness b) => _brightness = b;
@@ -44,13 +113,13 @@ class AppColors {
   static Color get bgInput    => _pick(const Color(0xFF1C2128), const Color(0xFFFFFFFF));
   static Color get bgSurface  => _pick(const Color(0xFF161B22), const Color(0xFFFFFFFF));
 
-  // ── Primary (Neon Turquoise/Cyan → Teal gelap untuk mode terang) ─
-  static Color get primary     => _pick(const Color(0xFF00E5FF), const Color(0xFF0E7490));
-  static Color get primaryLight=> _pick(const Color(0xFF84FFFF), const Color(0xFF0891B2));
-  static Color get primaryDark => _pick(const Color(0xFF00B8D4), const Color(0xFF155E75));
+  // ── Primary (Musim-aware) ─
+  static Color get primary     => _pick(currentSeasonPalette.primaryDark, currentSeasonPalette.primaryLight);
+  static Color get primaryLight=> _pick(currentSeasonPalette.primaryLightDark, currentSeasonPalette.primaryDarkDark);
+  static Color get primaryDark => _pick(currentSeasonPalette.primaryDarkDark, currentSeasonPalette.primaryLight);
 
-  // ── Accent (Neon Purple/Lavender) ──────────────────────────────
-  static Color get accent      => _pick(const Color(0xFFB388FF), const Color(0xFF6D28D9));
+  // ── Accent (Musim-aware) ──────────────────────────────
+  static Color get accent      => _pick(currentSeasonPalette.accentDark, currentSeasonPalette.accentLight);
   static const Color accentLight = Color(0xFFD1C4E9);
 
   // ── Text ───────────────────────────────────────────────────────
@@ -105,6 +174,7 @@ class AppColors {
 
   // ── Gradients (tetap `const`, aman di kedua mode) ──────────────
   static const List<Color> gradientPrimary = [Color(0xFF00E5FF), Color(0xFF00B8D4)];
+  static List<Color> get gradientSeason => currentSeasonPalette.gradient;
   static const List<Color> gradientIncome  = [Color(0xFF00E676), Color(0xFF00C853)];
   static const List<Color> gradientExpense = [Color(0xFFFF1744), Color(0xFFD50000)];
   static const List<Color> gradientGold    = [Color(0xFFFFD600), Color(0xFFFFC400)];

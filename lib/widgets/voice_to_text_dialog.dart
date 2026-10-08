@@ -19,6 +19,7 @@ enum _VoiceStage { listening, parsing, saving, done, error }
 class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
   late stt.SpeechToText _speech;
   bool _isListening = false;
+  bool _processing = false;
   String _text = '';
   _VoiceStage _stage = _VoiceStage.listening;
   String _errorMsg = '';
@@ -42,7 +43,15 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
             _processVoice(_text);
           }
         },
-        onError: (val) => debugPrint('onError: $val'),
+        onError: (val) {
+          debugPrint('onError: $val');
+          if (!mounted) return;
+          setState(() {
+            _isListening = false;
+            _stage = _VoiceStage.error;
+            _errorMsg = 'Gangguan pengenalan suara (${val.errorMsg}). Coba lagi.';
+          });
+        },
       );
       if (!mounted) return;
       if (available) {
@@ -79,16 +88,24 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
 
   /// Kirim hasil transkripsi ke AI, lalu simpan transaksi otomatis.
   Future<void> _processVoice(String raw) async {
+    if (_processing) return;
+    _processing = true;
     final text = raw.trim();
     if (text.isEmpty ||
         _stage == _VoiceStage.parsing ||
-        _stage == _VoiceStage.saving) return;
+        _stage == _VoiceStage.saving) {
+      _processing = false;
+      return;
+    }
 
     if (_isListening) {
       await _speech.stop();
       if (mounted) setState(() => _isListening = false);
     }
-    if (!mounted) return;
+    if (!mounted) {
+      _processing = false;
+      return;
+    }
     setState(() => _stage = _VoiceStage.parsing);
 
     try {
@@ -117,11 +134,14 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
         _stage = _VoiceStage.error;
         _errorMsg = 'Gagal memproses: ${e.toString().replaceFirst('Exception: ', '')}';
       });
+    } finally {
+      _processing = false;
     }
   }
 
   void _retry() {
     setState(() {
+      _processing = false;
       _text = '';
       _savedTx = null;
       _errorMsg = '';

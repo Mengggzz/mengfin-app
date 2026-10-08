@@ -11,6 +11,7 @@ import '../services/app_prefs.dart';
 import '../services/notif_parser.dart';
 import '../services/notif_service.dart';
 import '../services/permission_service.dart';
+import '../widgets/auto_notif_onboarding_sheet.dart';
 
 /// Sumber daftar akun. Bisa diganti di uji supaya layar tidak perlu
 /// server hidup; produksi memakai [ApiService.getAkunList].
@@ -130,7 +131,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _pastikanIzin() async {
     final sudah = await NotifService.instance.izinDiberikan();
     if (sudah) return;
-    final ok = await NotifService.instance.mintaIzin();
+    if (!AppPrefs.instance.hasSeenNotifOnboarding) {
+      final ok = await AutoNotifOnboardingSheet.show(context);
+      if (ok && mounted) {
+        setState(() => _notifEnabled = true);
+      }
+      return;
+    }
+    final ok = await PermissionService.bukaPengaturanAksesNotifikasi();
     if (!mounted) return;
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -139,7 +147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: AppColors.warning,
         action: SnackBarAction(
           label: 'Buka',
-          onPressed: () => NotifService.instance.bukaPengaturanIzin(),
+          onPressed: () => PermissionService.bukaPengaturanAksesNotifikasi(),
         ),
       ));
     }

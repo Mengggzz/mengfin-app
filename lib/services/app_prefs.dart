@@ -21,6 +21,7 @@ class AppPrefs {
   static const _kKataKunci = 'notif_kata_kunci';
   static const _kAppPantau = 'notif_app_dipantau';
   static const _kNotifReviewDraft = 'notif_review_draft';
+  static const _kNotifOnboardingDone = 'notif_onboarding_done';
   static const _kBiometricAktif = 'security_biometric_aktif';
 
   // Pengaturan beranda & kustomisasi
@@ -38,6 +39,7 @@ class AppPrefs {
   String? _dompetUtama;
   bool _notifAktif = false;
   bool _notifReviewDraft = true;
+  bool _hasSeenNotifOnboarding = false;
   bool _biometricAktif = false;
 
   int _homeDataMode = 0; // 0 = 7 hari terakhir, 1 = siklus aktif
@@ -52,6 +54,7 @@ class AppPrefs {
   String? get dompetUtama => _dompetUtama;
   bool get notifAktif => _notifAktif;
   bool get notifReviewDraft => _notifReviewDraft;
+  bool get hasSeenNotifOnboarding => _hasSeenNotifOnboarding;
   bool get biometricAktif => _biometricAktif;
 
   int get homeDataMode => _homeDataMode;
@@ -69,6 +72,7 @@ class AppPrefs {
     final p = await SharedPreferences.getInstance();
     _notifAktif = p.getBool(_kNotifAktif) ?? false;
     _notifReviewDraft = p.getBool(_kNotifReviewDraft) ?? true;
+    _hasSeenNotifOnboarding = p.getBool(_kNotifOnboardingDone) ?? false;
     _biometricAktif = p.getBool(_kBiometricAktif) ?? false;
     _dompetUtama = p.getString(_kDompetUtama);
 
@@ -147,6 +151,12 @@ class AppPrefs {
     _notifReviewDraft = reviewDraft;
     final p = await SharedPreferences.getInstance();
     await p.setBool(_kNotifReviewDraft, reviewDraft);
+  }
+
+  Future<void> setHasSeenNotifOnboarding(bool done) async {
+    _hasSeenNotifOnboarding = done;
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_kNotifOnboardingDone, done);
   }
 
   Future<void> setBiometricAktif(bool aktif) async {

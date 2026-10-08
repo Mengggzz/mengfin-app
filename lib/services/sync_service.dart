@@ -235,7 +235,12 @@ class SyncService {
             if (pathId.startsWith('tx_') || pathId.startsWith('upd_tx_')) {
               final clean = pathId.replaceFirst('upd_tx_', '');
               final resolved = await LocalDb.getServerIdForTransaksi(clean);
-              if (resolved != null && resolved.isNotEmpty) actualId = resolved;
+              if (resolved != null && resolved.isNotEmpty) {
+                actualId = resolved;
+              } else {
+                // POST transaksi belum tersinkron ke server, tunda PUT ke siklus sync berikutnya
+                continue;
+              }
             }
             if (hasPathId) await ApiService.updateTransaksiRaw(actualId, body);
           } else if (method == 'DELETE' && tableName == 'transaksi') {
@@ -292,7 +297,12 @@ class SyncService {
             String actualId = pathId;
             if (pathId.startsWith('akun_')) {
               final resolved = await LocalDb.getServerIdForAkun(pathId);
-              if (resolved != null && resolved.isNotEmpty) actualId = resolved;
+              if (resolved != null && resolved.isNotEmpty) {
+                actualId = resolved;
+              } else {
+                // POST akun belum tersinkron, tunda PUT ke siklus sync berikutnya
+                continue;
+              }
             }
             if (hasPathId) {
               await ApiService.updateAkunSaldoRaw(actualId, (body['saldo'] as num).toDouble());
@@ -322,7 +332,7 @@ class SyncService {
           final rawMsg = e.toString().replaceFirst('Exception: ', '');
           _lastError = rawMsg;
           final newRetry = retryCount + 1;
-          final isPermanent = rawMsg.contains('400') || rawMsg.contains('validation');
+          final isPermanent = rawMsg.contains('400') || rawMsg.contains('404') || rawMsg.contains('validation');
           
           await LocalDb.updateQueueItem(
             id,

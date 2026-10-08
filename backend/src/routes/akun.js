@@ -53,7 +53,12 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { nama, jenis, saldo, warna, ikon, local_id } = req.body;
+    const {
+      nama, jenis, saldo, warna, ikon, local_id,
+      target_nominal, target_tanggal,
+      limit_kartu, tgl_cetak, tgl_tempo,
+      gram, harga_beli_per_gram,
+    } = req.body;
     if (!nama) return res.status(400).json({ error: 'Nama dompet wajib diisi' });
 
     // Idempotency: cek jika dompet dengan local_id sudah ada
@@ -74,6 +79,13 @@ router.post('/', async (req, res) => {
       warna: warna || '#2563EB',
       ikon: ikon || 'bank',
       local_id: local_id || null,
+      target_nominal: target_nominal !== undefined && target_nominal !== null ? Number(target_nominal) : null,
+      target_tanggal: target_tanggal || null,
+      limit_kartu: limit_kartu !== undefined && limit_kartu !== null ? Number(limit_kartu) : null,
+      tgl_cetak: tgl_cetak !== undefined && tgl_cetak !== null ? Number(tgl_cetak) : null,
+      tgl_tempo: tgl_tempo !== undefined && tgl_tempo !== null ? Number(tgl_tempo) : null,
+      gram: gram !== undefined && gram !== null ? Number(gram) : null,
+      harga_beli_per_gram: harga_beli_per_gram !== undefined && harga_beli_per_gram !== null ? Number(harga_beli_per_gram) : null,
     });
     res.status(201).json({ data: { id: akun._id, ...akun.toObject() } });
   } catch (err) {
@@ -83,12 +95,24 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { nama, saldo, warna, ikon } = req.body;
+    const {
+      nama, saldo, warna, ikon,
+      target_nominal, target_tanggal,
+      limit_kartu, tgl_cetak, tgl_tempo,
+      gram, harga_beli_per_gram,
+    } = req.body;
     const update = {};
     if (nama  !== undefined) update.nama  = nama;
     if (saldo !== undefined) update.saldo = Number(saldo);
     if (warna !== undefined) update.warna = warna;
     if (ikon  !== undefined) update.ikon  = ikon;
+    if (target_nominal !== undefined) update.target_nominal = target_nominal !== null ? Number(target_nominal) : null;
+    if (target_tanggal !== undefined) update.target_tanggal = target_tanggal;
+    if (limit_kartu !== undefined) update.limit_kartu = limit_kartu !== null ? Number(limit_kartu) : null;
+    if (tgl_cetak !== undefined) update.tgl_cetak = tgl_cetak !== null ? Number(tgl_cetak) : null;
+    if (tgl_tempo !== undefined) update.tgl_tempo = tgl_tempo !== null ? Number(tgl_tempo) : null;
+    if (gram !== undefined) update.gram = gram !== null ? Number(gram) : null;
+    if (harga_beli_per_gram !== undefined) update.harga_beli_per_gram = harga_beli_per_gram !== null ? Number(harga_beli_per_gram) : null;
 
     let query = { user_id: req.user.id };
     if (isValidObjectId(req.params.id)) {

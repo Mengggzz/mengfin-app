@@ -31,7 +31,7 @@ class LocalDb {
     final path = _pathOverride ?? join(await getDatabasesPath(), 'mengfin.db');
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (db, _) async {
         await _createSchema(db);
       },
@@ -102,6 +102,23 @@ class LocalDb {
             )
           ''');
         }
+        // v5 → v6: perluas tabel 'akun' per tipe (Tabungan, Kartu Kredit, Emas)
+        if (oldVersion < 6) {
+          final cols = [
+            'ALTER TABLE akun ADD COLUMN target_nominal REAL',
+            'ALTER TABLE akun ADD COLUMN target_tanggal TEXT',
+            'ALTER TABLE akun ADD COLUMN limit_kartu REAL',
+            'ALTER TABLE akun ADD COLUMN tgl_cetak INTEGER',
+            'ALTER TABLE akun ADD COLUMN tgl_tempo INTEGER',
+            'ALTER TABLE akun ADD COLUMN gram REAL',
+            'ALTER TABLE akun ADD COLUMN harga_beli_per_gram REAL',
+          ];
+          for (final c in cols) {
+            try {
+              await db.execute(c);
+            } catch (_) {}
+          }
+        }
       },
     );
   }
@@ -156,6 +173,13 @@ class LocalDb {
       saldo REAL DEFAULT 0,
       warna TEXT DEFAULT '#2563EB',
       ikon TEXT DEFAULT 'bank',
+      target_nominal REAL,
+      target_tanggal TEXT,
+      limit_kartu REAL,
+      tgl_cetak INTEGER,
+      tgl_tempo INTEGER,
+      gram REAL,
+      harga_beli_per_gram REAL,
       synced INTEGER DEFAULT 1
     )''');
     // sync_queue menyimpan data offline dengan tracking retry & error
@@ -696,6 +720,13 @@ class LocalDb {
       'saldo': data['saldo'] ?? 0,
       'warna': data['warna'] ?? '#2563EB',
       'ikon': data['ikon'] ?? 'bank',
+      'target_nominal': data['target_nominal'],
+      'target_tanggal': data['target_tanggal'],
+      'limit_kartu': data['limit_kartu'],
+      'tgl_cetak': data['tgl_cetak'],
+      'tgl_tempo': data['tgl_tempo'],
+      'gram': data['gram'],
+      'harga_beli_per_gram': data['harga_beli_per_gram'],
       'synced': 0,
     });
   }
@@ -810,22 +841,20 @@ class LocalDb {
     return rows.map((r) => Akun(
           id: r['id']?.toString() ?? '',
           nama: (r['nama'] as String?) ?? '',
-          jenis: (r['jenis'] as String?) ?? 'cash',
+          jenis: (r['jenis'] as String?) ?? 'cashflow',
           saldo: (r['saldo'] as num? ?? 0).toDouble(),
           warna: (r['warna'] as String?) ?? '#2563EB',
           ikon: (r['ikon'] as String?) ?? 'bank',
+          targetNominal: (r['target_nominal'] as num?)?.toDouble(),
+          targetTanggal: r['target_tanggal']?.toString(),
+          limitKartu: (r['limit_kartu'] as num?)?.toDouble(),
+          tglCetak: (r['tgl_cetak'] as num?)?.toInt(),
+          tglTempo: (r['tgl_tempo'] as num?)?.toInt(),
+          gram: (r['gram'] as num?)?.toDouble(),
+          hargaBeliPerGram: (r['harga_beli_per_gram'] as num?)?.toDouble(),
         )).toList();
   }
 
-  /// Simpan daftar dompet dari server ke cache lokal.
-  ///
-  /// Sebelumnya ConflictAlgorithm.replace hanya menangani konflik pada
-  /// PRIMARY KEY (id). Akun lokal sementara (local_id != null, id = 'akun_xxx')
-  /// tidak terhapus saat server mengirim id asli — hasilnya duplikat di UI.
-  ///
-  /// Sekarang: untuk setiap akun server, hapus baris lokal sementara yang
-  /// bisa saja mewakili akun yang sama (berdasarkan nama + jenis + saldo)
-  /// sebelum melakukan upsert.
   static Future<void> upsertAkunList(List<Akun> list) async {
     final d = await db;
     for (final a in list) {
@@ -837,6 +866,13 @@ class LocalDb {
         'saldo': a.saldo,
         'warna': a.warna,
         'ikon': a.ikon,
+        'target_nominal': a.targetNominal,
+        'target_tanggal': a.targetTanggal,
+        'limit_kartu': a.limitKartu,
+        'tgl_cetak': a.tglCetak,
+        'tgl_tempo': a.tglTempo,
+        'gram': a.gram,
+        'harga_beli_per_gram': a.hargaBeliPerGram,
         'synced': 1,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }

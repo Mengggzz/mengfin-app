@@ -89,7 +89,9 @@ class _KazzScreenState extends State<KazzScreen> {
     }
   }
 
-  double get _totalSaldo => _wallets.fold(0.0, (s, a) => s + a.saldo);
+  double get _totalAset => _wallets.where((w) => w.jenis != 'kredit').fold(0.0, (s, a) => s + a.saldo);
+  double get _totalLiabilitas => _wallets.where((w) => w.jenis == 'kredit').fold(0.0, (s, a) => s + a.saldo.abs());
+  double get _totalSaldo => _totalAset - _totalLiabilitas;
 
   /// Dompet setelah difilter lalu diurutkan sesuai pilihan di menu sort.
   List<Akun> get _walletsTampil =>
@@ -417,6 +419,10 @@ class _KazzScreenState extends State<KazzScreen> {
       name: w.nama,
       balance: w.saldo,
       jenis: jenis,
+      targetNominal: w.targetNominal,
+      limitKartu: w.limitKartu,
+      tglTempo: w.tglTempo,
+      gram: w.gram,
       onTap: () => _showWalletDetail(w),
       onMenuTap: () => _showWalletMenu(w),
     );

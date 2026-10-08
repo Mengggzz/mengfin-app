@@ -1,11 +1,28 @@
-# Lanjutan pekerjaan cashflow — status per 28 Sep 2026
+# Lanjutan pekerjaan cashflow — status per 8 Okt 2026
 
 Berkas ini catatan proses supaya bisa dilanjutkan. Hapus kalau sudah selesai.
 
 ## STATUS SAAT INI (baca dulu)
-Semua permintaan asal SELESAI dan teruji. Hanya 1 item terbuka: uji plugin
-notifikasi di HP nyata. Untuk mulai lagi: baca bagian ini, lalu lihat
-"Riwayat perbaikan" di bawah untuk konteks tiap commit.
+Semua 14 Task Fase A (Optimasi APK & Fitur Baru) SELESAI dan teruji:
+- 158/158 flutter test lulus (termasuk unit test StrukParser, CsvImportService, DB migration, AppPrefs, AI Latency, Theme, dll).
+- `flutter analyze`: 0 error.
+- `flutter build web --release`: Sukses (124.2s).
+- CI Workflow di `.github/workflows/build.yml` diperbarui untuk build release APK split-per-abi (<25 MB per APK) + Dart code obfuscation.
+
+### Fitur & Optimasi Baru yang Selesai (Fase A):
+1. **Package Name `com.mengfin`**: `build.gradle.kts`, `MainActivity.kt` di package `com.mengfin`.
+2. **Pembersihan Permission**: Dihapus 8 permission tak terpakai dari `AndroidManifest.xml`.
+3. **Timeout Scan Struk**: 60s timeout di `ApiService.scanStruk`.
+4. **Scan Struk On-Device (ML Kit)**: `StrukParser` + `OcrService` + Fallback Gemini.
+5. **Auto-Catat Lanjutan**: Deep link langsung `openNotificationListenerSettings`, Mode Scan Bukti Transfer / Mutasi (`POST /api/scan/mutasi`), Import CSV Mutasi Bank (`ImportCsvScreen`), Onboarding Wizard (`AutoNotifOnboardingSheet`).
+6. **Fix Kunci Biometrik**: `canAuthenticate()` memverifikasi enrollment nyata, feedback SnackBar di `MoreScreen`.
+7. **Fix Sync Queue**: Penundaan eksekusi PUT unresolved ID dan penandaan 404 sebagai `permanent_failed`.
+8. **Fix Voice Input**: Guard `_processing` race condition dan penanganan `onError`.
+9. **Dual Floating Button (Mic + Plus)**: Di sisi kanan bawah, 4-tab bottom nav simetris, chip Voice Text lama dihapus.
+10. **Tema Musim & Animasi Partikel Background**: Default, Semi 🌸, Panas ☀️, Gugur 🍂, Dingin ❄️ dengan `SeasonBackground` custom painter.
+11. **Redesign PDF Laporan**: Format profesional ber-header branded, 3 kartu summary, porsi kategori, dan tabel transaksi.
+12. **Form Akun per Tipe**: Tabungan (target & progress), Kartu Kredit (limit & tempo), Aset Emas (gram & nilai), Net Worth kalkulasi.
+13. **AI Chat Advisor Cerdas**: Resilient local routing, timeout 20s, quick reply chips, dan multi-bubble splitting.
 
 - Repo: `C:\Users\NAN\Desktop\cashflow`, branch `main`, remote
   https://github.com/Mengggzz/mengfin-app.git

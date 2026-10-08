@@ -360,6 +360,59 @@ Balas HANYA JSON valid (tanpa markdown):
   }
 }
 
+// Scan bukti transfer / riwayat mutasi bank dari base64 image
+async function scanMutasi(imageBase64, mimeType = 'image/jpeg') {
+  const hariIni = new Date().toISOString().split('T')[0];
+
+  const prompt = `Gambar ini adalah screenshot bukti transfer / riwayat mutasi bank / e-wallet di Indonesia.
+Ekstrak SEMUA transaksi yang terlihat di gambar sebagai array JSON transaksi.
+Abaikan saldo sisa, jam, nama aplikasi, atau elemen antarmuka UI lainnya.
+
+Aturan parsing:
+1. "tanggal": YYYY-MM-DD (jika tahun 2 digit atau tanpa tahun, gunakan ${hariIni.split('-')[0]}). Jika tidak ada tanggal, gunakan "${hariIni}".
+2. "nominal": angka bulat positif tanpa titik/koma (misal 50.000 → 50000).
+3. "jenis": "pengeluaran" (debet, uang keluar, transfer keluar, QRIS keluar, bayar) atau "pemasukan" (kredit, transfer masuk, top up diterima).
+4. "deskripsi": nama penerima/pengirim, merchant, atau berita transfer (mis. "Transfer ke Budi", "Pembayaran QRIS Kopi Kenangan").
+5. "kategori": salah satu dari [${KATEGORI_LIST}].
+6. "metode_pembayaran": "transfer", "qris", "debit", "kredit", atau "tunai".
+
+Kembalikan HANYA JSON berformat persis ini (tanpa markdown, tanpa teks lain):
+{
+  "transaksi": [
+    {
+      "tanggal": "${hariIni}",
+      "deskripsi": "Transfer ke Rekening",
+      "nominal": 100000,
+      "jenis": "pengeluaran",
+      "kategori": "Transfer",
+      "metode_pembayaran": "transfer"
+    }
+  ]
+}`;
+
+  try {
+    const textRes = await generateWithFallbackModels([
+      prompt,
+      { inlineData: { data: imageBase64, mimeType } },
+    ]);
+    const parsed = extractJson(textRes);
+    const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.transaksi) ? parsed.transaksi : []);
+    const sanitized = list.map(t => ({
+      tanggal: t.tanggal || hariIni,
+      deskripsi: (t.deskripsi || 'Transaksi Mutasi').trim(),
+      nominal: Math.max(0, Number(t.nominal) || 0),
+      jenis: t.jenis === 'pemasukan' ? 'pemasukan' : 'pengeluaran',
+      kategori: normalizeKategori(t.kategori),
+      metode_pembayaran: normalizeMetode(t.metode_pembayaran || 'transfer'),
+    })).filter(t => t.nominal > 0);
+
+    return sanitized;
+  } catch (err) {
+    console.error('Gemini scan mutasi error:', err.message || err);
+    return null;
+  }
+}
+
 // Generate insight otomatis berdasarkan data keuangan
 async function generateInsight(dataKeuangan) {
   const prompt = `Berdasarkan data keuangan berikut, buat 3 insight singkat dan actionable dalam Bahasa Indonesia.
@@ -410,6 +463,11 @@ Aturan: pakai angka rupiah yang ada di data, jangan mengarang angka. Maksimal 22
 }
 
 module.exports = {
-  parseTransaksiDariTeks, tanyaAIAdvisor, scanNota, generateInsight,
-  generateNarasiLaporan, KATEGORI,
+  parseTransaksiDariTeks,
+  tanyaAIAdvisor,
+  scanNota,
+  scanMutasi,
+  generateInsight,
+  generateNarasiLaporan,
+  KATEGORI,
 };

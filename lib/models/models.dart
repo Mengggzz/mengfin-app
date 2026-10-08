@@ -5,15 +5,65 @@ class Akun {
   final double saldo;
   final String warna;
   final String ikon;
+  final double? targetNominal;
+  final String? targetTanggal;
+  final double? limitKartu;
+  final int? tglCetak;
+  final int? tglTempo;
+  final double? gram;
+  final double? hargaBeliPerGram;
 
-  Akun({required this.id, required this.nama, required this.jenis,
-        required this.saldo, required this.warna, required this.ikon});
+  Akun({
+    required this.id,
+    required this.nama,
+    required this.jenis,
+    required this.saldo,
+    required this.warna,
+    required this.ikon,
+    this.targetNominal,
+    this.targetTanggal,
+    this.limitKartu,
+    this.tglCetak,
+    this.tglTempo,
+    this.gram,
+    this.hargaBeliPerGram,
+  });
 
   factory Akun.fromJson(Map<String, dynamic> j) => Akun(
-    id: j['id'] ?? j['_id'], nama: j['nama'], jenis: j['jenis'],
-    saldo: (j['saldo'] as num).toDouble(),
-    warna: j['warna'] ?? '#2563EB', ikon: j['ikon'] ?? 'bank',
+    id: j['id'] ?? j['_id'],
+    nama: j['nama'],
+    jenis: j['jenis'] ?? 'cashflow',
+    saldo: (j['saldo'] as num?)?.toDouble() ?? 0.0,
+    warna: j['warna'] ?? '#2563EB',
+    ikon: j['ikon'] ?? 'bank',
+    targetNominal: (j['target_nominal'] as num?)?.toDouble(),
+    targetTanggal: j['target_tanggal']?.toString(),
+    limitKartu: (j['limit_kartu'] as num?)?.toDouble(),
+    tglCetak: (j['tgl_cetak'] as num?)?.toInt(),
+    tglTempo: (j['tgl_tempo'] as num?)?.toInt(),
+    gram: (j['gram'] as num?)?.toDouble(),
+    hargaBeliPerGram: (j['harga_beli_per_gram'] as num?)?.toDouble(),
   );
+
+  Map<String, dynamic> toJson() => {
+    'nama': nama,
+    'jenis': jenis,
+    'saldo': saldo,
+    'warna': warna,
+    'ikon': ikon,
+    if (targetNominal != null) 'target_nominal': targetNominal,
+    if (targetTanggal != null) 'target_tanggal': targetTanggal,
+    if (limitKartu != null) 'limit_kartu': limitKartu,
+    if (tglCetak != null) 'tgl_cetak': tglCetak,
+    if (tglTempo != null) 'tgl_tempo': tglTempo,
+    if (gram != null) 'gram': gram,
+    if (hargaBeliPerGram != null) 'harga_beli_per_gram': hargaBeliPerGram,
+  };
+
+  double get sisaLimit => (limitKartu ?? 0) - saldo.abs();
+  double get persenTabungan => (targetNominal != null && targetNominal! > 0)
+      ? (saldo / targetNominal! * 100).clamp(0, 100)
+      : 0;
 }
 
 class Transaksi {

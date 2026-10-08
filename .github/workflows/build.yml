@@ -47,8 +47,8 @@ jobs:
         id: version
         run: echo "VERSION=v$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
 
-      - name: Build release APK
-        run: flutter build apk --release --android-skip-build-dependency-validation --dart-define=APP_BUILD_TAG=${{ steps.version.outputs.VERSION }}
+      - name: Build release APK (Split ABI & Obfuscate)
+        run: flutter build apk --split-per-abi --obfuscate --split-debug-info=build/debug-info --release --android-skip-build-dependency-validation --dart-define=APP_BUILD_TAG=${{ steps.version.outputs.VERSION }}
 
       - name: Print SHA-1 dari APK (untuk verifikasi)
         run: |
@@ -59,10 +59,10 @@ jobs:
           else
             echo "Signed dengan: DEBUG keystore"
           fi
-          keytool -printcert \
-            -jarfile build/app/outputs/flutter-apk/app-release.apk \
-            2>/dev/null | grep -E "SHA1:|SHA256:" \
-            || echo "Tidak bisa baca cert"
+          for apk in build/app/outputs/flutter-apk/*.apk; do
+            echo "Cert for $apk:"
+            keytool -printcert -jarfile "$apk" 2>/dev/null | grep -E "SHA1:|SHA256:" || echo "Tidak bisa baca cert"
+          done
           echo "========================================"
 
       - name: Upload APK to Release
@@ -71,23 +71,26 @@ jobs:
           tag_name: ${{ steps.version.outputs.VERSION }}
           name: "MengFin ${{ steps.version.outputs.VERSION }}"
           body: |
-            ## 📱 MengFin Android APK
+            ## 📱 MengFin Android APK (${{ steps.version.outputs.VERSION }})
             
-            ### ✅ Fitur
-            - Dashboard keuangan real-time
-            - Input transaksi (online & offline)
-            - Anggaran bulanan & Goals / tabungan
-            - AI Financial Advisor (Gemini)
-            - Sync otomatis saat online
+            ### ✨ Pembaruan & Fitur Baru:
+            - **Package Name**: `com.mengfin`
+            - **OCR Struk On-Device (ML Kit)**: Cepat, offline, hemat biaya + Fallback Gemini AI
+            - **Mode Scan Bukti Transfer**: Ekstrak riwayat transaksi mutasi bank & e-wallet
+            - **Import Mutasi CSV**: Impor e-statement bank langsung ke dompet pilihan
+            - **Dual Floating Button**: Shortcut cepat Input Suara & Tambah Transaksi
+            - **Tema Musim & Animasi Partikel**: Semi 🌸, Panas ☀️, Gugur 🍂, Dingin ❄️
+            - **Form Akun per Tipe**: Tabungan (Target Progress), Kartu Kredit (Limit & Jatuh Tempo), Aset Emas (Gram & Nilai)
+            - **AI Advisor Cerdas**: Resilient local routing, panduan aplikasi, multi-bubble chat, dan konfirmasi hapus transaksi
+            - **Performa Ringan**: APK split per-ABI (<25 MB) dengan proteksi Dart code obfuscation
             
-            ### 📥 Cara Install
-            1. Download **app-release.apk** di bawah
-            2. Buka di HP → izinkan "Install dari sumber tidak dikenal"
-            3. Install dan buka app
-
-            > 🔔 Buka ikon notifikasi di beranda untuk cek update terbaru.
-            > 🌐 Server: Railway Cloud 24/7 + MongoDB Atlas
-          files: build/app/outputs/flutter-apk/app-release.apk
+            ### 📥 Panduan Instalasi Sideload:
+            1. Download APK sesuai arsitektur HP kamu (umumnya **app-arm64-v8a-release.apk** untuk HP modern).
+            2. *Catatan Migrasi Package com.mengfin*: Karena package name baru, pastikan sync selesai lalu install APK baru dan login ulang.
+          files: |
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

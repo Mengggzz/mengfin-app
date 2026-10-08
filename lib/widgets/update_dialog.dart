@@ -305,14 +305,6 @@ class _UpdateDialogState extends State<UpdateDialog>
             fontWeight: FontWeight.w700, letterSpacing: 0.3)),
         ),
       ]);
-
-  String _parseChangelog(String body) => body
-      .replaceAll(RegExp(r'#{1,6}\s'), '')
-      .replaceAll(RegExp(r'\*\*(.+?)\*\*'), r'$1')
-      .replaceAll(RegExp(r'`(.+?)`'), r'$1')
-      .replaceAll(RegExp(r'^\s*[-*]\s', multiLine: true), '• ')
-      .replaceAll(RegExp(r'\n{3,}'), '\n\n')
-      .trim();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

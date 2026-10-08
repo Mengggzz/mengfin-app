@@ -17,6 +17,16 @@ const AkunSchema = new mongoose.Schema({
   warna: { type: String, default: '#2563EB' },
   ikon: { type: String, default: 'bank' },
   local_id: { type: String, default: null, index: true },
+  // Tabungan
+  target_nominal: { type: Number, default: null },
+  target_tanggal: { type: String, default: null },
+  // Kartu Kredit
+  limit_kartu: { type: Number, default: null },
+  tgl_cetak: { type: Number, default: null },
+  tgl_tempo: { type: Number, default: null },
+  // Aset Emas
+  gram: { type: Number, default: null },
+  harga_beli_per_gram: { type: Number, default: null },
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 
 // ── Transaksi ──────────────────────────────────────────────────────────────

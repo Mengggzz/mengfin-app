@@ -20,6 +20,8 @@ import 'services/update_service.dart';
 import 'services/app_prefs.dart';
 import 'services/notif_service.dart';
 import 'widgets/update_dialog.dart';
+import 'widgets/voice_to_text_dialog.dart';
+import 'widgets/season_background.dart';
 
 /// Warna status bar & navigation bar Android harus ikut mode tampilan —
 /// di mode terang ikonnya harus gelap, kalau tidak jadi tidak terbaca.
@@ -223,6 +225,13 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
     }
   }
 
+  void _openVoiceInput() async {
+    await showDialog<bool>(
+      context: context,
+      builder: (ctx) => const VoiceToTextDialog(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLocked) {
@@ -241,38 +250,89 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
           child: MediaQuery.removePadding(
             context: context,
             removeTop: bannerVisible,
-            child: IndexedStack(index: _idx, children: _screens),
+            child: SeasonBackground(
+              child: IndexedStack(index: _idx, children: _screens),
+            ),
           ),
         ),
       ]),
-      // ── FAB for Quick Add Transaction ──────────────────────────
-      floatingActionButton: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withOpacity(0.5),
-              blurRadius: 20,
-              spreadRadius: 2,
-            )
+      // ── Dual Floating Action Buttons (Mic & Tambah Transaksi) ──
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 12, right: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            // Tombol Mic (Atas) - Pink/Magenta
+            Tooltip(
+              message: 'Input suara',
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _openVoiceInput,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF007A), Color(0xFFE11D48)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF007A).withValues(alpha: 0.35),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.mic_rounded, color: Colors.white, size: 26),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Tombol Tambah Transaksi (Bawah) - Biru
+            Tooltip(
+              message: 'Tambah transaksi',
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _openTransactionInput,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: AppColors.gradientPrimary,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.4),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
+                  ),
+                ),
+              ),
+            ),
           ],
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: FloatingActionButton(
-          onPressed: _openTransactionInput,
-          backgroundColor: AppColors.primaryDark,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side:  BorderSide(color: AppColors.primary, width: 2),
-          ),
-          child: const Icon(Icons.add, color: Colors.white, size: 28),
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       // ── Bottom Navigation Bar ──────────────────────────────────
       bottomNavigationBar: Container(
-        decoration:  BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.bgCard,
           border: Border(top: BorderSide(color: AppColors.glassBorder)),
         ),
@@ -282,12 +342,8 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                // Left tabs
                 _navItem(0),
                 _navItem(1),
-                // Center space for FAB
-                const SizedBox(width: 56),
-                // Right tabs
                 _navItem(2),
                 _navItem(3),
               ],

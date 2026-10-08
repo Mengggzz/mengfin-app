@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'notif_service.dart';
 
@@ -6,6 +7,20 @@ import 'notif_service.dart';
 /// (Penyimpanan, Notifikasi, dan Akses Notifikasi / Auto-Catat).
 class PermissionService {
   PermissionService._();
+
+  static const _nativeChannel = MethodChannel('com.mengfin/native_actions');
+
+  /// Buka menu pengaturan Akses Notifikasi (Notification Listener Settings) langsung.
+  static Future<bool> bukaPengaturanAksesNotifikasi() async {
+    if (kIsWeb) return false;
+    try {
+      final res = await _nativeChannel.invokeMethod<bool>('openNotificationListenerSettings');
+      return res ?? false;
+    } catch (_) {
+      // Fallback ke plugin notif service
+      return await NotifService.instance.mintaIzin();
+    }
+  }
 
   /// Periksa apakah izin penyimpanan / media sudah diberikan.
   static Future<bool> cekIzinPenyimpanan() async {
