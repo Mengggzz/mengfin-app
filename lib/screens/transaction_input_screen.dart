@@ -385,6 +385,15 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
       return;
     }
 
+    if (_akunList.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Belum ada dompet terdaftar. Tambahkan dompet terlebih dahulu di menu Saldo.'),
+        backgroundColor: AppColors.warning,
+        duration: const Duration(seconds: 3),
+      ));
+      return;
+    }
+
     setState(() => _saving = true);
 
     // Pastikan transaksi selalu terhubung ke dompet jika daftar akun tersedia

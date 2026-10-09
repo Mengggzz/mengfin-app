@@ -29,6 +29,13 @@ class BiometricService {
 
   final LocalAuthentication _auth = LocalAuthentication();
 
+  DateTime? _lastAuthSuccessAt;
+  DateTime? get lastAuthSuccessAt => _lastAuthSuccessAt;
+
+  void recordAuthSuccess() {
+    _lastAuthSuccessAt = DateTime.now();
+  }
+
   /// Apakah perangkat mendukung dan memiliki biometrik aktif?
   Future<bool> canAuthenticate() async {
     if (kIsWeb) return false;
@@ -79,6 +86,7 @@ class BiometricService {
       );
 
       if (authenticated) {
+        _lastAuthSuccessAt = DateTime.now();
         return const BiometricResult(
           status: BiometricStatus.success,
           message: 'Verifikasi berhasil.',

@@ -21,6 +21,37 @@ const MONTH_MAP = {
   nov: '11', des: '12', dec: '12',
 };
 
+const FOOTER_STOP_MARKERS = [
+  'HUBUNGI KAMI', 'CALL CENTER', 'TELEPON', 'CS@', '@SEABANK',
+  'WWW.', '.CO.ID', 'PT BANK', 'SYARAT DAN KETENTUAN',
+  'HALAMAN', 'PAGE', 'REKENING KORAN', 'S/N'
+];
+
+function isFooterOrHeaderLine(line) {
+  const upper = line.toUpperCase();
+  for (const marker of FOOTER_STOP_MARKERS) {
+    if (upper.includes(marker)) return true;
+  }
+  if (upper.includes('TABUNGAN - RINCIAN') || upper.includes('RINGKASAN REKENING')) return true;
+  if (upper.includes('TANGGAL') && upper.includes('TRANSAKSI') && upper.includes('SALDO')) return true;
+  return false;
+}
+
+function isValidNumberString(s) {
+  if (!s || typeof s !== 'string') return false;
+  s = s.trim();
+  if (/^\d{1,9}$/.test(s)) return true;
+  if (/^\d{1,3}(\.\d{3})+(?:,\d{2})?$/.test(s)) return true;
+  if (/^\d{1,3}(,\d{3})+(?:\.\d{2})?$/.test(s)) return true;
+  return false;
+}
+
+function parseIndoNumber(s) {
+  if (!s) return 0;
+  let c = s.trim().replace(/[.,]\d{2}$/, '').replace(/[.,]/g, '');
+  return parseInt(c, 10) || 0;
+}
+
 function parsePeriodeYear(text) {
   const currentYear = new Date().getFullYear();
   const match = text.match(/(?:periode|period)?[^\d]*(20\d\d)/i);
@@ -34,8 +65,31 @@ function parseSeabankText(text, defaultYear) {
   const results = [];
   const dateRegex = /^(\d{1,2})\s+(JAN|FEB|MAR|APR|MAY|MEI|JUN|JUL|AUG|AGU|SEP|OCT|OKT|NOV|DEC|DES)\b/i;
 
+  let inRincianSection = false;
+  let saldoAwal = null;
+  let saldoAkhirRingkasan = null;
+
+  // Ekstrak informasi Ringkasan Rekening jika ada
+  const ringkasanMatch = text.match(/RINGKASAN\s+REKENING[\s\S]*?RINCIAN\s+TRANSAKSI/i);
+  if (ringkasanMatch) {
+    const rText = ringkasanMatch[0];
+    const nums = [...rText.matchAll(/(?<!\d)(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d+)(?!\d)/g)];
+    const validNums = nums.map(x => x[1]).filter(isValidNumberString).map(parseIndoNumber);
+    if (validNums.length >= 1) saldoAwal = validNums[0];
+    if (validNums.length >= 2) saldoAkhirRingkasan = validNums[validNums.length - 1];
+  }
+
+  let runningSaldo = saldoAwal;
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    // Section gating: hanya proses setelah RINCIAN TRANSAKSI
+    if (/RINCIAN\s+TRANSAKSI/i.test(line)) {
+      inRincianSection = true;
+      continue;
+    }
+    if (!inRincianSection) continue;
+
     const dateMatch = line.match(dateRegex);
     if (!dateMatch) continue;
 
@@ -46,43 +100,127 @@ function parseSeabankText(text, defaultYear) {
 
     let fullBlock = line.substring(dateMatch[0].length).trim();
     let j = i + 1;
-    while (
-      j < lines.length &&
-      !lines[j].match(dateRegex) &&
-      !lines[j].toUpperCase().includes('TABUNGAN - RINCIAN') &&
-      !lines[j].toUpperCase().includes('RINGKASAN REKENING') &&
-      !lines[j].toUpperCase().includes('HALAMAN')
-    ) {
+    while (j < lines.length) {
+      if (lines[j].match(dateRegex)) break;
+      if (isFooterOrHeaderLine(lines[j])) {
+        j++;
+        continue;
+      }
       fullBlock += ' ' + lines[j];
       j++;
     }
 
-    const numMatches = [...fullBlock.matchAll(/(?<![A-Za-z0-9])(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d{4,9})(?![A-Za-z0-9])/g)];
-    if (numMatches.length >= 2) {
-      // Nominal transaksi adalah angka sebelum saldo akhir
-      const nominalRaw = numMatches[numMatches.length - 2][1];
-      const cleanNominal = parseInt(
-        nominalRaw.replace(/[.,]\d{2}$/, '').replace(/[.,]/g, ''),
-        10
-      );
+    // Bersihkan fragmen footer
+    const cutIdx = fullBlock.search(/(@|www\.|\bhttps?:)/i);
+    if (cutIdx !== -1) fullBlock = fullBlock.slice(0, cutIdx).trim();
 
-      if (cleanNominal > 0) {
-        const isMasuk = /masuk|kredit|top up|transfer dari|tf dari|bunga/i.test(fullBlock);
-        let desc = fullBlock;
-        for (const nm of numMatches) {
-          desc = desc.replace(nm[0], '');
+    for (const marker of FOOTER_STOP_MARKERS) {
+      const re = new RegExp(marker.replace(/([.*+?^${}()|[\]\/\\])/g, '\\$1'), 'gi');
+      fullBlock = fullBlock.replace(re, ' ');
+    }
+    fullBlock = fullBlock.replace(/\s+/g, ' ').trim();
+
+    // Pisahkan deskripsi dan kandidat nominal/saldo
+    const tokens = fullBlock.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) continue;
+
+    let matched = null;
+    const candidates = [];
+
+    // Opsi A: Dua token terpisah spasi di ujung (misal "500,000 1,500,000" atau "19 410.535")
+    if (tokens.length >= 2) {
+      const tNom = tokens[tokens.length - 2];
+      const tSal = tokens[tokens.length - 1];
+      if (isValidNumberString(tNom) && isValidNumberString(tSal)) {
+        const nom = parseIndoNumber(tNom);
+        const sal = parseIndoNumber(tSal);
+        const desc = tokens.slice(0, tokens.length - 2).join(' ').trim();
+        if (nom > 0) {
+          candidates.push({
+            desc,
+            nom,
+            sal,
+            type: 'spaced',
+          });
         }
-        desc = desc.replace(/\s+/g, ' ').trim() || 'Transaksi SeaBank';
-
-        results.push({
-          tanggal,
-          deskripsi: desc,
-          nominal: cleanNominal,
-          jenis: isMasuk ? 'pemasukan' : 'pengeluaran',
-          kategori: normalizeKategori(desc),
-          metode_pembayaran: 'transfer',
-        });
       }
+    }
+
+    // Opsi B: Token terakhir menempel (misal "39.900370.635" atau "28410.535")
+    const lastToken = tokens[tokens.length - 1];
+    const descForGlued = tokens.slice(0, tokens.length - 1).join(' ').trim();
+    for (let k = 1; k < lastToken.length; k++) {
+      const left = lastToken.slice(0, k);
+      const right = lastToken.slice(k);
+      if (isValidNumberString(left) && isValidNumberString(right)) {
+        const nom = parseIndoNumber(left);
+        const sal = parseIndoNumber(right);
+        if (nom > 0) {
+          candidates.push({
+            desc: descForGlued,
+            nom,
+            sal,
+            type: 'glued',
+          });
+        }
+      }
+    }
+
+    // Pilih kandidat yang memenuhi |runningSaldo - saldo| == nominal
+    if (runningSaldo !== null) {
+      const validMatch = candidates.find(c => Math.abs(runningSaldo - c.sal) === c.nom);
+      if (validMatch) {
+        matched = {
+          deskripsi: validMatch.desc,
+          nominal: validMatch.nom,
+          saldo: validMatch.sal,
+          jenis: validMatch.sal > runningSaldo ? 'pemasukan' : 'pengeluaran'
+        };
+      }
+    } else {
+      // Baris pertama tanpa saldo awal dari ringkasan
+      if (candidates.length > 0) {
+        const best = candidates.find(c => c.type === 'spaced') || candidates[0];
+        const isMasuk = /masuk|kredit|top up|transfer dari|tf dari|bunga|cashback|refund/i.test(best.desc);
+        matched = {
+          deskripsi: best.desc,
+          nominal: best.nom,
+          saldo: best.sal,
+          jenis: isMasuk ? 'pemasukan' : 'pengeluaran'
+        };
+      }
+    }
+
+    // Validasi penolakan: deskripsi < 3 karakter atau mengandung kata header ringkasan
+    if (!matched || !matched.deskripsi || matched.deskripsi.length < 3) continue;
+    const upperDesc = matched.deskripsi.toUpperCase();
+    if (
+      upperDesc.includes('SALDO AWAL') ||
+      upperDesc.includes('TRANSAKSI KELUAR') ||
+      upperDesc.includes('TRANSAKSI MASUK') ||
+      upperDesc.includes('SALDO AKHIR')
+    ) {
+      continue;
+    }
+
+    runningSaldo = matched.saldo;
+
+    results.push({
+      tanggal,
+      deskripsi: matched.deskripsi,
+      nominal: matched.nominal,
+      jenis: matched.jenis,
+      kategori: normalizeKategori(matched.deskripsi),
+      metode_pembayaran: 'transfer',
+      saldo: matched.saldo,
+    });
+  }
+
+  // Validasi rantai: saldo akhir baris terakhir harus ≈ TOTAL di ringkasan
+  if (saldoAkhirRingkasan !== null && results.length > 0) {
+    const lastSaldo = results[results.length - 1].saldo;
+    if (Math.abs(lastSaldo - saldoAkhirRingkasan) > 100) {
+      return [];
     }
   }
 

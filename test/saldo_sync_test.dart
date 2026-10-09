@@ -326,5 +326,37 @@ void main() {
       final stats = await LocalDb.getDashboardLocal('2026-10');
       expect(stats['saldo'], equals(1969000.0));
     });
+
+    test('Task 2: hapus dompet satu-satunya -> tidak bangkit lagi & insertTransaksiLocal tidak buat akun siluman', () async {
+      // 1. Awalnya ada 1 dompet
+      await LocalDb.insertAkunLocal({
+        'nama': 'Dompet Tunggal',
+        'jenis': 'cashflow',
+        'saldo': 100000,
+        'warna': '#2563EB',
+        'ikon': 'cashflow',
+      }, 'akun_tunggal_1');
+
+      var list = await LocalDb.getAkunList();
+      expect(list.length, 1);
+
+      // 2. Hapus dompet satu-satunya
+      await LocalDb.deleteAkun('akun_tunggal_1');
+      list = await LocalDb.getAkunList();
+      expect(list.isEmpty, isTrue, reason: 'Daftar dompet harus benar-benar kosong');
+
+      // 3. Tambah transaksi lokal saat tidak ada dompet sama sekali
+      await LocalDb.insertTransaksiLocal({
+        'tanggal': '2026-10-10',
+        'jenis': 'pengeluaran',
+        'nominal': 20000,
+        'kategori': 'Makan & Minum',
+        'deskripsi': 'makan siang',
+      }, 'tx_tanpa_dompet_1');
+
+      // 4. Pastikan TIDAK ADA dompet siluman (akun_utama_default) yang tercipta
+      list = await LocalDb.getAkunList();
+      expect(list.isEmpty, isTrue, reason: 'Tidak boleh membuat dompet siluman tanpa izin');
+    });
   });
 }

@@ -24,18 +24,6 @@ router.get('/dashboard', async (req, res) => {
       Anggaran.find({ user_id: uid, periode: bulanIni }),
     ]);
 
-    if (akuns.length === 0) {
-      const defaultAkun = await Akun.create({
-        user_id: uid,
-        nama: 'Dompet Utama',
-        jenis: 'cashflow',
-        saldo: 0,
-        warna: '#2563EB',
-        ikon: 'cashflow',
-      });
-      akuns = [defaultAkun];
-    }
-
     const sumTx = (txs, jenis) => txs.filter(t => t.jenis === jenis).reduce((s, t) => s + t.nominal, 0);
 
     const ini  = { pemasukan: sumTx(txIni, 'pemasukan'),  pengeluaran: sumTx(txIni, 'pengeluaran') };

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
-const { User } = require('../models');
+const { User, Akun } = require('../models');
 const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -60,6 +60,21 @@ router.post('/google', async (req, res) => {
     let user = await User.findOne({ google_id });
     if (!user) {
       user = await User.create({ google_id, email: userEmail, nama: userName, foto: userFoto });
+      // Buat satu dompet utama bawaan saat registrasi pertama kali (idempoten)
+      await Akun.findOneAndUpdate(
+        { user_id: user._id.toString(), nama: 'Dompet Utama' },
+        {
+          $setOnInsert: {
+            user_id: user._id.toString(),
+            nama: 'Dompet Utama',
+            jenis: 'cashflow',
+            saldo: 0,
+            warna: '#2563EB',
+            ikon: 'cashflow',
+          }
+        },
+        { upsert: true, new: true }
+      );
     } else {
       user.nama = userName || user.nama;
       user.foto = userFoto || user.foto;

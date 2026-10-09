@@ -15,21 +15,10 @@ function isValidObjectId(id) {
 router.get('/', async (req, res) => {
   try {
     let rows = await Akun.find({ user_id: req.user.id }).sort({ jenis: 1, nama: 1 });
-    if (rows.length === 0) {
-      const defaultAkun = await Akun.create({
-        user_id: req.user.id,
-        nama: 'Dompet Utama',
-        jenis: 'cashflow',
-        saldo: 0,
-        warna: '#2563EB',
-        ikon: 'cashflow',
-      });
-      rows = [defaultAkun];
-    }
 
     // Reconcile saldo jika akun bersaldo 0 atau rusak tetapi transaksi riil ada
     const txRows = await Transaksi.find({ user_id: req.user.id });
-    if (txRows.length > 0) {
+    if (txRows.length > 0 && rows.length > 0) {
       for (let a of rows) {
         const saldoTx = txRows
           .filter(t => !t.akun_id || String(t.akun_id) === String(a._id))

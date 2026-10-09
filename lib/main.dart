@@ -20,6 +20,7 @@ import 'services/theme_service.dart';
 import 'services/update_service.dart';
 import 'services/app_prefs.dart';
 import 'services/notif_service.dart';
+import 'services/biometric_service.dart';
 import 'widgets/update_dialog.dart';
 import 'widgets/voice_to_text_dialog.dart';
 import 'widgets/season_background.dart';
@@ -198,9 +199,16 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused) {
       _pausedTime = DateTime.now();
     } else if (state == AppLifecycleState.resumed) {
+      final paused = _pausedTime;
+      _pausedTime = null; // Konsumsi _pausedTime agar tidak basi
+
       if (AppPrefs.instance.biometricAktif && AuthService.instance.isLoggedIn) {
         final now = DateTime.now();
-        if (_pausedTime != null && now.difference(_pausedTime!).inSeconds >= 2) {
+        final lastAuth = BiometricService.instance.lastAuthSuccessAt;
+        final bool recentlyAuthed = lastAuth != null && now.difference(lastAuth).inSeconds < 10;
+
+        // Lewati lock jika biometrik baru saja berhasil diverifikasi (<10 detik)
+        if (!recentlyAuthed && paused != null && now.difference(paused).inSeconds >= 2) {
           if (mounted) {
             setState(() {
               _isLocked = true;

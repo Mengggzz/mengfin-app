@@ -209,18 +209,8 @@ router.post('/konfirmasi-transaksi', async (req, res) => {
     }
 
     if (!validAkunId) {
-      let defaultAkun = await Akun.findOne({ user_id: req.user.id }).sort({ jenis: 1, _id: 1 });
-      if (!defaultAkun) {
-        defaultAkun = await Akun.create({
-          user_id: req.user.id,
-          nama: 'Dompet Utama',
-          jenis: 'cashflow',
-          saldo: 0,
-          warna: '#2563EB',
-          ikon: 'cashflow',
-        });
-      }
-      validAkunId = defaultAkun._id;
+      const defaultAkun = await Akun.findOne({ user_id: req.user.id }).sort({ jenis: 1, _id: 1 });
+      if (defaultAkun) validAkunId = defaultAkun._id;
     }
 
     const tx = await Transaksi.create({
