@@ -541,9 +541,11 @@ class ApiService {
       
       // Upsert ke cache lokal
       await LocalDb.upsertAkunList(newList);
+      await LocalDb.reconcileAkunSaldo();
       
       // Bandingkan apakah ada perubahan signifikan
-      if (_akunListChanged(oldList, newList)) {
+      final reconciledList = await LocalDb.getAkunList();
+      if (_akunListChanged(oldList, reconciledList)) {
         // Menu Saldo & beranda mendengarkan AppEvents.akun, jadi beri tahu
         // bahwa saldo dompet sudah berubah.
         AppEvents.instance.akunBerubah();
@@ -575,9 +577,11 @@ class ApiService {
         final oldList = await LocalDb.getAkunList();
         
         await LocalDb.upsertAkunList(newList);
+        await LocalDb.reconcileAkunSaldo();
         
         // Hanya trigger event jika ada perubahan
-        if (_akunListChanged(oldList, newList)) {
+        final reconciledList = await LocalDb.getAkunList();
+        if (_akunListChanged(oldList, reconciledList)) {
           AppEvents.instance.akunBerubah();
         }
       } catch (_) {

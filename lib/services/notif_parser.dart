@@ -5,6 +5,8 @@
 /// penentuannya dipisah ke sini dan diuji dengan teks notifikasi sungguhan.
 library;
 
+import 'kategori_otomatis.dart';
+
 /// Hasil pembacaan satu notifikasi.
 class NotifTransaksi {
   final double nominal;
@@ -278,39 +280,8 @@ class NotifParser {
   /// Label kategori harus sama persis dengan `kategoriList` di utils.dart,
   /// kalau tidak, ikonnya jadi kotak kosong di daftar transaksi.
   static String tebakKategori(String lower, String jenis) {
-    if (jenis == 'pemasukan') {
-      if (lower.contains('gaji') || lower.contains('payroll')) return 'Gaji';
-      if (lower.contains('refund') || lower.contains('pengembalian') ||
-          lower.contains('cashback')) {
-        return 'Bonus';
-      }
-      return 'Transfer';
-    }
-
-    const peta = <String, List<String>>{
-      'Makan & Minum': ['gofood', 'grabfood', 'shopeefood', 'resto', 'restoran',
-        'makan', 'kopi', 'kafe', 'cafe', 'bakery', 'warteg', 'catering'],
-      'Transportasi': ['grab', 'gojek', 'ojek', 'taksi', 'taxi', 'bensin',
-        'pertamina', 'spbu', 'tol', 'parkir', 'krl', 'mrt', 'lrt', 'transjakarta',
-        'bus', 'kereta', 'tiket'],
-      'Belanja': ['tokopedia', 'shopee', 'lazada', 'blibli', 'indomaret',
-        'alfamart', 'supermarket', 'super indo', 'belanja'],
-      'Tagihan': ['pln', 'listrik', 'pdam', 'internet', 'indihome', 'telkom',
-        'pulsa', 'kuota', 'tagihan', 'bpjs', 'pajak', 'iuran', 'cicilan'],
-      'Kesehatan': ['apotek', 'klinik', 'rumah sakit', 'dokter', 'obat',
-        'kimia farma'],
-      'Hiburan': ['netflix', 'spotify', 'bioskop', 'cgv', 'xxi', 'game', 'steam',
-        'youtube', 'vidio', 'hiburan', 'langganan'],
-      'Pendidikan': ['sekolah', 'kuliah', 'kampus', 'kursus', 'buku', 'udemy'],
-      'Pakaian': ['pakaian', 'baju', 'sepatu', 'uniqlo', 'zara'],
-      'Perawatan': ['salon', 'barbershop', 'skincare', 'kosmetik', 'spa'],
-      'Kendaraan': ['servis', 'bengkel', 'oli', 'stnk'],
-      'Rumah Tangga': ['perabot', 'furniture', 'ikea', 'kebersihan', 'laundry'],
-      'Sosial': ['donasi', 'sumbangan', 'zakat', 'infak', 'sedekah'],
-    };
-    for (final e in peta.entries) {
-      if (e.value.any((k) => lower.contains(k))) return e.key;
-    }
+    final tebakan = KategoriOtomatis.tebakKamus(lower, isExpense: jenis == 'pengeluaran');
+    if (tebakan != null && tebakan.isNotEmpty) return tebakan;
     if (lower.contains('transfer')) return 'Transfer';
     return 'Lainnya';
   }

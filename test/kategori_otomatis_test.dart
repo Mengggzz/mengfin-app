@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mengfin/models/models.dart';
+import 'package:mengfin/constants/utils.dart';
 import 'package:mengfin/screens/settings_screen.dart';
 import 'package:mengfin/services/app_prefs.dart';
 import 'package:mengfin/services/kategori_otomatis.dart';
@@ -116,6 +117,45 @@ void main() {
       expect(
         KategoriOtomatis.tebak(deskripsi: 'gaji bulanan', gunakanKamus: true, isExpense: false),
         'Gaji',
+      );
+    });
+
+    test('Kamus komprehensif Bug F: jajanan & stemming (cilok, kue, membeli)', () {
+      expect(KategoriOtomatis.tebakKamus('beli cilok 5000'), 'Makan & Minum');
+      expect(KategoriOtomatis.tebakKamus('kue lapis legit'), 'Makan & Minum');
+      expect(KategoriOtomatis.tebakKamus('membeli cilok'), 'Makan & Minum');
+      expect(KategoriOtomatis.tebakKamus('makanan siang'), 'Makan & Minum');
+      expect(KategoriOtomatis.tebakKamus('pembayaran listrik'), 'Tagihan');
+    });
+
+    test('Tebak Tipe Need / Want / Saving & override keyword', () {
+      expect(
+        KategoriOtomatis.tebakTipe(deskripsi: 'beli cilok 5000', kategori: 'Makan & Minum'),
+        TransactionType.need,
+      );
+      expect(
+        KategoriOtomatis.tebakTipe(deskripsi: 'starbucks 60000', kategori: 'Makan & Minum'),
+        TransactionType.want,
+      );
+      expect(
+        KategoriOtomatis.tebakTipe(deskripsi: 'beli sabun mandi', kategori: 'Belanja'),
+        TransactionType.need,
+      );
+      expect(
+        KategoriOtomatis.tebakTipe(deskripsi: 'baju kemeja', kategori: 'Belanja'),
+        TransactionType.want,
+      );
+      expect(
+        KategoriOtomatis.tebakTipe(deskripsi: 'tiket pesawat liburan', kategori: 'Transportasi'),
+        TransactionType.want,
+      );
+      expect(
+        KategoriOtomatis.tebakTipe(deskripsi: 'bensin pertalite', kategori: 'Transportasi'),
+        TransactionType.need,
+      );
+      expect(
+        KategoriOtomatis.tebakTipe(deskripsi: 'investasi reksadana', kategori: 'Investasi', isExpense: false),
+        TransactionType.saving,
       );
     });
   });

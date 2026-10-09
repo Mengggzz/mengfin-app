@@ -1,5 +1,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { getMengFinAISystemPrompt } = require('../config/mengfin_ai_system_prompt');
+const { tebakKamus } = require('./kategori');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const CANDIDATE_MODELS = [
@@ -22,7 +23,7 @@ const KATEGORI_LIST = KATEGORI.map(k => `"${k}"`).join(', ');
 const METODE = ['tunai', 'transfer', 'qris', 'debit', 'kredit'];
 
 /// Timeout wrapper agar panggilan LLM tidak menggantung
-function withTimeout(promise, ms = 6000) {
+function withTimeout(promise, ms = 20000) {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error('AI Request Timeout')), ms))
@@ -34,7 +35,7 @@ async function withRetry(fn, attempts = 2) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
-      return await withTimeout(fn(), 5000);
+      return await withTimeout(fn(), 20000);
     } catch (err) {
       lastErr = err;
       const status = err?.status || err?.response?.status;
@@ -102,7 +103,10 @@ function normalizeKategori(raw) {
   if (exact) return exact;
   const partial = KATEGORI.find(k =>
     k.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(k.toLowerCase()));
-  return partial || 'Lainnya';
+  if (partial) return partial;
+  const tebakan = tebakKamus(s);
+  if (tebakan && tebakan !== 'Lainnya') return tebakan;
+  return 'Lainnya';
 }
 
 function normalizeMetode(raw) {
@@ -199,30 +203,18 @@ function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
   }
 
   // Tanya kategori spesifik
-  const katKamus = {
-    'Makan & Minum': /\b(makan|minum|kopi|coffee|cafe|kafe|restoran|resto|warung|mie|nasi|ayam|bakso|jajan|snack)\b/i,
-    'Transportasi': /\b(bensin|bbm|pertalite|pertamax|solar|parkir|tol|ojol|gojek|grab|maxim|angkot|bus|kereta|transportasi)\b/i,
-    'Belanja': /\b(belanja|supermarket|minimarket|indomaret|alfamart|shopee|tokopedia|mall)\b/i,
-    'Tagihan': /\b(listrik|pln|pdam|air|pulsa|kuota|paket data|wifi|tagihan|bpjs)\b/i,
-    'Kesehatan': /\b(obat|apotek|dokter|klinik|rs|rumah sakit|vitamin|kesehatan)\b/i,
-    'Hiburan': /\b(nonton|bioskop|cinema|game|steam|netflix|spotify|hiburan)\b/i,
-    'Pakaian': /\b(baju|celana|sepatu|tas|kaos|jaket|pakaian)\b/i,
-    'Pendidikan': /\b(buku|kursus|kuliah|sekolah|spp|les|pendidikan)\b/i,
-  };
+  const katTerdeteksi = tebakKamus(p, true);
+  if (katTerdeteksi && katTerdeteksi !== 'Lainnya') {
+    const katItem = topKategoriPengeluaran.find(k => k.kategori.toLowerCase() === katTerdeteksi.toLowerCase());
+    const total = katItem ? katItem.total : 0;
+    const anggaran = (anggaranList || []).find(a => a.kategori.toLowerCase() === katTerdeteksi.toLowerCase());
 
-  for (const [katNama, katRegex] of Object.entries(katKamus)) {
-    if (katRegex.test(p)) {
-      const katItem = topKategoriPengeluaran.find(k => k.kategori.toLowerCase() === katNama.toLowerCase());
-      const total = katItem ? katItem.total : 0;
-      const anggaran = (anggaranList || []).find(a => a.kategori.toLowerCase() === katNama.toLowerCase());
-
-      let res = `📁 **Pengeluaran Kategori: ${katNama} (${bulanIni}):**\n\n• Total Pengeluaran: **${fmt(total)}**\n`;
-      if (anggaran && anggaran.batas > 0) {
-        res += `• Batas Anggaran: ${fmt(anggaran.batas)} (${anggaran.persentase}%)\n`;
-        res += total > anggaran.batas ? '• Status: ⚠️ Melebihi budget!\n' : '• Status: Aman ✅\n';
-      }
-      return res;
+    let res = `📁 **Pengeluaran Kategori: ${katTerdeteksi} (${bulanIni}):**\n\n• Total Pengeluaran: **${fmt(total)}**\n`;
+    if (anggaran && anggaran.batas > 0) {
+      res += `• Batas Anggaran: ${fmt(anggaran.batas)} (${anggaran.persentase}%)\n`;
+      res += total > anggaran.batas ? '• Status: ⚠️ Melebihi budget!\n' : '• Status: Aman ✅\n';
     }
+    return res;
   }
 
   // Hari ini
@@ -292,35 +284,50 @@ function generateFallbackAdvisorResponse(pertanyaan, konteksKeuangan) {
     return `Sama-sama! Senang bisa membantu mengelola keuanganmu. Jika ada yang ingin ditanyakan lagi, silakan kabari ya! 😊`;
   }
 
-  // Analisis keuangan default / pertanyaan umum
-  let out = `📊 **Analisis Keuangan (${bulanIni || 'Bulan Ini'}):**\n\n`;
-  out += `• **Saldo Dompet**: ${fmt(saldoTotal)}\n`;
-  out += `• **Total Pemasukan**: ${fmt(pemasukan)}\n`;
-  out += `• **Total Pengeluaran**: ${fmt(pengeluaran)}\n`;
-  out += `• **Arus Kas (Net)**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}${fmt(saldoBersih)}\n\n`;
-
-  out += `📈 **Top Pengeluaran:**\n`;
-  if (topKategoriPengeluaran.length > 0) {
-    topKategoriPengeluaran.slice(0, 3).forEach((k, idx) => {
-      const pct = pengeluaran > 0 ? Math.round((k.total / pengeluaran) * 100) : 0;
-      out += `  ${idx + 1}. **${k.kategori}**: ${fmt(k.total)} (${pct}%)\n`;
-    });
-  } else {
-    out += `  (Belum ada data pengeluaran tercatat di periode ini)\n`;
+  // Panduan hapus transaksi
+  if (p.includes('hapus') || p.includes('delete') || p.includes('batal catat') || p.includes('batalkan transaksi')) {
+    return `🗑️ **Panduan Hapus Transaksi:**\n\nUntuk menghapus transaksi, silakan buka tab **Transaksi**, pilih transaksi yang ingin dihapus, lalu tekan tombol **Hapus** (ikon tempat sampah). AI tidak menghapus transaksi secara langsung demi menjaga keamanan data Anda.`;
   }
 
-  out += `\n🎯 **Status Harian & Saran:**\n`;
-  out += `• Rata-rata pengeluaran: **${fmt(rataHarian)}/hari** (sisa ${sisaHariBulan} hari di bulan ini)\n`;
-  if (saldoBersih < 0) {
-    out += `• ⚠️ Arus kas saat ini sedang defisit. Disarankan membatasi pengeluaran pos sekunder untuk menstabilkan saldo.\n`;
-  } else if (pemasukan > 0) {
-    const saveRate = Math.round((saldoBersih / pemasukan) * 100);
-    out += `• ✅ Tingkat tabungan Anda mencapai **${saveRate}%**. Kondisi keuangan dalam batas sehat!\n`;
-  } else {
-    out += `• Catat transaksi harian secara konsisten untuk melihat proyeksi kesehatan finansial yang lebih akurat.\n`;
+  // Analisis keuangan jika user secara spesifik meminta analisis / ringkasan / laporan
+  const mintaAnalisis = p.includes('analisis') || p.includes('analisa') ||
+    p.includes('evaluasi') || p.includes('ringkasan') || p.includes('laporan') ||
+    p.includes('kondisi keuangan') || p.includes('kesehatan keuangan') ||
+    p.includes('keuangan saya') || p.includes('keuanganku') || p.includes('finansial');
+
+  if (mintaAnalisis) {
+    let out = `📊 **Analisis Keuangan (${bulanIni || 'Bulan Ini'}):**\n\n`;
+    out += `• **Saldo Dompet**: ${fmt(saldoTotal)}\n`;
+    out += `• **Total Pemasukan**: ${fmt(pemasukan)}\n`;
+    out += `• **Total Pengeluaran**: ${fmt(pengeluaran)}\n`;
+    out += `• **Arus Kas (Net)**: ${saldoBersih >= 0 ? '✅ Surplus ' : '⚠️ Defisit '}${fmt(saldoBersih)}\n\n`;
+
+    out += `📈 **Top Pengeluaran:**\n`;
+    if (topKategoriPengeluaran.length > 0) {
+      topKategoriPengeluaran.slice(0, 3).forEach((k, idx) => {
+        const pct = pengeluaran > 0 ? Math.round((k.total / pengeluaran) * 100) : 0;
+        out += `  ${idx + 1}. **${k.kategori}**: ${fmt(k.total)} (${pct}%)\n`;
+      });
+    } else {
+      out += `  (Belum ada data pengeluaran tercatat di periode ini)\n`;
+    }
+
+    out += `\n🎯 **Status Harian & Saran:**\n`;
+    out += `• Rata-rata pengeluaran: **${fmt(rataHarian)}/hari** (sisa ${sisaHariBulan} hari di bulan ini)\n`;
+    if (saldoBersih < 0) {
+      out += `• ⚠️ Arus kas saat ini sedang defisit. Disarankan membatasi pengeluaran pos sekunder untuk menstabilkan saldo.\n`;
+    } else if (pemasukan > 0) {
+      const saveRate = Math.round((saldoBersih / pemasukan) * 100);
+      out += `• ✅ Tingkat tabungan Anda mencapai **${saveRate}%**. Kondisi keuangan dalam batas sehat!\n`;
+    } else {
+      out += `• Catat transaksi harian secara konsisten untuk melihat proyeksi kesehatan finansial yang lebih akurat.\n`;
+    }
+
+    return out;
   }
 
-  return out;
+  // Fallback jujur saat offline atau AI tidak merespons (bukan dump analisis)
+  return `Maaf, AI sedang tidak bisa dihubungi saat ini. Coba lagi nanti atau gunakan perintah langsung seperti tanya saldo, tips hemat, atau catat transaksi.`;
 }
 
 // Scan nota/struk dari base64 image

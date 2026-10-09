@@ -33,17 +33,17 @@ class _SeasonBackgroundState extends State<SeasonBackground>
 
   void _initParticles() {
     _particles.clear();
-    for (int i = 0; i < 35; i++) {
+    for (int i = 0; i < 50; i++) {
       _particles.add(_Particle(
         x: _random.nextDouble(),
         y: _random.nextDouble(),
-        size: 3 + _random.nextDouble() * 6,
-        speed: 0.1 + _random.nextDouble() * 0.25,
+        size: 6 + _random.nextDouble() * 8, // 6-14px
+        speed: (0.1 + _random.nextDouble() * 0.25) * 2, // kecepatan 2x
         swaySpeed: 0.5 + _random.nextDouble() * 1.5,
-        swayAmplitude: 0.02 + _random.nextDouble() * 0.04,
+        swayAmplitude: 0.03 + _random.nextDouble() * 0.05,
         rotation: _random.nextDouble() * 2 * math.pi,
         rotationSpeed: (_random.nextDouble() - 0.5) * 2,
-        opacity: 0.15 + _random.nextDouble() * 0.25,
+        opacity: 0.35 + _random.nextDouble() * 0.35, // 0.35-0.70
       ));
     }
   }
@@ -69,10 +69,11 @@ class _SeasonBackgroundState extends State<SeasonBackground>
     final themeService = context.watch<ThemeService>();
     final season = themeService.season;
     final isAnimEnabled = themeService.animasiBackground;
-    final disableAnimations = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bgColor = AppColors.bg;
 
-    if (!isAnimEnabled || disableAnimations) {
+    // Catatan Bug D: Mengabaikan preferensi MediaQuery.disableAnimations sistem
+    // agar animasi partikel tetap tampil ketika toggle "Animasi Background" aktif di aplikasi.
+    if (!isAnimEnabled) {
       return Container(
         color: bgColor,
         child: widget.child,

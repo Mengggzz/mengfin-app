@@ -65,6 +65,7 @@ void main() async {
   // Init update service (baca versi app dari PackageInfo)
   if (!kIsWeb) {
     await UpdateService.instance.init();
+    await LocalDb.reconcileAkunSaldo();
   }
 
   // Di web langsung online, tidak perlu sync queue

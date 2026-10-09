@@ -287,7 +287,7 @@ class LocalDb {
     await reconcileAkunSaldo();
   }
 
-  /// Rekonsiliasi saldo akun jika saldo masih 0 tapi riwayat transaksi tersedia
+  /// Rekonsiliasi saldo akun jika saldo masih 0 atau rusak tapi riwayat transaksi tersedia
   static Future<void> reconcileAkunSaldo() async {
     final d = await db;
     final akuns = await d.query('akun');
@@ -297,22 +297,23 @@ class LocalDb {
       final id = a['id']?.toString() ?? a['local_id']?.toString();
       if (id == null) continue;
       final currentSaldo = (a['saldo'] as num? ?? 0).toDouble();
-      if (currentSaldo == 0) {
-        final whereClause = akuns.length == 1
-            ? "akun_id = ? OR akun_id IS NULL OR akun_id = ''"
-            : 'akun_id = ?';
-        final rows = await d.rawQuery(
-          "SELECT SUM(CASE WHEN jenis='pemasukan' THEN nominal ELSE -nominal END) as total FROM transaksi WHERE $whereClause",
-          [id],
-        );
-        if (rows.isNotEmpty && rows.first['total'] != null) {
-          final txTotal = (rows.first['total'] as num).toDouble();
-          if (txTotal != 0) {
-            await d.rawUpdate(
-              'UPDATE akun SET saldo = ? WHERE id = ? OR local_id = ?',
-              [txTotal, id, id],
-            );
-          }
+      final whereClause = akuns.length == 1
+          ? "akun_id = ? OR akun_id IS NULL OR akun_id = ''"
+          : 'akun_id = ?';
+      final rows = await d.rawQuery(
+        "SELECT SUM(CASE WHEN jenis='pemasukan' THEN nominal ELSE -nominal END) as total, COUNT(*) as cnt FROM transaksi WHERE $whereClause",
+        [id],
+      );
+      if (rows.isNotEmpty && rows.first['cnt'] != null && (rows.first['cnt'] as num) > 0) {
+        final txTotal = (rows.first['total'] as num?)?.toDouble() ?? 0.0;
+        final bool perluReconcile = (currentSaldo == 0 && txTotal != 0) ||
+            (currentSaldo < 0 && txTotal > 0) ||
+            (akuns.length == 1 && currentSaldo != txTotal);
+        if (perluReconcile) {
+          await d.rawUpdate(
+            'UPDATE akun SET saldo = ? WHERE id = ? OR local_id = ?',
+            [txTotal, id, id],
+          );
         }
       }
     }
@@ -950,7 +951,7 @@ class LocalDb {
     double saldo = 0;
     if (akunSaldoRows.isNotEmpty && akunSaldoRows.first['total_saldo'] != null) {
       saldo = (akunSaldoRows.first['total_saldo'] as num).toDouble();
-      if (saldo == 0 && saldoFromTx != 0) {
+      if ((saldo == 0 || (saldo < 0 && saldoFromTx > 0)) && saldoFromTx != 0) {
         saldo = saldoFromTx;
       }
     } else {

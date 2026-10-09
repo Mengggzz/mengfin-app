@@ -139,7 +139,24 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
     if (tebakan != null && tebakan != _kategori) {
       setState(() {
         _kategori = tebakan;
+        final tipeTebakan = KategoriOtomatis.tebakTipe(
+          deskripsi: v,
+          kategori: tebakan,
+          riwayat: _riwayatCache,
+          isExpense: _isExpense,
+        );
+        if (tipeTebakan != null) _tipe = tipeTebakan;
       });
+    } else {
+      final tipeTebakan = KategoriOtomatis.tebakTipe(
+        deskripsi: v,
+        kategori: _kategori,
+        riwayat: _riwayatCache,
+        isExpense: _isExpense,
+      );
+      if (tipeTebakan != null && _tipe != tipeTebakan) {
+        setState(() => _tipe = tipeTebakan);
+      }
     }
   }
 
@@ -703,7 +720,16 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
             CategoryIconGrid(
               categories: categories,
               selectedCategory: _kategori,
-              onSelected: (v) => setState(() => _kategori = v),
+              onSelected: (v) => setState(() {
+                _kategori = v;
+                final t = KategoriOtomatis.tebakTipe(
+                  deskripsi: _deskripsi,
+                  kategori: v,
+                  riwayat: _riwayatCache,
+                  isExpense: _isExpense,
+                );
+                if (t != null) _tipe = t;
+              }),
             ),
             const SizedBox(height: 14),
 

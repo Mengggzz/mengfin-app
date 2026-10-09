@@ -248,5 +248,83 @@ void main() {
       final stats = await LocalDb.getDashboardLocal('2026-10');
       expect(stats['saldo'], equals(1500000.0));
     });
+
+    test('Bug B: saldo rusak (-1.000) otomatis pulih ke Rp 1.969.000 saat ada riwayat surplus', () async {
+      // 1. Akun lokal memiliki saldo rusak (-1.000) akibat kalkulasi inkremental basis 0
+      await LocalDb.upsertAkunList([
+        Akun(
+          id: 'akun_bug_b',
+          nama: 'Dompet Utama',
+          jenis: 'cashflow',
+          saldo: -1000,
+          warna: '#2563EB',
+          ikon: 'cashflow',
+        ),
+      ]);
+
+      // 2. Transaksi riil user: Gaji 2jt, jajan 2k, apel 15k, anggur 13k, cilok 1k
+      await LocalDb.upsertTransaksiBatch([
+        Transaksi(
+          id: 'tx_gaji',
+          tanggal: '2026-10-01',
+          jenis: 'pemasukan',
+          nominal: 2000000,
+          kategori: 'Gaji',
+          deskripsi: 'Gaji',
+          metodePembayaran: 'tunai',
+          akunId: 'akun_bug_b',
+        ),
+        Transaksi(
+          id: 'tx_jajan',
+          tanggal: '2026-10-02',
+          jenis: 'pengeluaran',
+          nominal: 2000,
+          kategori: 'Makan & Minum',
+          deskripsi: 'jajan',
+          metodePembayaran: 'tunai',
+          akunId: 'akun_bug_b',
+        ),
+        Transaksi(
+          id: 'tx_apel',
+          tanggal: '2026-10-03',
+          jenis: 'pengeluaran',
+          nominal: 15000,
+          kategori: 'Makan & Minum',
+          deskripsi: 'apel',
+          metodePembayaran: 'tunai',
+          akunId: 'akun_bug_b',
+        ),
+        Transaksi(
+          id: 'tx_anggur',
+          tanggal: '2026-10-04',
+          jenis: 'pengeluaran',
+          nominal: 13000,
+          kategori: 'Makan & Minum',
+          deskripsi: 'Anggur',
+          metodePembayaran: 'tunai',
+          akunId: 'akun_bug_b',
+        ),
+        Transaksi(
+          id: 'tx_cilok',
+          tanggal: '2026-10-05',
+          jenis: 'pengeluaran',
+          nominal: 1000,
+          kategori: 'Makan & Minum',
+          deskripsi: 'Beli cilok',
+          metodePembayaran: 'tunai',
+          akunId: 'akun_bug_b',
+        ),
+      ]);
+
+      // 3. Panggil rekonsiliasi eksplisit & cek saldo
+      await LocalDb.reconcileAkunSaldo();
+
+      final akuns = await LocalDb.getAkunList();
+      expect(akuns.first.saldo, equals(1969000),
+          reason: 'Saldo dompet harus direkonsiliasi menjadi Rp 1.969.000, bukan -Rp 1.000');
+
+      final stats = await LocalDb.getDashboardLocal('2026-10');
+      expect(stats['saldo'], equals(1969000.0));
+    });
   });
 }

@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const { Transaksi, Akun, Anggaran } = require('../models');
 const { parseTransaksiDariTeks, tanyaAIAdvisor } = require('../services/gemini');
 const { authMiddleware } = require('../middleware/auth');
+const { tebakKamus, tebakTipe } = require('../services/kategori');
 
 router.use(authMiddleware);
 
@@ -50,32 +51,9 @@ function fastParseTransaksi(teks) {
   const isPemasukan = /\b(gajian|gaji|dapat transfer|terima|bonus|pemasukan|inflow|penjualan|omset)\b/i.test(lower);
   const jenis = isPemasukan ? 'pemasukan' : 'pengeluaran';
 
-  // 4. Tebak kategori
-  let kategori = 'Lainnya';
-  if (isPemasukan) {
-    if (/\b(gaji|gajian)\b/i.test(lower)) kategori = 'Gaji';
-    else if (/\b(bonus|thr|hadiah)\b/i.test(lower)) kategori = 'Bonus';
-    else if (/\b(investasi|dividen|profit)\b/i.test(lower)) kategori = 'Investasi';
-    else kategori = 'Transfer';
-  } else {
-    if (/\b(makan|minum|kopi|coffee|cafe|kafe|restoran|resto|warung|mie|nasi|ayam|bakso|jajan|snack|roti|sarapan|lunch|dinner)\b/i.test(lower)) {
-      kategori = 'Makan & Minum';
-    } else if (/\b(bensin|bbm|pertalite|pertamax|solar|parkir|tol|ojol|gojek|grab|maxim|angkot|bus|kereta|krl|mrt|trans)\b/i.test(lower)) {
-      kategori = 'Transportasi';
-    } else if (/\b(belanja|supermarket|minimarket|indomaret|alfamart|shopee|tokopedia|lazada|mall)\b/i.test(lower)) {
-      kategori = 'Belanja';
-    } else if (/\b(listrik|pln|pdam|air|pulsa|kuota|paket data|wifi|indihome|tagihan|bpjs)\b/i.test(lower)) {
-      kategori = 'Tagihan';
-    } else if (/\b(obat|apotek|dokter|klinik|rs|rumah sakit|vitamin|masker)\b/i.test(lower)) {
-      kategori = 'Kesehatan';
-    } else if (/\b(nonton|bioskop|cinema|game|steam|netflix|spotify|hiburan|wisata|rekreasi)\b/i.test(lower)) {
-      kategori = 'Hiburan';
-    } else if (/\b(baju|celana|sepatu|tas|kaos|jaket|pakaian)\b/i.test(lower)) {
-      kategori = 'Pakaian';
-    } else if (/\b(buku|kursus|kuliah|sekolah|spp|les|pendidikan)\b/i.test(lower)) {
-      kategori = 'Pendidikan';
-    }
-  }
+  // 4. Tebak kategori dan tipe menggunakan Kamus Komprehensif & Stemmer
+  const kategori = tebakKamus(lower, !isPemasukan) || (isPemasukan ? 'Transfer' : 'Lainnya');
+  const tipe = tebakTipe(lower, kategori, !isPemasukan);
 
   // 5. Ekstrak deskripsi ringkas
   let deskripsi = t
@@ -98,6 +76,7 @@ function fastParseTransaksi(teks) {
     jenis,
     nominal,
     kategori,
+    tipe,
     deskripsi,
     metode_pembayaran: metode,
     tanggal: new Date().toISOString().split('T')[0]
@@ -293,5 +272,8 @@ function cekApakahTransaksi(teks) {
 
   return hasNumber;
 }
+
+router.fastParseTransaksi = fastParseTransaksi;
+router.cekApakahTransaksi = cekApakahTransaksi;
 
 module.exports = router;

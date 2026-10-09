@@ -42,16 +42,17 @@ router.get('/dashboard', async (req, res) => {
     const lalu = { pemasukan: sumTx(txLalu, 'pemasukan'), pengeluaran: sumTx(txLalu, 'pengeluaran') };
 
     let saldoTotal = akuns.reduce((s, a) => s + (a.saldo || 0), 0);
-    if (saldoTotal === 0) {
-      const allTxUser = await Transaksi.find({ user_id: uid });
-      if (allTxUser.length > 0) {
-        const sumReal = allTxUser.reduce((s, t) => s + (t.jenis === 'pemasukan' ? t.nominal : -t.nominal), 0);
-        if (sumReal !== 0) {
-          saldoTotal = sumReal;
-          if (akuns.length === 1) {
-            akuns[0].saldo = sumReal;
-            await Akun.findByIdAndUpdate(akuns[0]._id, { saldo: sumReal });
-          }
+    const allTxUser = await Transaksi.find({ user_id: uid });
+    if (allTxUser.length > 0) {
+      const sumReal = allTxUser.reduce((s, t) => s + (t.jenis === 'pemasukan' ? t.nominal : -t.nominal), 0);
+      const perluReconcile = (saldoTotal === 0 && sumReal !== 0) ||
+        (saldoTotal < 0 && sumReal > 0) ||
+        (akuns.length === 1 && saldoTotal !== sumReal);
+      if (perluReconcile) {
+        saldoTotal = sumReal;
+        if (akuns.length === 1) {
+          akuns[0].saldo = sumReal;
+          await Akun.findByIdAndUpdate(akuns[0]._id, { saldo: sumReal });
         }
       }
     }

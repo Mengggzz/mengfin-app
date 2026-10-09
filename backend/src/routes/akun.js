@@ -27,19 +27,19 @@ router.get('/', async (req, res) => {
       rows = [defaultAkun];
     }
 
-    // Reconcile saldo jika akun bersaldo 0 tetapi transaksi riil ada
-    const totalSaldoAkun = rows.reduce((s, a) => s + (a.saldo || 0), 0);
-    if (totalSaldoAkun === 0) {
-      const txRows = await Transaksi.find({ user_id: req.user.id });
-      if (txRows.length > 0) {
-        for (let a of rows) {
-          const saldoTx = txRows
-            .filter(t => !t.akun_id || String(t.akun_id) === String(a._id))
-            .reduce((s, t) => s + (t.jenis === 'pemasukan' ? t.nominal : -t.nominal), 0);
-          if (saldoTx !== 0) {
-            a.saldo = saldoTx;
-            await Akun.findByIdAndUpdate(a._id, { saldo: saldoTx });
-          }
+    // Reconcile saldo jika akun bersaldo 0 atau rusak tetapi transaksi riil ada
+    const txRows = await Transaksi.find({ user_id: req.user.id });
+    if (txRows.length > 0) {
+      for (let a of rows) {
+        const saldoTx = txRows
+          .filter(t => !t.akun_id || String(t.akun_id) === String(a._id))
+          .reduce((s, t) => s + (t.jenis === 'pemasukan' ? t.nominal : -t.nominal), 0);
+        const perluReconcile = (a.saldo === 0 && saldoTx !== 0) ||
+          (a.saldo < 0 && saldoTx > 0) ||
+          (rows.length === 1 && a.saldo !== saldoTx);
+        if (perluReconcile) {
+          a.saldo = saldoTx;
+          await Akun.findByIdAndUpdate(a._id, { saldo: saldoTx });
         }
       }
     }
