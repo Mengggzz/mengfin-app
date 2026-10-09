@@ -70,13 +70,20 @@ class _SeasonBackgroundState extends State<SeasonBackground>
     final season = themeService.season;
     final isAnimEnabled = themeService.animasiBackground;
     final disableAnimations = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final bgColor = AppColors.bg;
 
     if (!isAnimEnabled || disableAnimations) {
-      return widget.child;
+      return Container(
+        color: bgColor,
+        child: widget.child,
+      );
     }
 
     return Stack(
       children: [
+        Positioned.fill(
+          child: Container(color: bgColor),
+        ),
         Positioned.fill(
           child: RepaintBoundary(
             child: AnimatedBuilder(

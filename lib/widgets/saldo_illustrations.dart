@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 
-/// Ilustrasi kecil untuk menu Kazz, digambar dengan CustomPaint supaya
+/// Ilustrasi kecil untuk menu Saldo, digambar dengan CustomPaint supaya
 /// tidak perlu file gambar dan tetap tajam di semua ukuran layar.
 ///
 /// Semua painter menggambar di dalam [size] yang diberikan dan memakai
 /// koordinat relatif (0..1) sehingga aman untuk ukuran berapa pun.
-class KazzIllustration extends StatelessWidget {
+class SaldoIllustration extends StatelessWidget {
   /// 'cashflow' | 'tabungan' | 'kredit' | 'aset'
   final String jenis;
   final double size;
 
-  const KazzIllustration({super.key, required this.jenis, this.size = 40});
+  const SaldoIllustration({super.key, required this.jenis, this.size = 40});
 
   /// Ilustrasi sesuai tipe akun. Tipe tak dikenal memakai ilustrasi cashflow.
-  static KazzIllustration forJenis(String? jenis, {double size = 40}) =>
-      KazzIllustration(jenis: normalisasiJenis(jenis), size: size);
+  static SaldoIllustration forJenis(String? jenis, {double size = 40}) =>
+      SaldoIllustration(jenis: normalisasiJenis(jenis), size: size);
 
   /// Samakan penamaan tipe akun: nilai lama (bank/cash/ewallet) dianggap
   /// cashflow, sisanya dipetakan ke tipe yang dikenal.
@@ -53,7 +53,7 @@ class KazzIllustration extends StatelessWidget {
   }
 }
 
-/// Ikon dompet oranye berisi uang hijau (Kazz Cashflow).
+/// Ikon dompet oranye berisi uang hijau (Saldo Cashflow).
 class _CashflowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size s) {
@@ -111,7 +111,7 @@ class _CashflowPainter extends CustomPainter {
   bool shouldRepaint(covariant _CashflowPainter oldDelegate) => false;
 }
 
-/// Gedung bank putih-hijau (Kazz Tabungan).
+/// Gedung bank putih-hijau (Saldo Tabungan).
 class _TabunganPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size s) {
@@ -208,7 +208,7 @@ class _KartuKreditPainter extends CustomPainter {
   bool shouldRepaint(covariant _KartuKreditPainter oldDelegate) => false;
 }
 
-/// Tumpukan koin emas dengan panah naik (Kazz Aset).
+/// Tumpukan koin emas dengan panah naik (Saldo Aset).
 class _AsetPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size s) {

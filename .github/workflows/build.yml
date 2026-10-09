@@ -73,15 +73,15 @@ jobs:
           body: |
             ## 📱 MengFin Android APK (${{ steps.version.outputs.VERSION }})
             
-            ### ✨ Pembaruan & Fitur Baru:
-            - **Package Name**: `com.mengfin`
-            - **OCR Struk On-Device (ML Kit)**: Cepat, offline, hemat biaya + Fallback Gemini AI
-            - **Mode Scan Bukti Transfer**: Ekstrak riwayat transaksi mutasi bank & e-wallet
-            - **Import Mutasi CSV**: Impor e-statement bank langsung ke dompet pilihan
-            - **Dual Floating Button**: Shortcut cepat Input Suara & Tambah Transaksi
-            - **Tema Musim & Animasi Partikel**: Semi 🌸, Panas ☀️, Gugur 🍂, Dingin ❄️
-            - **Form Akun per Tipe**: Tabungan (Target Progress), Kartu Kredit (Limit & Jatuh Tempo), Aset Emas (Gram & Nilai)
-            - **AI Advisor Cerdas**: Resilient local routing, panduan aplikasi, multi-bubble chat, dan konfirmasi hapus transaksi
+            ### ✨ Pembaruan & Fitur Baru (Bug Fix 7 & Fitur Baru):
+            - **Import E-Statement PDF**: Impor e-statement bank asli (.pdf & .csv) untuk SeaBank, BCA, Mandiri, BRI, BNI
+            - **Perbaikan Ekstraksi Mutasi AI**: Regex extractJson backend diperbaiki (100% deteksi multi-transaksi)
+            - **Hardening OCR Struk Lokal**: Dukung pemisah koma ribuan (27,000), anti-bleedthrough OCR, dan filter nomor kontak
+            - **Kunci Biometrik**: MainActivity diperbarui ke FlutterFragmentActivity (dukung sidik jari sistem)
+            - **Ekspor Laporan PDF**: Inisialisasi locale tanggal Indonesia (id_ID)
+            - **Animasi Background & Musim**: Partikel terlihat transparan di semua tab utama
+            - **UI Perbaikan**: Padding transaksi terbawah aman dari tombol mic, pesan error cerdas sadar mode
+            - **Keamanan & Kebersihan**: Hapus permission DUMP, refactor identifier Kazz -> Saldo
             - **Performa Ringan**: APK split per-ABI (<25 MB) dengan proteksi Dart code obfuscation
             
             ### 📥 Panduan Instalasi Sideload:

@@ -7,7 +7,7 @@ class HasilSimpan {
 
 /// Helper agar operasi simpan (anggaran/goals/akun) tidak diam saja jika gagal.
 ///
-/// Sebelumnya layar anggaran/goals/kazz: await ApiService.updateAnggaran(...) lalu
+/// Sebelumnya layar anggaran/goals/saldo: await ApiService.updateAnggaran(...) lalu
 /// Navigator.pop(context); _load(). Server menolak → exception langsung, modal tetap
 /// terbuka, pengguna tidak tahu. Ini mengubah pola jadi satu baris:
 /// final hasil = await Penyimpanan.simpan(() async { ... });

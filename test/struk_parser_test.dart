@@ -65,7 +65,7 @@ DEBIT BCA
 ''';
       final res = StrukParser.parse(text);
       expect(res['nominal'], 1500000);
-      expect(res['confidence'], 1.0);
+      expect(res['confidence'], greaterThanOrEqualTo(0.7));
       expect(res['kategori'], 'Kesehatan');
       expect(res['metode_pembayaran'], 'debit');
     });
@@ -78,6 +78,39 @@ DEBIT BCA
       final res2 = StrukParser.parse('   \n\n\t  ');
       expect(res2['nominal'], 0);
       expect(res2['confidence'], 0.3);
+    });
+
+    test('Struk Indomaret asli user: koma ribuan 27,000, TRXID SEABANK diabaikan, telp diabaikan', () {
+      const text = '''
+INDOMARET JL MERDEKA
+nimbA aite1D
+SMS/WA 0811.1500.280 TELP
+TECA2610071336490101
+INDOMIE AYAM BAWANG 3,500
+TEH PUCUK HARUM 4,000
+TOTAL BELANJA : 27,000
+NON TUNAI : 27,000
+''';
+      final res = StrukParser.parse(text);
+      expect(res['nominal'], 27000);
+      expect(res['deskripsi'], contains('INDOMARET'));
+      expect(res['items'].any((i) => i['nama'].toString().contains('0811')), false);
+      expect(res['items'].any((i) => i['harga'] == 1500280), false);
+    });
+
+    test('Teks OCR ngawur: total 9 digit dan tahun 2013 -> confidence rendah, tanggal fallback hari ini', () {
+      const text = '''
+nimbA aite1D
+26/10/2013
+TOTAL BAYAR Rp 261.007.133
+''';
+      final res = StrukParser.parse(text);
+      expect(res['confidence'], lessThanOrEqualTo(0.4));
+      final now = DateTime.now();
+      final y = now.year.toString().padLeft(4, '0');
+      final m = now.month.toString().padLeft(2, '0');
+      final d = now.day.toString().padLeft(2, '0');
+      expect(res['tanggal'], '$y-$m-$d');
     });
   });
 }

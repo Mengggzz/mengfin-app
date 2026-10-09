@@ -49,7 +49,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['csv', 'txt'],
+        allowedExtensions: ['csv', 'txt', 'pdf'],
         withData: true,
       );
 
@@ -63,19 +63,26 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
       if (bytes == null) {
         setState(() {
           _loading = false;
-          _error = 'Gagal membaca berkas CSV.';
+          _error = 'Gagal membaca berkas.';
         });
         return;
       }
 
-      String rawCsv;
-      try {
-        rawCsv = utf8.decode(bytes);
-      } catch (_) {
-        rawCsv = latin1.decode(bytes);
-      }
+      final isPdf = file.name.toLowerCase().endsWith('.pdf');
+      List<Map<String, dynamic>> rows = [];
 
-      final rows = CsvImportService.parseCsvContent(rawCsv);
+      if (isPdf) {
+        final base64 = base64Encode(bytes);
+        rows = await ApiService.importEStatement(base64);
+      } else {
+        String rawCsv;
+        try {
+          rawCsv = utf8.decode(bytes);
+        } catch (_) {
+          rawCsv = latin1.decode(bytes);
+        }
+        rows = CsvImportService.parseCsvContent(rawCsv);
+      }
 
       setState(() {
         _fileName = file.name;
@@ -91,9 +98,12 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      String errMsg = e.toString();
+      final m = RegExp(r'"error"\s*:\s*"([^"]+)"').firstMatch(errMsg);
+      if (m != null) errMsg = m.group(1)!;
       setState(() {
         _loading = false;
-        _error = 'Gagal memproses berkas: $e';
+        _error = errMsg;
       });
     }
   }
@@ -151,7 +161,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.bg,
         title: Text(
-          'Import Mutasi CSV',
+          'Import Mutasi',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 17,
@@ -319,7 +329,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
           Icon(Icons.table_chart_rounded, size: 44, color: AppColors.accent),
           const SizedBox(height: 12),
           Text(
-            _fileName ?? 'Pilih Berkas Mutasi (.CSV)',
+            _fileName ?? 'Pilih Berkas Mutasi (.CSV / .PDF)',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.textPrimary,
@@ -329,7 +339,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Mendukung format e-statement BCA, Mandiri, BRI, BNI & e-wallet.',
+            'Mendukung format e-statement SeaBank, BCA, Mandiri, BRI, BNI (.csv & .pdf asli).',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),
@@ -337,7 +347,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
           ElevatedButton.icon(
             onPressed: _loading ? null : _pickFile,
             icon: const Icon(Icons.file_upload_outlined, size: 18),
-            label: Text(_fileName == null ? 'Pilih Berkas CSV' : 'Ganti Berkas'),
+            label: Text(_fileName == null ? 'Pilih Berkas (.csv / .pdf)' : 'Ganti Berkas'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,

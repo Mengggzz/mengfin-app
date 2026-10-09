@@ -7,7 +7,7 @@ import 'package:mengfin/services/local_db.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-/// Saldo dompet di menu Kazz harus sinkron dengan saldo server setiap kali
+/// Saldo dompet di menu Saldo harus sinkron dengan saldo server setiap kali
 /// ada transaksi create/update/delete online. Backend menyesuaikan saldo akun,
 /// tapi app tidak pernah menarik ulang → saldo tampil stale sampai restart.
 void main() {

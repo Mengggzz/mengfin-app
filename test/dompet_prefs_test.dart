@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mengfin/services/app_prefs.dart';
 
-/// Bug: pengaturan "Kazz Utama" disimpan tapi beranda tidak ikut berubah.
+/// Bug: pengaturan "Saldo Utama" disimpan tapi beranda tidak ikut berubah.
 ///
 /// DashboardScreen hanya memasang listener pada AppEvents.transaksi dan
 /// AppEvents.anggaran, padahal SettingsScreen._simpan() memancarkan

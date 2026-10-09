@@ -73,9 +73,24 @@ function extractJson(text) {
     // Fallback: ambil blok {...} atau [...] pertama
     const objMatch = clean.match(/\{[\s\S]*\}/);
     const arrMatch = clean.match(/\[[\s\S]*\]/);
-    const candidate = objMatch ? objMatch[0] : (arrMatch ? arrMatch[0] : null);
-    if (!candidate) throw new Error('Tidak ada JSON pada respons model');
-    return JSON.parse(candidate);
+    let candidates = [];
+    if (objMatch && arrMatch) {
+      if (clean.indexOf('{') < clean.indexOf('[')) {
+        candidates = [objMatch[0], arrMatch[0]];
+      } else {
+        candidates = [arrMatch[0], objMatch[0]];
+      }
+    } else if (objMatch) {
+      candidates = [objMatch[0]];
+    } else if (arrMatch) {
+      candidates = [arrMatch[0]];
+    }
+    for (const c of candidates) {
+      try {
+        return JSON.parse(c);
+      } catch (_) {}
+    }
+    throw new Error('Tidak ada JSON pada respons model');
   }
 }
 
@@ -341,8 +356,9 @@ Balas HANYA JSON valid (tanpa markdown):
   "confidence": 0.0 sampai 1.0
 }`;
 
+  let textRes = null;
   try {
-    const textRes = await generateWithFallbackModels([
+    textRes = await generateWithFallbackModels([
       prompt,
       { inlineData: { data: imageBase64, mimeType } },
     ]);
@@ -356,6 +372,9 @@ Balas HANYA JSON valid (tanpa markdown):
     return parsed;
   } catch (err) {
     console.error('Gemini scan error:', err.message || err);
+    if (textRes) {
+      console.error('Gemini scan raw output:', String(textRes).slice(0, 2000));
+    }
     return null;
   }
 }
@@ -390,8 +409,9 @@ Kembalikan HANYA JSON berformat persis ini (tanpa markdown, tanpa teks lain):
   ]
 }`;
 
+  let textRes = null;
   try {
-    const textRes = await generateWithFallbackModels([
+    textRes = await generateWithFallbackModels([
       prompt,
       { inlineData: { data: imageBase64, mimeType } },
     ]);
@@ -406,9 +426,16 @@ Kembalikan HANYA JSON berformat persis ini (tanpa markdown, tanpa teks lain):
       metode_pembayaran: normalizeMetode(t.metode_pembayaran || 'transfer'),
     })).filter(t => t.nominal > 0);
 
+    if (sanitized.length === 0 && textRes) {
+      console.error('Gemini scan mutasi 0 hasil. Raw output:', String(textRes).slice(0, 2000));
+    }
+
     return sanitized;
   } catch (err) {
     console.error('Gemini scan mutasi error:', err.message || err);
+    if (textRes) {
+      console.error('Gemini scan mutasi raw output:', String(textRes).slice(0, 2000));
+    }
     return null;
   }
 }
@@ -463,6 +490,9 @@ Aturan: pakai angka rupiah yang ada di data, jangan mengarang angka. Maksimal 22
 }
 
 module.exports = {
+  extractJson,
+  normalizeKategori,
+  normalizeMetode,
   parseTransaksiDariTeks,
   tanyaAIAdvisor,
   scanNota,

@@ -98,7 +98,7 @@ class KategoriInfo {
 }
 
 const List<KategoriInfo> kategoriList = [
-  // Expense categories (matching Kazz grid)
+  // Expense categories (matching grid)
   KategoriInfo(label: 'Makan & Minum',  icon: '🍜', color: 0xFFFF8A65),
   KategoriInfo(label: 'Transportasi',   icon: '🚗', color: 0xFF42A5F5),
   KategoriInfo(label: 'Belanja',        icon: '🛍️', color: 0xFFEC407A),

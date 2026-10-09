@@ -356,7 +356,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(children: [
           // ── Header / Selection Bar ──────────────────────────────

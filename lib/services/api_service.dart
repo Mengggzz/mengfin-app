@@ -399,7 +399,7 @@ class ApiService {
     }
   }
 
-  /// Simpan Kazz (akun) baru. Dipakai layar Tambah Kazz.
+  /// Simpan saldo (akun) baru. Dipakai layar Tambah Saldo.
   static Future<void> createAkun({
     required String nama,
     required String jenis,
@@ -459,7 +459,7 @@ class ApiService {
     }
   }
 
-  /// Ubah saldo sebuah Kazz/akun.
+  /// Ubah saldo sebuah dompet/akun.
   static Future<void> updateAkunSaldo(dynamic id, double saldo) async {
     if (kIsWeb) {
       if (!_online) throw Exception('Tidak ada koneksi ke server.');
@@ -544,7 +544,7 @@ class ApiService {
       
       // Bandingkan apakah ada perubahan signifikan
       if (_akunListChanged(oldList, newList)) {
-        // Menu Kazz & beranda mendengarkan AppEvents.akun, jadi beri tahu
+        // Menu Saldo & beranda mendengarkan AppEvents.akun, jadi beri tahu
         // bahwa saldo dompet sudah berubah.
         AppEvents.instance.akunBerubah();
       }
@@ -1033,7 +1033,7 @@ class ApiService {
       if (lower.contains('fitur') || lower.contains('cara pakai') || lower.contains('bisa apa') || lower.contains('bantuan') || lower.contains('panduan')) {
         return {
           'tipe': 'jawaban',
-          'pesan': '📱 **Fitur Utama MengFin:**\n\n1. **Catat Transaksi Instan**: Ketik langsung di chat (*"beli kopi 25rb"*) atau tekan tombol **(+)**.\n2. **Scan Struk AI**: Foto struk belanja dan data otomatis terinput.\n3. **Multi-Dompet (Kazz)**: Kelola rekening bank, e-wallet, dan uang tunai terpisah.\n4. **Budgeting Pintar**: Pantau batas pengeluaran per kategori secara real-time.\n5. **Laporan & Ekspor**: Ekspor data keuangan ke CSV, Excel, atau PDF di tab View.'
+          'pesan': '📱 **Fitur Utama MengFin:**\n\n1. **Catat Transaksi Instan**: Ketik langsung di chat (*"beli kopi 25rb"*) atau tekan tombol **(+)**.\n2. **Scan Struk AI**: Foto struk belanja dan data otomatis terinput.\n3. **Multi-Dompet (Saldo)**: Kelola rekening bank, e-wallet, dan uang tunai terpisah.\n4. **Budgeting Pintar**: Pantau batas pengeluaran per kategori secara real-time.\n5. **Laporan & Ekspor**: Ekspor data keuangan ke CSV, Excel, atau PDF di tab View.'
         };
       }
 
@@ -1307,6 +1307,18 @@ class ApiService {
     final res = await _post('/scan/mutasi', {
       'imageBase64': imageBase64,
       'mimeType': mimeType,
+    }, timeout: const Duration(seconds: 60));
+    final list = (res['data'] as List?)
+        ?.map((e) => Map<String, dynamic>.from(e as Map))
+        .toList() ?? [];
+    return list;
+  }
+
+  /// Kirim PDF e-statement (base64) ke backend untuk diekstrak jadi daftar transaksi.
+  static Future<List<Map<String, dynamic>>> importEStatement(String pdfBase64) async {
+    final res = await _post('/scan/estatement', {
+      'pdfBase64': pdfBase64,
+      'mimeType': 'application/pdf',
     }, timeout: const Duration(seconds: 60));
     final list = (res['data'] as List?)
         ?.map((e) => Map<String, dynamic>.from(e as Map))

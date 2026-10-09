@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../constants/utils.dart';
 
-/// Helper mapping kategori ke SVG icon aset dari Kazz
+/// Helper mapping kategori ke SVG icon aset kategori
 final Map<String, String> _kategoriSvgMap = {
   'Makan & Minum': 'assets/icons/category/fast-food.svg',
   'Makanan': 'assets/icons/category/fast-food.svg',

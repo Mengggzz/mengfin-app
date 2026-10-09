@@ -111,7 +111,7 @@ class _ScanScreenState extends State<ScanScreen> {
           final localRes = await OcrService.instance.scanFile(_imagePath!);
           final conf = (localRes['confidence'] as num?)?.toDouble() ?? 0.0;
           final nom = (localRes['nominal'] as num?)?.toDouble() ?? 0.0;
-          if (conf >= 0.6 && nom > 0) {
+          if (conf >= 0.8 && nom > 0) {
             data = localRes;
             _sumberOcr = 'lokal';
           }
@@ -133,25 +133,29 @@ class _ScanScreenState extends State<ScanScreen> {
 
       final conf = data['confidence'];
       setState(() {
-        _hasil = data;
-        _jenis = (data!['jenis'] ?? 'pengeluaran').toString();
-        _nominalCtrl.text = nominal > 0 ? nominal.toStringAsFixed(0) : '';
-        _deskripsiCtrl.text = (data['deskripsi'] ?? '').toString();
-        _kategori = _matchKategori((data['kategori'] ?? '').toString());
-        _metode = _matchMetode((data['metode_pembayaran'] ?? 'tunai').toString());
-        _tanggal = DateTime.tryParse((data['tanggal'] ?? '').toString()) ?? DateTime.now();
-        _items = items;
         _scanning = false;
         if (nominal <= 0) {
-          _error = 'Total tidak terbaca. Periksa nominal di bawah atau coba dengan AI.';
-        } else if (conf is num && conf < 0.6) {
-          _info = 'Hasil kurang yakin — periksa nominal & toko.';
+          _hasil = null;
+          _error = 'Total pada struk tidak terbaca. Coba foto ulang dengan struk memenuhi frame atau pencahayaan lebih baik.';
+        } else {
+          _hasil = data;
+          _jenis = (data!['jenis'] ?? 'pengeluaran').toString();
+          _nominalCtrl.text = nominal.toStringAsFixed(0);
+          _deskripsiCtrl.text = (data['deskripsi'] ?? '').toString();
+          _kategori = _matchKategori((data['kategori'] ?? '').toString());
+          _metode = _matchMetode((data['metode_pembayaran'] ?? 'tunai').toString());
+          _tanggal = DateTime.tryParse((data['tanggal'] ?? '').toString()) ?? DateTime.now();
+          _items = items;
+          if (conf is num && conf < 0.8) {
+            _info = 'Hasil OCR kurang yakin — periksa kembali';
+          }
         }
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _scanning = false;
+        _hasil = null;
         _error = _prettyError(e);
       });
     }
@@ -201,7 +205,9 @@ class _ScanScreenState extends State<ScanScreen> {
     if (s.contains('SocketException') || s.contains('Connection')) {
       return 'Tidak bisa menghubungi server. Periksa koneksi internet.';
     }
-    return 'Gagal membaca struk. Coba lagi dengan foto yang lebih jelas.';
+    return _mode == ScanMode.mutasi
+        ? 'Gagal membaca bukti mutasi. Coba lagi dengan screenshot yang lebih jelas.'
+        : 'Gagal membaca struk. Coba lagi dengan foto yang lebih jelas.';
   }
 
   String _matchKategori(String raw) {
@@ -336,11 +342,11 @@ class _ScanScreenState extends State<ScanScreen> {
           _buildImageArea(),
           const SizedBox(height: 14),
           if (_error != null) _banner(_error!, AppColors.expense, Icons.error_outline),
-          if (_info != null) _banner(_info!, AppColors.warning, Icons.info_outline),
+          if (_info != null && _error == null) _banner(_info!, AppColors.warning, Icons.info_outline),
           if (_error != null || _info != null) const SizedBox(height: 14),
-          if (_mode == ScanMode.struk && _hasil != null && !_scanning) _buildForm(),
-          if (_mode == ScanMode.mutasi && _mutasiList.isNotEmpty && !_scanning) _buildMutasiList(),
-          if (_hasil == null && _mutasiList.isEmpty && !_scanning) _buildTips(),
+          if (_mode == ScanMode.struk && _hasil != null && _error == null && !_scanning) _buildForm(),
+          if (_mode == ScanMode.mutasi && _mutasiList.isNotEmpty && _error == null && !_scanning) _buildMutasiList(),
+          if (((_hasil == null || _error != null) && (_mutasiList.isEmpty || _error != null)) && !_scanning) _buildTips(),
         ],
       ),
     );
@@ -1007,32 +1013,44 @@ class _ScanScreenState extends State<ScanScreen> {
         ),
       );
 
-  Widget _buildTips() => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: AppColors.bgCard,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: AppColors.glassBorder)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-         Icon(Icons.lightbulb_outline_rounded, size: 15, color: AppColors.warning),
-        const SizedBox(width: 6),
-         Text('Supaya hasilnya akurat', style: TextStyle(
-          color: AppColors.textPrimary, fontSize: 12.5, fontWeight: FontWeight.w700)),
-      ]),
-      const SizedBox(height: 8),
-      ...['Foto struk di tempat terang, tanpa bayangan.',
-          'Pastikan baris Total / Grand Total terlihat jelas.',
-          'Struk memenuhi frame, tidak terpotong.',
-          'Hindari blur — tahan kamera sebentar sebelum memotret.']
-        .map((t) => Padding(
+  Widget _buildTips() {
+    final isMutasi = _mode == ScanMode.mutasi;
+    final tips = isMutasi
+        ? [
+            'Gunakan screenshot langsung (bukan foto layar HP lain), crop rapat ke daftar transaksi. Satu bukti transfer tunggal lebih mudah terbaca daripada daftar panjang.',
+            'Pastikan nominal transfer, nama pengirim/penerima, dan tanggal terlihat jelas.',
+            'Hindari gambar blur, terpotong, atau resolusi terlalu rendah.',
+          ]
+        : [
+            'Foto struk di tempat terang, tanpa bayangan.',
+            'Pastikan baris Total / Grand Total terlihat jelas.',
+            'Struk memenuhi frame, tidak terpotong.',
+            'Hindari blur — tahan kamera sebentar sebelum memotret.',
+          ];
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.glassBorder)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.lightbulb_outline_rounded, size: 15, color: AppColors.warning),
+          const SizedBox(width: 6),
+          Text(isMutasi ? 'Tips Scan Bukti Transfer' : 'Supaya hasilnya akurat', style: TextStyle(
+            color: AppColors.textPrimary, fontSize: 12.5, fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 8),
+        ...tips.map((t) => Padding(
           padding: const EdgeInsets.only(bottom: 5),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-             Text('• ', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-            Expanded(child: Text(t, style:  TextStyle(
+            Text('• ', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            Expanded(child: Text(t, style: TextStyle(
               color: AppColors.textSecond, fontSize: 11.5, height: 1.4))),
           ]),
         )),
-    ]),
-  );
+      ]),
+    );
+  }
 }

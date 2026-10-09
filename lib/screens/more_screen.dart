@@ -26,7 +26,7 @@ class MoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
@@ -64,8 +64,8 @@ class MoreScreen extends StatelessWidget {
           _menuTile(
             icon: Icons.table_chart_outlined,
             color: AppColors.accent,
-            title: 'Import Mutasi (CSV)',
-            subtitle: 'Impor riwayat transaksi dari berkas e-statement bank',
+            title: 'Import Mutasi',
+            subtitle: 'Impor riwayat transaksi dari e-statement bank (CSV / PDF)',
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ImportCsvScreen())),
           ),
           const SizedBox(height: 16),
@@ -85,7 +85,7 @@ class MoreScreen extends StatelessWidget {
             title: 'Pengaturan Saldo Utama',
             subtitle: 'Pilih dompet yang tampil di beranda',
             onTap: () => Navigator.push(context, MaterialPageRoute(
-              builder: (_) => const SettingsScreen(page: SettingsPage.kazzUtama))),
+              builder: (_) => const SettingsScreen(page: SettingsPage.saldoUtama))),
           ),
           _menuTile(
             icon: Icons.notifications_active,

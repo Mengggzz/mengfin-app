@@ -196,7 +196,7 @@ class _HomeSettingsSheetState extends State<HomeSettingsSheet> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const SettingsScreen(page: SettingsPage.kazzUtama),
+                    builder: (_) => const SettingsScreen(page: SettingsPage.saldoUtama),
                   ),
                 ),
               ),

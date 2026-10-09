@@ -17,7 +17,7 @@ import '../widgets/auto_notif_onboarding_sheet.dart';
 /// server hidup; produksi memakai [ApiService.getAkunList].
 typedef AkunFetcher = Future<List<Akun>> Function();
 
-enum SettingsPage { kazzUtama, autoNotif }
+enum SettingsPage { saldoUtama, autoNotif }
 
 class SettingsScreen extends StatefulWidget {
   final SettingsPage page;
@@ -215,7 +215,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.page == SettingsPage.kazzUtama
+          widget.page == SettingsPage.saldoUtama
               ? 'Pengaturan Saldo Utama'
               : 'Auto-catat dari notifikasi',
           style:  TextStyle(
@@ -225,14 +225,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: _loading
           ?  Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : widget.page == SettingsPage.kazzUtama
-              ? _buildKazzUtama()
+          : widget.page == SettingsPage.saldoUtama
+              ? _buildSaldoUtama()
               : _buildAutoNotif(),
     );
   }
 
-  // ─── Pengaturan Kazz Utama ──────────────────────────────────
-  Widget _buildKazzUtama() {
+  // ─── Pengaturan Saldo Utama ──────────────────────────────────
+  Widget _buildSaldoUtama() {
     return Column(children: [
       Expanded(child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16),

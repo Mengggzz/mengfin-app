@@ -206,13 +206,23 @@ class _UpdateDialogState extends State<UpdateDialog>
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.glassBorder),
                     ),
-                    child: Row(children: [
-                      Icon(Icons.info_outline_rounded, size: 16, color: AppColors.primary),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Icon(Icons.info_outline_rounded, size: 16, color: AppColors.primary),
+                      ),
                       const SizedBox(width: 10),
-                      Expanded(child: Text(
-                        'Versi terbaru telah tersedia. Unduh dan pasang pembaruan untuk menikmati fitur serta peningkatan performa terkini.',
-                        style: TextStyle(color: AppColors.textSecond, fontSize: 12, height: 1.4),
-                      )),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(
+                          'Versi terbaru telah tersedia. Unduh dan pasang pembaruan untuk menikmati fitur serta peningkatan performa terkini.',
+                          style: TextStyle(color: AppColors.textSecond, fontSize: 12, height: 1.4),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Catatan: Jika Anda memasang dari versi sebelum v20261008: aplikasi baru terpasang terpisah. Setelah login di aplikasi baru dan data tersinkron, hapus aplikasi lama.',
+                          style: TextStyle(color: AppColors.warning, fontSize: 11, height: 1.35, fontWeight: FontWeight.w500),
+                        ),
+                      ])),
                     ]),
                   ),
                 ]),

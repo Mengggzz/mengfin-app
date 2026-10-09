@@ -2,39 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:mengfin/screens/kazz_screen.dart';
+import 'package:mengfin/screens/saldo_screen.dart';
 
-/// Regresi: ikon-ikon di header menu Kazz dulu hanya gambar tanpa aksi.
+/// Regresi: ikon-ikon di header menu Saldo dulu hanya gambar tanpa aksi.
 /// Uji ini memastikan masing-masing benar-benar bereaksi saat diketuk.
 ///
-/// KazzScreen memanggil API di initState; di lingkungan uji panggilan itu
+/// SaldoScreen memanggil API di initState; di lingkungan uji panggilan itu
 /// gagal dan ditangkap, jadi layar tetap tampil dengan daftar kosong —
 /// cukup untuk menguji ikon headernya.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<void> bukaKazz(WidgetTester tester) async {
+  Future<void> bukaSaldo(WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
     // 1080 fisik / 3.0 = 360dp, lebar layar Android yang umum.
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(const MaterialApp(home: KazzScreen()));
+    await tester.pumpWidget(const MaterialApp(home: SaldoScreen()));
     await tester.pump(); // biarkan initState selesai
   }
 
   Finder ikonHeader(IconData icon) =>
       find.ancestor(of: find.byIcon(icon), matching: find.byType(GestureDetector));
 
-  /// Kotak ikon header Kazz selalu 36x36 di dalam SafeArea layar Kazz.
-  Finder ikonHeaderKazz(IconData icon) => find.descendant(
-        of: find.byType(KazzScreen),
+  /// Kotak ikon header Saldo selalu 36x36 di dalam SafeArea layar Saldo.
+  Finder ikonHeaderSaldo(IconData icon) => find.descendant(
+        of: find.byType(SaldoScreen),
         matching: find.byIcon(icon),
       );
 
   testWidgets('ikon bagikan membuka menu ekspor', (tester) async {
-    await bukaKazz(tester);
+    await bukaSaldo(tester);
 
     expect(ikonHeader(Icons.ios_share_outlined), findsOneWidget,
         reason: 'ikon bagikan harus punya GestureDetector');
@@ -48,7 +48,7 @@ void main() {
   });
 
   testWidgets('ikon kalender membuka layar kalender', (tester) async {
-    await bukaKazz(tester);
+    await bukaSaldo(tester);
 
     expect(ikonHeader(Icons.calendar_month_outlined), findsOneWidget);
 
@@ -60,13 +60,13 @@ void main() {
         reason: 'layar kalender harus terbuka');
   });
 
-  testWidgets('ikon tune membuka pengaturan Kazz Utama', (tester) async {
-    await bukaKazz(tester);
+  testWidgets('ikon tune membuka pengaturan Saldo Utama', (tester) async {
+    await bukaSaldo(tester);
 
     expect(ikonHeader(Icons.tune), findsOneWidget);
 
-    // Ikon tune di header Kazz (bukan ikon lain di layar berikutnya).
-    await tester.tap(ikonHeaderKazz(Icons.tune));
+    // Ikon tune di header Saldo (bukan ikon lain di layar berikutnya).
+    await tester.tap(ikonHeaderSaldo(Icons.tune));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Saldo'), findsWidgets,
@@ -74,7 +74,7 @@ void main() {
   });
 
   testWidgets('tombol tune tab Budget membuka menu urutan', (tester) async {
-    await bukaKazz(tester);
+    await bukaSaldo(tester);
 
     // Pindah ke tab Budget.
     await tester.tap(find.text('Budget'));
@@ -103,14 +103,14 @@ void main() {
   });
 
   testWidgets('ikon tiga titik kartu dompet punya aksi', (tester) async {
-    await bukaKazz(tester);
+    await bukaSaldo(tester);
     // Tanpa data, kartu dompet tidak ada — pastikan tidak ada ikon yatim.
     expect(find.byIcon(Icons.more_vert), findsNothing,
         reason: 'daftar kosong, jadi tidak ada menu kartu');
   });
 
   testWidgets('tidak ada ikon header yang tanpa aksi', (tester) async {
-    await bukaKazz(tester);
+    await bukaSaldo(tester);
 
     // Ketiga ikon header harus terbungkus GestureDetector.
     for (final icon in [

@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mengfin/constants/app_colors.dart';
-import 'package:mengfin/widgets/kazz_illustrations.dart';
+import 'package:mengfin/widgets/saldo_illustrations.dart';
 import 'package:mengfin/widgets/widgets.dart';
 
 /// Golden ini bukan untuk membandingkan pixel, tapi supaya tampilan menu
-/// Kazz bisa diperiksa mata tanpa harus menjalankan APK.
-/// Perbarui dengan: flutter test --update-goldens test/kazz_golden_test.dart
+/// Saldo bisa diperiksa mata tanpa harus menjalankan APK.
+/// Perbarui dengan: flutter test --update-goldens test/saldo_golden_test.dart
 void main() {
-  testWidgets('tampilan tab Dompet menu Kazz', (tester) async {
+  testWidgets('tampilan tab Dompet menu Saldo', (tester) async {
     tester.view.physicalSize = const Size(1080, 1500);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
@@ -50,16 +50,16 @@ void main() {
                 ),
               ),
               const SizedBox(height: 16),
-              // Empat ilustrasi Kazz berdampingan.
+              // Empat ilustrasi Saldo berdampingan.
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 for (final j in ['cashflow', 'tabungan', 'kredit', 'aset'])
-                  KazzIllustration(jenis: j, size: 56),
+                  SaldoIllustration(jenis: j, size: 56),
               ]),
               const SizedBox(height: 20),
-              // Kartu dompet + kartu Tambah Kazz.
+              // Kartu dompet + kartu Tambah Saldo.
               Row(children: [
                 Expanded(
-                  child: KazzWalletCard(
+                  child: SaldoWalletCard(
                     name: 'Dompet Utama',
                     balance: -6164,
                     jenis: 'cashflow',
@@ -67,7 +67,7 @@ void main() {
                 ),
                 const SizedBox(width: 12),
                 const Expanded(
-                  child: AddKazzCard(compact: true, height: 130),
+                  child: AddSaldoCard(compact: true, height: 130),
                 ),
               ]),
             ]),

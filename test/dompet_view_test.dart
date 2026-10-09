@@ -4,7 +4,7 @@ import 'package:mengfin/services/dompet_view.dart';
 
 /// Saldo di beranda harus ikut dompet yang dipilih pengguna.
 /// Sebelumnya beranda selalu memakai `saldoTotal` dari server, jadi pilihan
-/// "Kazz Utama" dan "dompet yang tampil" di layar pengaturan tidak
+/// "Saldo Utama" dan "dompet yang tampil" di layar pengaturan tidak
 /// berpengaruh apa pun.
 Akun akun(dynamic id, String nama, double saldo) =>
     Akun(id: id, nama: nama, jenis: 'bank', saldo: saldo, warna: '#2563EB', ikon: 'bank');

@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
 import '../services/api_service.dart';
-import '../widgets/kazz_illustrations.dart';
+import '../widgets/saldo_illustrations.dart';
 
-/// Satu tipe Kazz yang bisa ditambahkan. Dipakai layar Tambah Kazz.
-class KazzTipe {
+/// Satu tipe Saldo yang bisa ditambahkan. Dipakai layar Tambah Saldo.
+class SaldoTipe {
   final String key;
   final String nama;
   final String deskripsi;
   final bool pro;
 
-  const KazzTipe({
+  const SaldoTipe({
     required this.key,
     required this.nama,
     required this.deskripsi,
@@ -19,24 +19,24 @@ class KazzTipe {
   });
 }
 
-const List<KazzTipe> kazzTipes = [
-  KazzTipe(
+const List<SaldoTipe> saldoTipes = [
+  SaldoTipe(
     key: 'cashflow',
     nama: 'Saldo Cashflow',
     deskripsi: 'Kelola pemasukan dan pengeluaran harian Anda',
   ),
-  KazzTipe(
+  SaldoTipe(
     key: 'tabungan',
     nama: 'Saldo Tabungan',
     deskripsi: 'Kelola dana tabungan Anda. Transfer ke Saldo tipe ini akan '
         'terdeteksi otomatis sebagai aktivitas menabung.',
   ),
-  KazzTipe(
+  SaldoTipe(
     key: 'kredit',
     nama: 'Kartu Kredit',
     deskripsi: 'Lacak kartu kredit sebagai dompet liabilitas',
   ),
-  KazzTipe(
+  SaldoTipe(
     key: 'aset',
     nama: 'Saldo Aset',
     deskripsi: 'Lacak nilai emas yang Anda miliki.',
@@ -44,12 +44,12 @@ const List<KazzTipe> kazzTipes = [
   ),
 ];
 
-/// Layar pemilihan tipe Kazz — tampil sebagai daftar kartu, sama seperti
+/// Layar pemilihan tipe Saldo — tampil sebagai daftar kartu, sama seperti
 /// referensi: ikon berwarna, judul, deskripsi, lalu chevron.
 ///
 /// Mengembalikan `true` lewat Navigator.pop kalau ada akun baru tersimpan.
-class TambahKazzScreen extends StatelessWidget {
-  const TambahKazzScreen({super.key});
+class TambahSaldoScreen extends StatelessWidget {
+  const TambahSaldoScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -79,10 +79,10 @@ class TambahKazzScreen extends StatelessWidget {
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                children: kazzTipes
+                children: saldoTipes
                     .map((t) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: _TipeKazzCard(
+                          child: _TipeSaldoCard(
                             tipe: t,
                             onTap: () => _bukaForm(context, t),
                           ),
@@ -96,14 +96,14 @@ class TambahKazzScreen extends StatelessWidget {
     );
   }
 
-  void _bukaForm(BuildContext context, KazzTipe tipe) {
+  void _bukaForm(BuildContext context, SaldoTipe tipe) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _FormKazzScreen(tipe: tipe),
+        builder: (_) => _FormSaldoScreen(tipe: tipe),
       ),
     ).then((hasil) {
-      // Teruskan ke layar Kazz supaya daftar dompet ikut disegarkan.
+      // Teruskan ke layar Saldo supaya daftar dompet ikut disegarkan.
       if (hasil == true && context.mounted) Navigator.pop(context, true);
     });
   }
@@ -129,12 +129,12 @@ class _BackButton extends StatelessWidget {
       );
 }
 
-/// Kartu satu tipe Kazz: ikon ilustrasi, judul (+ badge PRO), deskripsi.
-class _TipeKazzCard extends StatelessWidget {
-  final KazzTipe tipe;
+/// Kartu satu tipe Saldo: ikon ilustrasi, judul (+ badge PRO), deskripsi.
+class _TipeSaldoCard extends StatelessWidget {
+  final SaldoTipe tipe;
   final VoidCallback onTap;
 
-  const _TipeKazzCard({required this.tipe, required this.onTap});
+  const _TipeSaldoCard({required this.tipe, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +157,7 @@ class _TipeKazzCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Center(
-              child: KazzIllustration(jenis: tipe.key, size: 36),
+              child: SaldoIllustration(jenis: tipe.key, size: 36),
             ),
           ),
           const SizedBox(width: 14),
@@ -215,15 +215,15 @@ class _TipeKazzCard extends StatelessWidget {
 }
 
 /// Form isian nama + saldo awal, lalu simpan akun ke server.
-class _FormKazzScreen extends StatefulWidget {
-  final KazzTipe tipe;
-  const _FormKazzScreen({required this.tipe});
+class _FormSaldoScreen extends StatefulWidget {
+  final SaldoTipe tipe;
+  const _FormSaldoScreen({required this.tipe});
 
   @override
-  State<_FormKazzScreen> createState() => _FormKazzScreenState();
+  State<_FormSaldoScreen> createState() => _FormSaldoScreenState();
 }
 
-class _FormKazzScreenState extends State<_FormKazzScreen> {
+class _FormSaldoScreenState extends State<_FormSaldoScreen> {
   final _namaCtrl = TextEditingController();
   final _saldoCtrl = TextEditingController();
   final _targetNominalCtrl = TextEditingController();

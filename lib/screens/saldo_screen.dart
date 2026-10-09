@@ -6,21 +6,21 @@ import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/app_events.dart';
 import '../services/export_service.dart';
-import '../services/kazz_filter.dart';
+import '../services/saldo_filter.dart';
 import '../services/local_db.dart';
 import '../services/penyimpanan.dart';
-import '../widgets/kazz_illustrations.dart';
+import '../widgets/saldo_illustrations.dart';
 import '../widgets/widgets.dart';
 import 'calendar_screen.dart';
 import 'settings_screen.dart';
-import 'tambah_kazz_screen.dart';
+import 'tambah_saldo_screen.dart';
 
-class KazzScreen extends StatefulWidget {
-  const KazzScreen({super.key});
-  @override State<KazzScreen> createState() => _KazzScreenState();
+class SaldoScreen extends StatefulWidget {
+  const SaldoScreen({super.key});
+  @override State<SaldoScreen> createState() => _SaldoScreenState();
 }
 
-class _KazzScreenState extends State<KazzScreen> {
+class _SaldoScreenState extends State<SaldoScreen> {
   int _tabIndex = 0; // 0 = Dompet, 1 = Budget
   List<Akun> _wallets = [];
   List<Anggaran> _budgets = [];
@@ -28,9 +28,9 @@ class _KazzScreenState extends State<KazzScreen> {
   String _budgetFilter = 'Semua'; // Semua / Aktif
   bool _loading = true;
 
-  // ── Filter & urutan dompet (menu Kazz → tab Dompet) ─────────────
-  KazzFilter _walletFilter = KazzFilter.semua;
-  KazzSort _sortMode = KazzSort.nameAZ;
+  // ── Filter & urutan dompet (menu Saldo → tab Dompet) ─────────────
+  SaldoFilter _walletFilter = SaldoFilter.semua;
+  SaldoSort _sortMode = SaldoSort.nameAZ;
 
   /// Urutan daftar budget di tab Budget.
   BudgetSort _budgetSort = BudgetSort.persentase;
@@ -46,7 +46,7 @@ class _KazzScreenState extends State<KazzScreen> {
   void initState() {
     super.initState();
     _load();
-    // Kazz baru dari layar Tambah Kazz langsung tampil tanpa refresh manual.
+    // Saldo baru dari layar Tambah Saldo langsung tampil tanpa refresh manual.
     AppEvents.instance.akun.addListener(_load);
   }
 
@@ -95,7 +95,7 @@ class _KazzScreenState extends State<KazzScreen> {
 
   /// Dompet setelah difilter lalu diurutkan sesuai pilihan di menu sort.
   List<Akun> get _walletsTampil =>
-      filterDanUrutkanKazz(_wallets, _walletFilter, _sortMode);
+      filterDanUrutkanSaldo(_wallets, _walletFilter, _sortMode);
 
   void _showAddBudgetModal({Anggaran? edit}) {
     String kategori = edit?.kategori ?? 'Makan & Minum';
@@ -188,7 +188,7 @@ class _KazzScreenState extends State<KazzScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(child: RefreshIndicator(
         color: AppColors.primary, backgroundColor: AppColors.bgCard,
         onRefresh: _load,
@@ -208,7 +208,7 @@ class _KazzScreenState extends State<KazzScreen> {
               _headerIcon(Icons.tune,
                 onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) =>
-                    const SettingsScreen(page: SettingsPage.kazzUtama)))),
+                    const SettingsScreen(page: SettingsPage.saldoUtama)))),
             ]),
           ]),
           const SizedBox(height: 16),
@@ -361,16 +361,16 @@ class _KazzScreenState extends State<KazzScreen> {
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
-              _filterChip('Semua', _walletFilter == KazzFilter.semua,
+              _filterChip('Semua', _walletFilter == SaldoFilter.semua,
                 icon: Icons.check_circle,
-                onTap: () => setState(() => _walletFilter = KazzFilter.semua)),
+                onTap: () => setState(() => _walletFilter = SaldoFilter.semua)),
               const SizedBox(width: 8),
-              _filterChip('Cashflow', _walletFilter == KazzFilter.cashflow,
-                onTap: () => setState(() => _walletFilter = KazzFilter.cashflow)),
+              _filterChip('Cashflow', _walletFilter == SaldoFilter.cashflow,
+                onTap: () => setState(() => _walletFilter = SaldoFilter.cashflow)),
               const SizedBox(width: 8),
-              _filterChip('Arsip', _walletFilter == KazzFilter.arsip,
+              _filterChip('Arsip', _walletFilter == SaldoFilter.arsip,
                 icon: Icons.inventory_2_outlined,
-                onTap: () => setState(() => _walletFilter = KazzFilter.arsip)),
+                onTap: () => setState(() => _walletFilter = SaldoFilter.arsip)),
               const SizedBox(width: 8),
             ]),
           ),
@@ -385,7 +385,7 @@ class _KazzScreenState extends State<KazzScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 32),
           child: Center(child: Text(
-            _walletFilter == KazzFilter.semua
+            _walletFilter == SaldoFilter.semua
                 ? 'Belum ada Saldo. Tambahkan yang pertama di bawah.'
                 : 'Tidak ada Saldo untuk filter ini.',
             textAlign: TextAlign.center,
@@ -404,18 +404,18 @@ class _KazzScreenState extends State<KazzScreen> {
         ),
       const SizedBox(height: 12),
 
-      // ── Kartu Tambah Kazz ────────────────────────────────────────
-      AddKazzCard(
+      // ── Kartu Tambah Saldo ────────────────────────────────────────
+      AddSaldoCard(
         compact: true,
-        onTap: () => _bukaTambahKazz(),
+        onTap: () => _bukaTambahSaldo(),
       ),
       const SizedBox(height: 24),
     ]);
   }
 
   Widget _buildWalletCard(Akun w) {
-    final jenis = KazzIllustration.normalisasiJenis(w.jenis);
-    return KazzWalletCard(
+    final jenis = SaldoIllustration.normalisasiJenis(w.jenis);
+    return SaldoWalletCard(
       name: w.nama,
       balance: w.saldo,
       jenis: jenis,
@@ -447,9 +447,9 @@ class _KazzScreenState extends State<KazzScreen> {
 
   /// Menu urutan dompet — tombol bulat di baris filter.
   Future<void> _showSortMenu() async {
-    final pilihan = await _menuDiBawah<KazzSort>(
+    final pilihan = await _menuDiBawah<SaldoSort>(
       key: _sortKey,
-      nilai: KazzSort.values,
+      nilai: SaldoSort.values,
       label: (m) => m.label,
       terpilih: (m) => m == _sortMode,
     );
@@ -522,7 +522,7 @@ class _KazzScreenState extends State<KazzScreen> {
           color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2))),
         const SizedBox(height: 12),
         ListTile(
-          leading: KazzIllustration.forJenis(w.jenis, size: 28),
+          leading: SaldoIllustration.forJenis(w.jenis, size: 28),
           title: Text(w.nama, style: TextStyle(
             color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
           subtitle: Text('${w.saldo < 0 ? '-' : ''}Rp ${formatAmount(w.saldo.abs())}',
@@ -642,9 +642,9 @@ class _KazzScreenState extends State<KazzScreen> {
 
   /// Ketuk kartu → ringkasan singkat dompet.
   void _showWalletDetail(Akun w) {
-    final jenis = KazzIllustration.normalisasiJenis(w.jenis);
-    final label = kazzTipes
-        .firstWhere((t) => t.key == jenis, orElse: () => kazzTipes.first)
+    final jenis = SaldoIllustration.normalisasiJenis(w.jenis);
+    final label = saldoTipes
+        .firstWhere((t) => t.key == jenis, orElse: () => saldoTipes.first)
         .nama;
 
     showModalBottomSheet(
@@ -659,7 +659,7 @@ class _KazzScreenState extends State<KazzScreen> {
             color: AppColors.bgElevated, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 18),
           Row(children: [
-            KazzIllustration(jenis: jenis, size: 44),
+            SaldoIllustration(jenis: jenis, size: 44),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(w.nama, style: TextStyle(
@@ -684,10 +684,10 @@ class _KazzScreenState extends State<KazzScreen> {
     );
   }
 
-  Future<void> _bukaTambahKazz() async {
+  Future<void> _bukaTambahSaldo() async {
     final ditambah = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const TambahKazzScreen()),
+      MaterialPageRoute(builder: (_) => const TambahSaldoScreen()),
     );
     if (ditambah == true) _load();
   }

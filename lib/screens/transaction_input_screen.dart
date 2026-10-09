@@ -8,7 +8,7 @@ import '../services/app_prefs.dart';
 import '../services/dompet_view.dart';
 import '../services/kategori_otomatis.dart';
 import '../widgets/widgets.dart';
-import 'tambah_kazz_screen.dart';
+import 'tambah_saldo_screen.dart';
 
 class TransactionInputScreen extends StatefulWidget {
   final String? initialDeskripsi;
@@ -290,7 +290,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                 onTap: () async {
                   Navigator.pop(context);
                   await Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => const TambahKazzScreen()));
+                    builder: (_) => const TambahSaldoScreen()));
                   await _muatAkun();
                 },
               ),

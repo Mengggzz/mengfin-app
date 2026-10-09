@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'constants/app_colors.dart';
 import 'constants/app_theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/transaksi_screen.dart';
-import 'screens/kazz_screen.dart';
+import 'screens/saldo_screen.dart';
 import 'screens/more_screen.dart';
 import 'screens/transaction_input_screen.dart';
 import 'screens/biometric_lock_screen.dart';
@@ -36,6 +37,7 @@ void applySystemUi(bool isDark) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('id_ID', null);
 
   // Init services — sqflite tidak support web, skip di web
   if (!kIsWeb) {
@@ -126,7 +128,7 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
   // (state-nya tetap) dan membaca AppColors yang sudah diperbarui.
   List<Widget> get _screens => [
     DashboardScreen(),   // 0 — Home
-    KazzScreen(),        // 1 — Kazz (Wallets/Budget)
+    SaldoScreen(),        // 1 — Saldo (Wallets/Budget)
     TransaksiScreen(),   // 2 — Transaksi (History/View)
     MoreScreen(),        // 3 — More (Settings, AI, Goals)
   ];

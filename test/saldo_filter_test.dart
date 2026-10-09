@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mengfin/models/models.dart';
-import 'package:mengfin/services/kazz_filter.dart';
-import 'package:mengfin/widgets/kazz_illustrations.dart';
+import 'package:mengfin/services/saldo_filter.dart';
+import 'package:mengfin/widgets/saldo_illustrations.dart';
 
 Akun buatAkun(String nama, double saldo, String jenis) => Akun(
       id: nama,
@@ -14,7 +14,7 @@ Akun buatAkun(String nama, double saldo, String jenis) => Akun(
     );
 
 void main() {
-  // 'bank' adalah jenis lama (sebelum Kazz tipe diperkenalkan) dan sengaja
+  // 'bank' adalah jenis lama (sebelum Saldo tipe diperkenalkan) dan sengaja
   // dimasukkan supaya pemetaannya ikut terjaga.
   final daftar = [
     buatAkun('Dompet Utama', -6164, 'cashflow'),
@@ -25,22 +25,22 @@ void main() {
   ];
 
   test('filter Semua menampilkan seluruh dompet', () {
-    final hasil = filterDanUrutkanKazz(daftar, KazzFilter.semua, KazzSort.nameAZ);
+    final hasil = filterDanUrutkanSaldo(daftar, SaldoFilter.semua, SaldoSort.nameAZ);
     expect(hasil.length, daftar.length);
   });
 
   test('filter Cashflow hanya tipe cashflow (jenis lama ikut terhitung)', () {
     final hasil =
-        filterDanUrutkanKazz(daftar, KazzFilter.cashflow, KazzSort.nameAZ);
+        filterDanUrutkanSaldo(daftar, SaldoFilter.cashflow, SaldoSort.nameAZ);
     expect(hasil.map((a) => a.nama), ['Bank Jago', 'Dompet Utama'],
         reason: 'jenis lama "bank" diperlakukan sebagai cashflow');
     expect(hasil.every((a) =>
-        KazzIllustration.normalisasiJenis(a.jenis) == 'cashflow'), isTrue);
+        SaldoIllustration.normalisasiJenis(a.jenis) == 'cashflow'), isTrue);
   });
 
   test('filter Arsip menampilkan tipe selain cashflow', () {
     final hasil =
-        filterDanUrutkanKazz(daftar, KazzFilter.arsip, KazzSort.nameAZ);
+        filterDanUrutkanSaldo(daftar, SaldoFilter.arsip, SaldoSort.nameAZ);
     expect(hasil.map((a) => a.nama),
         ['Emas Antam', 'Kartu Kredit BCA', 'Tabungan Liburan']);
     expect(hasil.any((a) => a.nama == 'Dompet Utama'), isFalse);
@@ -48,10 +48,10 @@ void main() {
   });
 
   test('urutan nama naik dan turun', () {
-    final az = filterDanUrutkanKazz(daftar, KazzFilter.semua, KazzSort.nameAZ)
+    final az = filterDanUrutkanSaldo(daftar, SaldoFilter.semua, SaldoSort.nameAZ)
         .map((a) => a.nama)
         .toList();
-    final za = filterDanUrutkanKazz(daftar, KazzFilter.semua, KazzSort.nameZA)
+    final za = filterDanUrutkanSaldo(daftar, SaldoFilter.semua, SaldoSort.nameZA)
         .map((a) => a.nama)
         .toList();
 
@@ -63,12 +63,12 @@ void main() {
 
   test('urutan saldo: terbesar dan terkecil (termasuk negatif)', () {
     final tinggi =
-        filterDanUrutkanKazz(daftar, KazzFilter.semua, KazzSort.highest);
+        filterDanUrutkanSaldo(daftar, SaldoFilter.semua, SaldoSort.highest);
     expect(tinggi.first.nama, 'Emas Antam');
     expect(tinggi.first.saldo, 3000000);
 
     final rendah =
-        filterDanUrutkanKazz(daftar, KazzFilter.semua, KazzSort.lowest);
+        filterDanUrutkanSaldo(daftar, SaldoFilter.semua, SaldoSort.lowest);
     expect(rendah.first.nama, 'Kartu Kredit BCA',
         reason: 'saldo paling negatif harus di urutan pertama');
     expect(rendah.first.saldo, -750000);
@@ -77,7 +77,7 @@ void main() {
 
   test('filter dan urutan bisa digabung', () {
     final hasil =
-        filterDanUrutkanKazz(daftar, KazzFilter.arsip, KazzSort.highest);
+        filterDanUrutkanSaldo(daftar, SaldoFilter.arsip, SaldoSort.highest);
     expect(hasil.first.nama, 'Emas Antam');
     expect(hasil.length, 3, reason: 'hanya tipe non-cashflow yang masuk Arsip');
     expect(hasil.map((a) => a.nama).toList(),
@@ -86,28 +86,28 @@ void main() {
   });
 
   test('daftar kosong tidak error', () {
-    final hasil = filterDanUrutkanKazz([], KazzFilter.semua, KazzSort.highest);
+    final hasil = filterDanUrutkanSaldo([], SaldoFilter.semua, SaldoSort.highest);
     expect(hasil, isEmpty);
   });
 
   test('label enum sama dengan yang tampil di UI', () {
-    expect(KazzFilter.values.map((e) => e.label).toList(),
+    expect(SaldoFilter.values.map((e) => e.label).toList(),
         ['Semua', 'Cashflow', 'Arsip']);
-    expect(KazzSort.values.map((e) => e.label).toList(),
+    expect(SaldoSort.values.map((e) => e.label).toList(),
         ['Name A-Z', 'Name Z-A', 'Highest balance', 'Lowest balance']);
   });
 
   test('jenis akun lama dipetakan ke tipe yang benar', () {
     // Nilai lama (bank/cash/ewallet) tidak boleh bikin kartu tanpa ilustrasi.
-    expect(KazzIllustration.normalisasiJenis('bank'), 'cashflow');
-    expect(KazzIllustration.normalisasiJenis('cash'), 'cashflow');
-    expect(KazzIllustration.normalisasiJenis('ewallet'), 'cashflow');
-    expect(KazzIllustration.normalisasiJenis('tabungan'), 'tabungan');
-    expect(KazzIllustration.normalisasiJenis('saving'), 'tabungan');
-    expect(KazzIllustration.normalisasiJenis('kredit'), 'kredit');
-    expect(KazzIllustration.normalisasiJenis('aset'), 'aset');
-    expect(KazzIllustration.normalisasiJenis(null), 'cashflow');
-    expect(KazzIllustration.normalisasiJenis(''), 'cashflow');
+    expect(SaldoIllustration.normalisasiJenis('bank'), 'cashflow');
+    expect(SaldoIllustration.normalisasiJenis('cash'), 'cashflow');
+    expect(SaldoIllustration.normalisasiJenis('ewallet'), 'cashflow');
+    expect(SaldoIllustration.normalisasiJenis('tabungan'), 'tabungan');
+    expect(SaldoIllustration.normalisasiJenis('saving'), 'tabungan');
+    expect(SaldoIllustration.normalisasiJenis('kredit'), 'kredit');
+    expect(SaldoIllustration.normalisasiJenis('aset'), 'aset');
+    expect(SaldoIllustration.normalisasiJenis(null), 'cashflow');
+    expect(SaldoIllustration.normalisasiJenis(''), 'cashflow');
   });
 
   // ── Budget: filter + urutan ─────────────────────────────────────────────

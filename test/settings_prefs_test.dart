@@ -139,12 +139,12 @@ await tester.scrollUntilVisible(find.byIcon(Icons.add), 600,
     expect(find.text('Pilih aplikasi yang dipantau'), findsOneWidget);
   });
 
-  testWidgets('Kazz utama: dompet utama & dompet tampil tersimpan',
+  testWidgets('Saldo utama: dompet utama & dompet tampil tersimpan',
       (tester) async {
     await buka(
       tester,
       SettingsScreen(
-        page: SettingsPage.kazzUtama,
+        page: SettingsPage.saldoUtama,
         muatAkun: () async => [akun(1, 'BCA', 100), akun(2, 'Mandiri', 50)],
       ),
     );

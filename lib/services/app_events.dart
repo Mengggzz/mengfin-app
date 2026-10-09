@@ -19,7 +19,7 @@ class AppEvents {
   /// Nilai bertambah setiap kali data goals berubah.
   final ValueNotifier<int> goals = ValueNotifier<int>(0);
 
-  /// Nilai bertambah setiap kali daftar Kazz / akun berubah.
+  /// Nilai bertambah setiap kali daftar saldo / akun berubah.
   final ValueNotifier<int> akun = ValueNotifier<int>(0);
 
   /// Nilai bertambah setiap kali pengaturan atau judul beranda berubah.

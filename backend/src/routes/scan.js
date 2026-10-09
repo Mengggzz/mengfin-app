@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { scanNota, scanMutasi } = require('../services/gemini');
+const { parseEStatementPdf } = require('../services/estatement');
 const { authMiddleware } = require('../middleware/auth');
 
 router.use(authMiddleware);
@@ -26,6 +27,7 @@ router.post('/', async (req, res) => {
     const result = await scanNota(base64, mimeType || 'image/jpeg');
 
     if (!result) {
+      console.error('Scan nota gagal: hasil null dari model');
       return res.status(502).json({
         error: 'Gagal membaca struk. Pastikan foto jelas, tidak blur, dan pencahayaan cukup.',
       });
@@ -63,6 +65,7 @@ router.post('/mutasi', async (req, res) => {
     const results = await scanMutasi(base64, mimeType || 'image/jpeg');
 
     if (!results || results.length === 0) {
+      console.error('Scan mutasi gagal: 0 transaksi terdeteksi');
       return res.status(422).json({
         error: 'Tidak ditemukan transaksi mutasi pada screenshot ini. Pastikan gambar jelas.',
         data: [],
@@ -73,6 +76,38 @@ router.post('/mutasi', async (req, res) => {
   } catch (err) {
     console.error('Scan mutasi route error:', err.message || err);
     res.status(500).json({ error: 'Terjadi kesalahan saat memproses screenshot mutasi' });
+  }
+});
+
+// Import e-statement PDF (SeaBank, BCA, Mandiri, dll)
+router.post('/estatement', async (req, res) => {
+  try {
+    const { pdfBase64 } = req.body;
+    if (!pdfBase64 || typeof pdfBase64 !== 'string') {
+      return res.status(400).json({ error: 'pdfBase64 diperlukan' });
+    }
+
+    const cleanBase64 = pdfBase64.includes(',') ? pdfBase64.split(',').pop() : pdfBase64;
+    const buffer = Buffer.from(cleanBase64, 'base64');
+
+    if (buffer.length > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Ukuran file melebihi batas 10 MB' });
+    }
+
+    const results = await parseEStatementPdf(buffer);
+
+    if (!results || results.length === 0) {
+      return res.status(422).json({
+        error: 'Tidak ditemukan transaksi pada e-statement PDF ini.',
+        data: [],
+      });
+    }
+
+    res.json({ data: results, message: `${results.length} transaksi e-statement terdeteksi` });
+  } catch (err) {
+    console.error('Import estatement error:', err.message || err);
+    const msg = err.message || 'Terjadi kesalahan saat memproses e-statement PDF';
+    res.status(422).json({ error: msg });
   }
 });
 

@@ -104,8 +104,9 @@ class SyncService {
       }
 
       // Pull akun (dompet) — saldo di server berubah oleh transaksi yang
-      // baru saja disinkronkan; tanpa ini menu Kazz tetap pakai saldo lama.
+      // baru saja disinkronkan; tanpa ini menu Saldo tetap pakai saldo lama.
       await ApiService.pullAkun();
+      await LocalDb.reconcileAkunSaldo();
       
       AppEvents.instance.transaksiBerubah();
       AppEvents.instance.anggaranBerubah();

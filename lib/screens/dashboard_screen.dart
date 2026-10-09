@@ -21,7 +21,7 @@ import 'calendar_screen.dart';
 import 'laporan_screen.dart';
 import 'scan_screen.dart';
 import 'settings_screen.dart';
-import 'tambah_kazz_screen.dart';
+import 'tambah_saldo_screen.dart';
 import 'transaction_input_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -67,7 +67,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // menyegarkan layar ini tanpa pull-to-refresh.
     AppEvents.instance.transaksi.addListener(_onDataBerubah);
     AppEvents.instance.anggaran.addListener(_onDataBerubah);
-    // Dompet berubah (mis. pengaturan Kazz utama disimpan) harus ikut
+    // Dompet berubah (mis. pengaturan Saldo utama disimpan) harus ikut
     // menyegarkan saldo "Dompet Saya" — sebelumnya perubahan dompet
     // tampil tidak terlihat di beranda sampai aplikasi dibuka ulang.
     AppEvents.instance.akun.addListener(_onDataBerubah);
@@ -627,7 +627,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Navigator.pop(ctx);
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (_) => const TambahKazzScreen()),
+                                MaterialPageRoute(builder: (_) => const TambahSaldoScreen()),
                               );
                             },
                             icon: Icon(Icons.add, size: 16, color: AppColors.primary),
@@ -650,7 +650,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const SettingsScreen(page: SettingsPage.kazzUtama),
+                                  builder: (_) => const SettingsScreen(page: SettingsPage.saldoUtama),
                                 ),
                               );
                             },
@@ -681,7 +681,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: Colors.transparent,
       body: _loading
         ?  Center(child: CircularProgressIndicator(color: AppColors.primary))
         : _error || _data == null
@@ -940,6 +940,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )),
             ],
           )),
+        const SizedBox(height: 160),
       ]),
     ));
   }

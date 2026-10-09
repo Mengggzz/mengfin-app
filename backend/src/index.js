@@ -31,6 +31,7 @@ app.use('/api/goals', goalsRoutes);
 app.use('/api/laporan', laporanRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/scan', scanRoutes);
+app.use('/api/import', scanRoutes);
 
 
 // Health check

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../constants/app_colors.dart';
-import 'kazz_illustrations.dart';
+import 'saldo_illustrations.dart';
 import '../constants/utils.dart';
 export 'voice_to_text_dialog.dart';
 export 'home_settings_sheet.dart';
@@ -113,7 +113,7 @@ class AppProgressBar extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-// TransaksiTile — Updated for Kazz style
+// TransaksiTile — Updated for modern style
 // ─────────────────────────────────────────────────────────────
 class TransaksiTile extends StatelessWidget {
   final dynamic tx;
@@ -298,7 +298,7 @@ class DonutChartData {
 }
 
 // ─────────────────────────────────────────────────────────────
-// SegmentedTab — Kazz style segment control
+// SegmentedTab — Modern style segment control
 // ─────────────────────────────────────────────────────────────
 class SegmentedTab extends StatelessWidget {
   final List<String> tabs;
@@ -346,13 +346,13 @@ class SegmentedTab extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-// KazzWalletCard — For wallet display in Kazz screen
+// SaldoWalletCard — For wallet display in Saldo screen
 // ─────────────────────────────────────────────────────────────
-class KazzWalletCard extends StatelessWidget {
+class SaldoWalletCard extends StatelessWidget {
   final String name;
   final double balance;
 
-  /// Tipe Kazz: cashflow / tabungan / kredit / aset. Menentukan ilustrasi.
+  /// Tipe Saldo: cashflow / tabungan / kredit / aset. Menentukan ilustrasi.
   final String jenis;
 
   /// Warna label saldo. Kalau null: merah untuk saldo minus, abu untuk plus.
@@ -366,7 +366,7 @@ class KazzWalletCard extends StatelessWidget {
   final int? tglTempo;
   final double? gram;
 
-  const KazzWalletCard({
+  const SaldoWalletCard({
     super.key,
     required this.name,
     required this.balance,
@@ -401,7 +401,7 @@ class KazzWalletCard extends StatelessWidget {
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            KazzIllustration.forJenis(jenis, size: 38),
+            SaldoIllustration.forJenis(jenis, size: 38),
             // Area sentuh dibesarkan supaya tidak salah tekan kartunya.
             GestureDetector(
               onTap: onMenuTap,
@@ -465,9 +465,9 @@ class KazzWalletCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-// AddKazzCard — Dashed border "Tambah Kazz" card
+// AddSaldoCard — Dashed border "Tambah Saldo" card
 // ─────────────────────────────────────────────────────────────
-class AddKazzCard extends StatelessWidget {
+class AddSaldoCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   /// Di dalam grid dipakai dengan tinggi mengikuti kartu dompet, jadi
@@ -475,7 +475,7 @@ class AddKazzCard extends StatelessWidget {
   final bool compact;
   final double? height;
 
-  const AddKazzCard({
+  const AddSaldoCard({
     super.key,
     this.onTap,
     this.compact = false,
@@ -521,7 +521,7 @@ class AddKazzCard extends StatelessWidget {
 class _DashedBorderPainter extends CustomPainter {
   final Color? color;
 
-  /// Dipakai kotak "Tambah Kazz" & panel Saldo.
+  /// Dipakai kotak "Tambah Saldo" & panel Saldo.
   const _DashedBorderPainter({this.color});
 
   @override
@@ -560,7 +560,7 @@ class _DashedBorderPainter extends CustomPainter {
 }
 
 /// Kotak berisi satu baris dengan garis putus-putus di sekelilingnya.
-/// Dipakai panel "Saldo" di menu Kazz.
+/// Dipakai panel "Saldo" di menu Saldo.
 class DashedBox extends StatelessWidget {
   final Widget child;
   final Color? color;
