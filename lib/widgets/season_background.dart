@@ -176,41 +176,102 @@ class _SeasonParticlePainter extends CustomPainter {
 
       final paint = Paint()..style = PaintingStyle.fill;
 
+      final s = p.size;
+
       switch (season) {
         case Season.semi:
-          // Kelopak bunga pink
+          // Semi — bunga 5 kelopak
           paint.color = (isDark ? const Color(0xFFF472B6) : const Color(0xFFEC4899))
               .withValues(alpha: p.opacity);
-          final rect = Rect.fromCenter(center: Offset.zero, width: p.size * 1.5, height: p.size);
-          canvas.drawOval(rect, paint);
+          for (int i = 0; i < 5; i++) {
+            canvas.save();
+            canvas.rotate(i * 2 * math.pi / 5);
+            canvas.drawOval(
+              Rect.fromCenter(
+                center: Offset(0, -0.55 * s),
+                width: 0.64 * s,
+                height: 1.1 * s,
+              ),
+              paint,
+            );
+            canvas.restore();
+          }
+          final centerPaint = Paint()
+            ..style = PaintingStyle.fill
+            ..color = const Color(0xFFFDE68A);
+          canvas.drawCircle(Offset.zero, 0.22 * s, centerPaint);
 
         case Season.panas:
-          // Bokeh cahaya hangat melayang naik
+          // Panas — kilau bintang 4-sisi
           paint.color = (isDark ? const Color(0xFFFBBF24) : const Color(0xFFF59E0B))
               .withValues(alpha: p.opacity * 0.8);
-          canvas.drawCircle(Offset.zero, p.size * 1.2, paint);
+          final s1 = 1.2 * s;
+          final starPath = Path()
+            ..moveTo(0, -s1)
+            ..quadraticBezierTo(0.12 * s1, -0.12 * s1, s1, 0)
+            ..quadraticBezierTo(0.12 * s1, 0.12 * s1, 0, s1)
+            ..quadraticBezierTo(-0.12 * s1, 0.12 * s1, -s1, 0)
+            ..quadraticBezierTo(-0.12 * s1, -0.12 * s1, 0, -s1)
+            ..close();
+          canvas.drawPath(starPath, paint);
 
         case Season.gugur:
-          // Daun jatuh amber / coklat
+          // Gugur — daun maple
           paint.color = (isDark ? const Color(0xFFF59E0B) : const Color(0xFFD97706))
               .withValues(alpha: p.opacity);
-          final path = Path();
-          path.moveTo(0, -p.size);
-          path.quadraticBezierTo(p.size, 0, 0, p.size);
-          path.quadraticBezierTo(-p.size, 0, 0, -p.size);
-          canvas.drawPath(path, paint);
+          final maplePath = Path()
+            ..moveTo(0, -0.8 * s)
+            ..lineTo(0.16 * s, -0.24 * s)
+            ..lineTo(0.72 * s, -0.36 * s)
+            ..lineTo(0.28 * s, 0)
+            ..lineTo(0.72 * s, 0.36 * s)
+            ..lineTo(0.16 * s, 0.24 * s)
+            ..lineTo(0, 0.8 * s)
+            ..lineTo(-0.16 * s, 0.24 * s)
+            ..lineTo(-0.72 * s, 0.36 * s)
+            ..lineTo(-0.28 * s, 0)
+            ..lineTo(-0.72 * s, -0.36 * s)
+            ..lineTo(-0.16 * s, -0.24 * s)
+            ..close();
+          canvas.drawPath(maplePath, paint);
+          final stemPaint = Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.12 * s
+            ..strokeCap = StrokeCap.round
+            ..color = paint.color;
+          canvas.drawLine(Offset(0, 0.8 * s), Offset(0, 1.1 * s), stemPaint);
 
         case Season.dingin:
-          // Salju putih kebiruan
-          paint.color = (isDark ? const Color(0xFFE0F2FE) : const Color(0xFF38BDF8))
+          // Dingin — kristal salju 6-sisi
+          final snowColor = (isDark ? const Color(0xFFE0F2FE) : const Color(0xFF38BDF8))
               .withValues(alpha: p.opacity * 0.9);
-          canvas.drawCircle(Offset.zero, p.size * 0.8, paint);
+          final snowPaint = Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.16 * s
+            ..strokeCap = StrokeCap.round
+            ..color = snowColor;
+          for (int i = 0; i < 3; i++) {
+            final angle = i * math.pi / 3;
+            final dx = 0.9 * s * math.cos(angle);
+            final dy = 0.9 * s * math.sin(angle);
+            canvas.drawLine(Offset(-dx, -dy), Offset(dx, dy), snowPaint);
+          }
+          final snowDot = Paint()
+            ..style = PaintingStyle.fill
+            ..color = snowColor;
+          canvas.drawCircle(Offset.zero, 0.15 * s, snowDot);
 
         case Season.defaut:
-          // Partikel halus cyan
-          paint.color = (isDark ? const Color(0xFF00E5FF) : const Color(0xFF0E7490))
-              .withValues(alpha: p.opacity * 0.6);
-          canvas.drawCircle(Offset.zero, p.size * 0.7, paint);
+          // Default — bokeh 2-lapis
+          final baseColor = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0E7490);
+          final outerPaint = Paint()
+            ..style = PaintingStyle.fill
+            ..color = baseColor.withValues(alpha: (p.opacity * 0.18).clamp(0.0, 1.0));
+          canvas.drawCircle(Offset.zero, 1.0 * s, outerPaint);
+          final innerPaint = Paint()
+            ..style = PaintingStyle.fill
+            ..color = baseColor.withValues(alpha: (p.opacity * 0.45).clamp(0.0, 1.0));
+          canvas.drawCircle(Offset.zero, 0.55 * s, innerPaint);
       }
 
       canvas.restore();

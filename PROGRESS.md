@@ -1,14 +1,36 @@
-# Lanjutan pekerjaan cashflow — status per 10 Okt 2026 (Bugfix Round 4)
+# Lanjutan pekerjaan cashflow — status per 10 Okt 2026 (Bugfix Round 5)
 
 Berkas ini catatan proses supaya bisa dilanjutkan. Hapus kalau sudah selesai.
 
 ## STATUS SAAT INI (baca dulu)
-Semua perbaikan Fase A (Task 1–6) dari Task List Round 4 SELESAI dan teruji:
-- `backend/test_estatement.js`: 5/5 suite lulus (deterministic SeaBank, layout asli TABUNGAN, footer phone numbers, validation chain, reject non-pdf).
-- `backend/test_dompet_duplikasi.js`: Lulus (GET /akun read-only, konfirmasi tanpa akun siluman).
-- `flutter test`: 168/168 test lulus (termasuk saldo sync, permanent_failed queue, biometric lifecycle, dll).
+Semua perbaikan Fase A (Task 1, 1b, 1c, 1d, 1e, 1f) dari Task List Round 5 SELESAI dan teruji:
+- `flutter test`: 175/175 test lulus (termasuk hint bulan, TouchEffect, FeedbackSheet, dll).
 - `flutter analyze`: 0 error.
-- `flutter build web --release`: Sukses (172.0s), 0 `localhost:3000` di JS bundle.
+- `flutter build web --release`: Sukses (116.8s), 0 `localhost:3000` di JS bundle.
+- Backend `POST /api/feedback`: Validasi, format HTML Telegram Bot API, dan fallback ke database `feedbacks` teruji lulus.
+
+### Rincian Perbaikan Round 5 (Fase A):
+1. **Task 1 — Hint bulan kosong kartu "Saldo vs Pengeluaran" (`lib/screens/dashboard_screen.dart`, `lib/services/local_db.dart`)**:
+   - `LocalDb.getBulanTerakhirTransaksi` mencari bulan transaksi sebelum bulan berjalan.
+   - Hint muncul saat bulan berjalan Rp 0 dan ada data bulan sebelumnya: *"Bulan ini belum ada transaksi. Data terakhir: September 2026 — lihat ringkasannya di View/Laporan."* Tap hint membuka `LaporanScreen`.
+2. **Task 1b — Hint budget harian (`lib/screens/dashboard_screen.dart:1426`)**:
+   - `hintText: '20000'` diubah jadi `'0'` agar tidak tampak sebagai default.
+3. **Task 1c — Samakan hintText nominal jadi '0'**:
+   - `lib/screens/goals_screen.dart:84` (Tambah Dana): `hintText: '100.000'` → `'0'`.
+   - `lib/screens/saldo_screen.dart:148` (Batas Anggaran): `hintText: '1.500.000'` → `'0'`.
+   - `lib/screens/anggaran_screen.dart:124` (Batas Anggaran): `hintText: '1.500.000'` → `'0'`.
+4. **Task 1d — Bentuk partikel per musim yang baru (`lib/widgets/season_background.dart`)**:
+   - Semi: bunga 5 kelopak + titik tengah kuning muda (`0xFFFDE68A`).
+   - Panas: kilau bintang 4-sisi kurva hangat.
+   - Gugur: polygon daun maple 12 titik + tangkai garis.
+   - Dingin: kristal salju 6-sisi stroke 0°/60°/120° + titik tengah.
+   - Default: bokeh 2-lapis konsentris cyan.
+5. **Task 1e — Efek animasi sentuhan permanen (`lib/widgets/touch_effect.dart`)**:
+   - Widget `TouchEffect`: `AnimatedScale` 1.0 → 0.96 (120ms, `Curves.easeOut`).
+   - Diterapkan ke: `QuickActionButton` (kartu fitur AI, Scan, Budget), `GlassCard(onTap: ...)`, item grid kategori transaksi (`CategoryIconGrid`), tombol tune beranda, dan `_menuTile` menu `MoreScreen`.
+6. **Task 1f — Fitur "Laporkan Bug / Saran" (`lib/widgets/feedback_sheet.dart`, `backend/src/routes/feedback.js`, `backend/src/models.js`)**:
+   - Frontend: Sheet dengan chip Bug / Saran, input judul singkat, input deskripsi multiline (min 10 karakter), info perangkat otomatis (`package_info_plus` + `device_info_plus`).
+   - Backend: `POST /api/feedback` dengan validasi, kirim ke Telegram Bot API (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`), dan fallback otomatis ke MongoDB collection `feedbacks`.
 
 ### Rincian Perbaikan Round 4 (Fase A):
 1. **Task 1 — Parser SeaBank `parseSeabankText` (`backend/src/services/estatement.js`)**:

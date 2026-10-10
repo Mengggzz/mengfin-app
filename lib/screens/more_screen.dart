@@ -14,6 +14,7 @@ import '../services/sync_service.dart';
 import '../services/local_db.dart';
 import '../widgets/home_settings_sheet.dart';
 import '../widgets/update_dialog.dart';
+import '../widgets/widgets.dart';
 import 'ai_screen.dart';
 import 'goals_screen.dart';
 import 'import_csv_screen.dart';
@@ -294,6 +295,13 @@ class MoreScreen extends StatelessWidget {
             onTap: () => _showTentang(context),
           ),
           _menuTile(
+            icon: Icons.bug_report_outlined,
+            color: const Color(0xFF10B981),
+            title: 'Laporkan Bug / Saran',
+            subtitle: 'Kirim masukan langsung ke developer',
+            onTap: () => FeedbackSheet.show(context),
+          ),
+          _menuTile(
             icon: Icons.logout,
             color: AppColors.danger,
             title: 'Keluar',
@@ -356,7 +364,7 @@ class MoreScreen extends StatelessWidget {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
-  }) => GestureDetector(
+  }) => TouchEffect(
     onTap: onTap,
     child: Container(
       margin: const EdgeInsets.only(bottom: 8),

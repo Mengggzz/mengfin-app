@@ -3,8 +3,12 @@ import 'package:fl_chart/fl_chart.dart';
 import '../constants/app_colors.dart';
 import 'saldo_illustrations.dart';
 import '../constants/utils.dart';
+import 'touch_effect.dart';
+import 'feedback_sheet.dart';
 export 'voice_to_text_dialog.dart';
 export 'home_settings_sheet.dart';
+export 'touch_effect.dart';
+export 'feedback_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────
 // GlassCard
@@ -40,7 +44,7 @@ class GlassCard extends StatelessWidget {
     );
 
     if (onTap != null) {
-      return GestureDetector(
+      return TouchEffect(
         onTap: onTap,
         child: Container(decoration: decoration, child: content),
       );
@@ -606,7 +610,7 @@ class CategoryIconGrid extends StatelessWidget {
       runSpacing: 8,
       children: categories.map((k) {
         final isActive = selectedCategory == k.label;
-        return GestureDetector(
+        return TouchEffect(
           onTap: () => onSelected(k.label),
           child: SizedBox(
             width: (MediaQuery.of(context).size.width - 48 - (8 * (crossAxisCount - 1))) / crossAxisCount,
@@ -802,7 +806,7 @@ class QuickActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return TouchEffect(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

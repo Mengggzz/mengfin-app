@@ -56,6 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Kategori breakdown (untuk swipe Saldo vs Pengeluaran)
   List<Map<String, dynamic>> _kategoriBreakdown = [];
+  String? _bulanTerakhirData;
 
   @override
   void initState() {
@@ -86,6 +87,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final saldo = localStats['saldo'] ?? 0;
       final pemasukan = localStats['pemasukan'] ?? 0;
       final pengeluaran = localStats['pengeluaran'] ?? 0;
+      String? bulanTerakhir;
+      if (pemasukan == 0 && pengeluaran == 0) {
+        bulanTerakhir = await LocalDb.getBulanTerakhirTransaksi(bulan);
+      }
 
       final now = DateTime.now();
       double todaySpend = 0;
@@ -167,6 +172,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
         _recentTx = allTx.take(10).toList();
         _kategoriBreakdown = katList;
+        _bulanTerakhirData = bulanTerakhir;
         _budgetHarian = savedBudget;
         _pengeluaranHariIni = todaySpend;
         _last7DaysSpending = last7;
@@ -324,18 +330,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .toList()
         ..sort((a, b) => (b['total'] as double).compareTo(a['total'] as double));
 
+      final dBoard = results[0] as DashboardData;
+      String? bulanTerakhir;
+      if (dBoard.pengeluaranBulanIni == 0 && dBoard.pemasukanBulanIni == 0) {
+        bulanTerakhir = await LocalDb.getBulanTerakhirTransaksi(currentBulan());
+      }
+
       if (!mounted) return;
       setState(() {
-        _data = results[0] as DashboardData;
+        _data = dBoard;
         _updateNamaDompetAktif(akun);
         _saldoDompet = DompetView.saldoTampil(
           akun: akun,
           dompetUtama: AppPrefs.instance.dompetUtama,
           dompetTampil: AppPrefs.instance.dompetTampil,
-          saldoServer: (results[0] as DashboardData).saldoTotal,
+          saldoServer: dBoard.saldoTotal,
         );
         _recentTx = allTx.take(10).toList();
         _kategoriBreakdown = katList;
+        _bulanTerakhirData = bulanTerakhir;
         _loading = false;
         _isOfflineData = false;
         _budgetHarian = savedBudget;
@@ -366,6 +379,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final saldo = localStats['saldo'] ?? 0;
         final pemasukan = localStats['pemasukan'] ?? 0;
         final pengeluaran = localStats['pengeluaran'] ?? 0;
+        String? bulanTerakhir;
+        if (pemasukan == 0 && pengeluaran == 0) {
+          bulanTerakhir = await LocalDb.getBulanTerakhirTransaksi(bulan);
+        }
         if (!mounted) return;
         setState(() {
           _updateNamaDompetAktif(localAkun);
@@ -391,6 +408,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             prediksiStatus: 'aman',
           );
           _recentTx = recentTx;
+          _bulanTerakhirData = bulanTerakhir;
           _loading = false;
           _isOfflineData = true;
         });
@@ -1405,7 +1423,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             decoration: InputDecoration(
               prefixText: 'Rp ',
               prefixStyle:  TextStyle(color: AppColors.textMuted, fontSize: 16),
-              hintText: '20000',
+              hintText: '0',
               hintStyle:  TextStyle(color: AppColors.textMuted),
               filled: true,
               fillColor: AppColors.bgElevated,
@@ -1702,7 +1720,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // 6. Icon tune → pengaturan beranda
     list.add(
-      GestureDetector(
+      TouchEffect(
         onTap: () => _showBerandaSettings(),
         child: Container(
           width: 40, height: 40,
@@ -1770,6 +1788,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
+        if (_insightPage == 0 &&
+            d.pengeluaranBulanIni == 0 &&
+            d.pemasukanBulanIni == 0 &&
+            _bulanTerakhirData != null) ...[
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LaporanScreen()),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.primary.withOpacity(0.18)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 14, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Bulan ini belum ada transaksi. Data terakhir: ${formatBulan(_bulanTerakhirData!)} — lihat ringkasannya di View/Laporan.',
+                      style: TextStyle(
+                        color: AppColors.textSecond,
+                        fontSize: 10.5,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ]),
     );
   }

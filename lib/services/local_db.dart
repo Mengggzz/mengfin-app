@@ -957,6 +957,21 @@ class LocalDb {
     };
   }
 
+  /// Cari bulan terakhir (< bulanBerjalan) yang memiliki riwayat transaksi.
+  /// Format: 'YYYY-MM' (mis. '2026-09') atau null jika belum pernah ada.
+  static Future<String?> getBulanTerakhirTransaksi(String bulanBerjalan) async {
+    final d = await db;
+    final rows = await d.rawQuery(
+      "SELECT substr(tanggal,1,7) AS bln FROM transaksi WHERE substr(tanggal,1,7) < ? ORDER BY bln DESC LIMIT 1",
+      [bulanBerjalan],
+    );
+    if (rows.isNotEmpty && rows.first['bln'] != null) {
+      final bln = rows.first['bln'].toString().trim();
+      if (bln.isNotEmpty) return bln;
+    }
+    return null;
+  }
+
   // ── Notifikasi Draft (Inbox & Staging) ──────────────────────────────────
   static Future<void> insertNotifDraft(NotifDraft draft) async {
     final d = await db;

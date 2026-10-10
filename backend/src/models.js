@@ -64,11 +64,26 @@ const GoalSchema = new mongoose.Schema({
   local_id: { type: String, default: null, index: true },
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 
+// ── Feedback (Bug / Saran) ──────────────────────────────────────────────────
+const FeedbackSchema = new mongoose.Schema({
+  user_id: { type: String, required: true, index: true },
+  user_email: { type: String, default: '' },
+  user_nama: { type: String, default: '' },
+  jenis: { type: String, enum: ['Bug', 'Saran', 'bug', 'saran'], required: true },
+  judul: { type: String, required: true },
+  deskripsi: { type: String, required: true },
+  device_info: { type: String, default: '' },
+  app_version: { type: String, default: '' },
+  telegram_sent: { type: Boolean, default: false },
+  telegram_error: { type: String, default: null },
+}, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
+
 const User     = mongoose.model('User', UserSchema);
 const Akun     = mongoose.model('Akun', AkunSchema);
 const Transaksi = mongoose.model('Transaksi', TransaksiSchema);
 const Anggaran = mongoose.model('Anggaran', AnggaranSchema);
 const Goal     = mongoose.model('Goal', GoalSchema);
+const Feedback = mongoose.model('Feedback', FeedbackSchema);
 
-module.exports = { User, Akun, Transaksi, Anggaran, Goal };
+module.exports = { User, Akun, Transaksi, Anggaran, Goal, Feedback };
 

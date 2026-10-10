@@ -12,6 +12,7 @@ const laporanRoutes = require('./routes/laporan');
 const aiRoutes      = require('./routes/ai');
 const scanRoutes    = require('./routes/scan');
 const updateRoutes  = require('./routes/update');
+const feedbackRoutes = require('./routes/feedback');
 
 const app = express();
 // Railway provides PORT automatically; fallback to 3000 locally
@@ -32,6 +33,7 @@ app.use('/api/laporan', laporanRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/scan', scanRoutes);
 app.use('/api/import', scanRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 
 // Health check

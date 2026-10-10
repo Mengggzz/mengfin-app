@@ -81,7 +81,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
           TextField(
             keyboardType: TextInputType.number,
             style:  TextStyle(color: AppColors.textPrimary),
-            decoration: InputDecoration(hintText: '100.000', hintStyle:  TextStyle(color: AppColors.textMuted),
+            decoration: InputDecoration(hintText: '0', hintStyle:  TextStyle(color: AppColors.textMuted),
               filled: true, fillColor: AppColors.bgElevated,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.glassBorder)),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: AppColors.glassBorder)),

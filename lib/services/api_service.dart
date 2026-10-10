@@ -1490,4 +1490,21 @@ class ApiService {
     
     return false;
   }
+
+  /// Kirim feedback / laporan bug / saran ke backend (terusan ke Telegram).
+  static Future<Map<String, dynamic>> sendFeedback({
+    required String jenis,
+    required String judul,
+    required String deskripsi,
+    String? deviceInfo,
+    String? appVersion,
+  }) async {
+    return _post('/feedback', {
+      'jenis': jenis,
+      'judul': judul,
+      'deskripsi': deskripsi,
+      'device_info': deviceInfo ?? '',
+      'app_version': appVersion ?? '',
+    });
+  }
 }

@@ -145,7 +145,7 @@ class _SaldoScreenState extends State<SaldoScreen> {
             keyboardType: TextInputType.number,
             style:  TextStyle(color: AppColors.textPrimary),
             decoration: InputDecoration(
-              hintText: '1.500.000', hintStyle:  TextStyle(color: AppColors.textMuted),
+              hintText: '0', hintStyle:  TextStyle(color: AppColors.textMuted),
               filled: true, fillColor: AppColors.bgElevated,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
