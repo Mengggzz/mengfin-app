@@ -70,9 +70,13 @@ class _SeasonBackgroundState extends State<SeasonBackground>
     final season = themeService.season;
     final isAnimEnabled = themeService.animasiBackground;
     final bgColor = AppColors.bg;
+    final disableAnimations = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
-    // Catatan Bug D: Mengabaikan preferensi MediaQuery.disableAnimations sistem
-    // agar animasi partikel tetap tampil ketika toggle "Animasi Background" aktif di aplikasi.
+    // Log debug sementara (Task 5 Bug D)
+    debugPrint('[SeasonBackground] build: season=${season.name}, isAnimEnabled=$isAnimEnabled, systemDisableAnimations=$disableAnimations');
+
+    // Catatan Bug D & Task 5 (Keputusan Nanda): Mengabaikan preferensi MediaQuery.disableAnimations sistem
+    // sehingga hanya toggle "Animasi Background" di aplikasi yang menentukan kemunculan partikel.
     if (!isAnimEnabled) {
       return Container(
         color: bgColor,

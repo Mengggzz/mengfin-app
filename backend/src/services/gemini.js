@@ -502,6 +502,7 @@ module.exports = {
   normalizeMetode,
   parseTransaksiDariTeks,
   tanyaAIAdvisor,
+  generateFallbackAdvisorResponse,
   scanNota,
   scanMutasi,
   generateInsight,

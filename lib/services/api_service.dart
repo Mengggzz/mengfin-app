@@ -1318,16 +1318,49 @@ class ApiService {
     return list;
   }
 
+  /// Kirim PDF e-statement (base64) ke backend untuk diekstrak jadi daftar transaksi + log tahapan.
+  static Future<Map<String, dynamic>> importEStatementDetail(String pdfBase64) async {
+    try {
+      final res = await _post('/scan/estatement', {
+        'pdfBase64': pdfBase64,
+        'mimeType': 'application/pdf',
+      }, timeout: const Duration(seconds: 60));
+      final list = (res['data'] as List?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList() ?? [];
+      final log = (res['log'] as List?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList() ?? [];
+      return {
+        'data': list,
+        'log': log,
+      };
+    } catch (e) {
+      final raw = e.toString();
+      final idx = raw.indexOf('{');
+      if (idx != -1) {
+        try {
+          final jsonMap = jsonDecode(raw.substring(idx)) as Map<String, dynamic>;
+          return {
+            'error': jsonMap['error'] ?? raw,
+            'failed_stage': jsonMap['failed_stage'],
+            'log': (jsonMap['log'] as List?)
+                ?.map((item) => Map<String, dynamic>.from(item as Map))
+                .toList() ?? [],
+          };
+        } catch (_) {}
+      }
+      rethrow;
+    }
+  }
+
   /// Kirim PDF e-statement (base64) ke backend untuk diekstrak jadi daftar transaksi.
   static Future<List<Map<String, dynamic>>> importEStatement(String pdfBase64) async {
-    final res = await _post('/scan/estatement', {
-      'pdfBase64': pdfBase64,
-      'mimeType': 'application/pdf',
-    }, timeout: const Duration(seconds: 60));
-    final list = (res['data'] as List?)
-        ?.map((e) => Map<String, dynamic>.from(e as Map))
-        .toList() ?? [];
-    return list;
+    final res = await importEStatementDetail(pdfBase64);
+    if (res.containsKey('error') && res['error'] != null) {
+      throw Exception(res['error']);
+    }
+    return (res['data'] as List<Map<String, dynamic>>?) ?? [];
   }
 
   // ── Laporan: narasi AI ─────────────────────────────────────────────────────

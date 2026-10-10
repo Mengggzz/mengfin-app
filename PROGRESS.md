@@ -1,13 +1,36 @@
-# Lanjutan pekerjaan cashflow — status per 8 Okt 2026
+# Lanjutan pekerjaan cashflow — status per 10 Okt 2026 (Bugfix Round 4)
 
 Berkas ini catatan proses supaya bisa dilanjutkan. Hapus kalau sudah selesai.
 
 ## STATUS SAAT INI (baca dulu)
-Semua 14 Task Fase A (Optimasi APK & Fitur Baru) SELESAI dan teruji:
-- 158/158 flutter test lulus (termasuk unit test StrukParser, CsvImportService, DB migration, AppPrefs, AI Latency, Theme, dll).
+Semua perbaikan Fase A (Task 1–6) dari Task List Round 4 SELESAI dan teruji:
+- `backend/test_estatement.js`: 5/5 suite lulus (deterministic SeaBank, layout asli TABUNGAN, footer phone numbers, validation chain, reject non-pdf).
+- `backend/test_dompet_duplikasi.js`: Lulus (GET /akun read-only, konfirmasi tanpa akun siluman).
+- `flutter test`: 168/168 test lulus (termasuk saldo sync, permanent_failed queue, biometric lifecycle, dll).
 - `flutter analyze`: 0 error.
-- `flutter build web --release`: Sukses (124.2s).
-- CI Workflow di `.github/workflows/build.yml` diperbarui untuk build release APK split-per-abi (<25 MB per APK) + Dart code obfuscation.
+- `flutter build web --release`: Sukses (172.0s), 0 `localhost:3000` di JS bundle.
+
+### Rincian Perbaikan Round 4 (Fase A):
+1. **Task 1 — Parser SeaBank `parseSeabankText` (`backend/src/services/estatement.js`)**:
+   - Ekstraksi ringkasan dijangkar ke baris `TABUNGAN` (`text.match(/^.*TABUNGAN(\d[\d.,]*).*$/m)`) sehingga tidak tertipu tanggal periode `"01 SEP 2026"`.
+   - Kandidat pasangan nominal & saldo diuji dari seluruh token secara mundur (backward pass); token sebelum blob angka otomatis menjadi deskripsi bersih dari nomor telepon footer CS (`+6221 5086 7070`).
+   - Rantai saldo $|saldo_i - saldo_{i-1}| == nominal$ dan arah transaksi presisi.
+2. **Task 2 — Transparansi AI Fallback Gemini (`backend/src/services/estatement.js`)**:
+   - Loop `CANDIDATE_MODELS` menangkap error per model dengan `console.error` dan melempar pesan detail `"AI gagal: <sebab>"`, bukan menelan error diam-diam.
+3. **Task 3 — Log Tahapan E-Statement (`backend/src/routes/scan.js`, `estatement.js`, `lib/screens/import_csv_screen.dart`, `lib/services/api_service.dart`)**:
+   - Backend membangun array `stages[]` (`extract`, `detect`, `parse`, `ai_fallback`) dan menyertakannya di respons HTTP.
+   - Frontend `ImportCsvScreen`: elapsed timer detik + tombol Batal saat proses; seksi collapsible "Log Proses" berisi tiap tahapan eksekusi dan durasi ms; card error menampilkan tahap yang gagal (`failed_stage`).
+4. **Task 4 — Hardening Sinkronisasi (`backend/src/routes/akun.js`, `lib/services/local_db.dart`, `lib/services/sync_service.dart`, `lib/screens/more_screen.dart`)**:
+   - 4a: `GET /akun` backend read-only murni (return `[]` jika kosong tanpa auto-create dompet).
+   - 4b: `reconcileAkunSaldo()` selalu dipanggil pasca-pull di semua jalur sinkronisasi. Kasus Rp 2.000.000 − Rp 31.000 $\rightarrow$ Rp 1.969.000 terverifikasi.
+   - 4c: Item gagal permanen (404/400/validasi/retry >= 5) ditandai `permanent_failed`, diabaikan dari `getQueue()` agar tidak di-loop selamanya, dan disurface ke user di `_SyncLogSheet`.
+   - 4d: Cek kesehatan sync saat `pullFromServer()` membandingkan jumlah transaksi & akun lokal vs server; memicu rekonsiliasi otomatis jika ada diskrepansi.
+   - 4e: Di `MoreScreen` ("Bersihkan & Reset"), `pullFromServer()` kini di-`await` di dalam dialog progres putar sebelum menampilkan SnackBar sukses, mencegah user melihat saldo 0 sementara.
+5. **Task 5 — Partikel Musim (`lib/widgets/season_background.dart`)**:
+   - Log debug pencatatan parameter render partikel ditambahkan. Partikel 6–14px, opacity 0.35–0.70, kecepatan 2x, dan bypass `disableAnimations` sistem terdokumentasi.
+6. **Task 6 — Fallback AI Jujur (`backend/src/services/gemini.js`)**:
+   - Timeout backend dinaikkan ke 20s (`withTimeout(..., 20000)`).
+   - Fallback untuk input bebas/tak dikenal saat AI offline menjawab jujur *"Maaf, AI sedang tidak bisa dihubungi..."*, bukan dump "📊 Analisis Keuangan". Input hapus transaksi mengembalikan panduan terarah.
 
 ### Fitur & Optimasi Baru yang Selesai (Fase A):
 1. **Package Name `com.mengfin`**: `build.gradle.kts`, `MainActivity.kt` di package `com.mengfin`.

@@ -69,14 +69,37 @@ function parseSeabankText(text, defaultYear) {
   let saldoAwal = null;
   let saldoAkhirRingkasan = null;
 
-  // Ekstrak informasi Ringkasan Rekening jika ada
-  const ringkasanMatch = text.match(/RINGKASAN\s+REKENING[\s\S]*?RINCIAN\s+TRANSAKSI/i);
-  if (ringkasanMatch) {
-    const rText = ringkasanMatch[0];
-    const nums = [...rText.matchAll(/(?<!\d)(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d+)(?!\d)/g)];
-    const validNums = nums.map(x => x[1]).filter(isValidNumberString).map(parseIndoNumber);
-    if (validNums.length >= 1) saldoAwal = validNums[0];
-    if (validNums.length >= 2) saldoAkhirRingkasan = validNums[validNums.length - 1];
+  // 1. Ekstraksi ringkasan dijangkar ke baris TABUNGAN
+  const tabunganMatch = text.match(/^.*TABUNGAN(\d[\d.,]*).*$/m);
+  if (tabunganMatch) {
+    const tn = [...tabunganMatch[1].matchAll(/\d{1,3}(?:\.\d{3})+/g)]
+      .map(x => parseIndoNumber(x[0]));
+    // tn = [saldoAwal, keluar, masuk, saldoAkhir]
+    if (tn.length >= 1) saldoAwal = tn[0];
+    if (tn.length >= 4) saldoAkhirRingkasan = tn[3];
+    else if (tn.length >= 2) saldoAkhirRingkasan = tn[tn.length - 1];
+  }
+
+  // Fallback saldoAkhirRingkasan dari TOTAL: bila baris TABUNGAN tak ketemu
+  if (saldoAkhirRingkasan === null) {
+    const totalMatch = text.match(/TOTAL:\s*(\d{1,3}(?:\.\d{3})+)/i);
+    if (totalMatch) {
+      saldoAkhirRingkasan = parseIndoNumber(totalMatch[1]);
+    }
+  }
+
+  // Fallback saldoAwal jika TABUNGAN tidak cocok (misal sample mock)
+  if (saldoAwal === null) {
+    const ringkasanMatch = text.match(/RINGKASAN\s+REKENING[\s\S]*?RINCIAN\s+TRANSAKSI/i);
+    if (ringkasanMatch) {
+      const rText = ringkasanMatch[0];
+      const nums = [...rText.matchAll(/(?<!\d)(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d{4,9})(?!\d)/g)];
+      const validNums = nums.map(x => x[1]).filter(isValidNumberString).map(parseIndoNumber);
+      if (validNums.length >= 1) saldoAwal = validNums[0];
+      if (saldoAkhirRingkasan === null && validNums.length >= 2) {
+        saldoAkhirRingkasan = validNums[validNums.length - 1];
+      }
+    }
   }
 
   let runningSaldo = saldoAwal;
@@ -127,41 +150,47 @@ function parseSeabankText(text, defaultYear) {
     let matched = null;
     const candidates = [];
 
-    // Opsi A: Dua token terpisah spasi di ujung (misal "500,000 1,500,000" atau "19 410.535")
-    if (tokens.length >= 2) {
-      const tNom = tokens[tokens.length - 2];
-      const tSal = tokens[tokens.length - 1];
-      if (isValidNumberString(tNom) && isValidNumberString(tSal)) {
-        const nom = parseIndoNumber(tNom);
-        const sal = parseIndoNumber(tSal);
-        const desc = tokens.slice(0, tokens.length - 2).join(' ').trim();
-        if (nom > 0) {
-          candidates.push({
-            desc,
-            nom,
-            sal,
-            type: 'spaced',
-          });
+    // 2. Kandidat dari SEMUA posisi token (iterasi dari belakang):
+    // (a) Tiap pasangan token bersebelahan sebagai nominal+saldo
+    // (b) Tiap split tiap token sebagai nominal+saldo menempel
+    // deskripsi = token SEBELUM blob (otomatis bersih dari footer)
+    for (let p = tokens.length - 1; p >= 0; p--) {
+      // (a) Spaced pair
+      if (p >= 1) {
+        const tNom = tokens[p - 1];
+        const tSal = tokens[p];
+        if (isValidNumberString(tNom) && isValidNumberString(tSal)) {
+          const nom = parseIndoNumber(tNom);
+          const sal = parseIndoNumber(tSal);
+          const desc = tokens.slice(0, p - 1).join(' ').trim();
+          if (nom > 0) {
+            candidates.push({
+              desc,
+              nom,
+              sal,
+              type: 'spaced',
+            });
+          }
         }
       }
-    }
 
-    // Opsi B: Token terakhir menempel (misal "39.900370.635" atau "28410.535")
-    const lastToken = tokens[tokens.length - 1];
-    const descForGlued = tokens.slice(0, tokens.length - 1).join(' ').trim();
-    for (let k = 1; k < lastToken.length; k++) {
-      const left = lastToken.slice(0, k);
-      const right = lastToken.slice(k);
-      if (isValidNumberString(left) && isValidNumberString(right)) {
-        const nom = parseIndoNumber(left);
-        const sal = parseIndoNumber(right);
-        if (nom > 0) {
-          candidates.push({
-            desc: descForGlued,
-            nom,
-            sal,
-            type: 'glued',
-          });
+      // (b) Glued split
+      const lastToken = tokens[p];
+      const descForGlued = tokens.slice(0, p).join(' ').trim();
+      for (let k = 1; k < lastToken.length; k++) {
+        const left = lastToken.slice(0, k);
+        const right = lastToken.slice(k);
+        if (isValidNumberString(left) && isValidNumberString(right)) {
+          const nom = parseIndoNumber(left);
+          const sal = parseIndoNumber(right);
+          if (nom > 0) {
+            candidates.push({
+              desc: descForGlued,
+              nom,
+              sal,
+              type: 'glued',
+            });
+          }
         }
       }
     }
@@ -265,16 +294,23 @@ Kembalikan HANYA JSON berformat:
 }`;
 
   let textRes;
+  let lastError = null;
   for (const modelName of CANDIDATE_MODELS) {
     try {
       const model = genAI.getGenerativeModel({ model: modelName });
       const res = await model.generateContent(prompt);
       textRes = res.response.text();
-      break;
-    } catch (_) {}
+      if (textRes) break;
+    } catch (err) {
+      lastError = err;
+      console.error(`[Gemini E-Statement] Model ${modelName} gagal:`, err.message || err);
+    }
   }
 
-  if (!textRes) throw new Error('Model AI tidak mengembalikan respon');
+  if (!textRes) {
+    const reason = lastError ? (lastError.message || String(lastError)) : 'tidak ada respon';
+    throw new Error(`AI gagal: ${reason}`);
+  }
 
   const parsed = extractJson(textRes);
   const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.transaksi) ? parsed.transaksi : []);
@@ -289,41 +325,105 @@ Kembalikan HANYA JSON berformat:
 }
 
 async function parseEStatementPdf(pdfBuffer) {
+  const stages = [];
+  const t0 = Date.now();
+
+  function addStage(stage, ok, detail, startMs) {
+    const ms = Date.now() - (startMs || t0);
+    const item = { stage, ok, detail, ms };
+    stages.push(item);
+    console.log(`[E-Statement Stage] [${stage}] ${ok ? 'OK' : 'FAIL'}: ${detail} (${ms}ms)`);
+    return item;
+  }
+
   if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
-    throw new Error('Data berkas PDF tidak valid');
+    addStage('extract', false, 'Data berkas PDF tidak valid');
+    const err = new Error('Data berkas PDF tidak valid');
+    err.stages = stages;
+    err.stage = 'extract';
+    throw err;
   }
 
   if (pdfBuffer.length > 10 * 1024 * 1024) {
-    throw new Error('Ukuran file melebihi batas 10 MB');
+    addStage('extract', false, 'Ukuran file melebihi batas 10 MB');
+    const err = new Error('Ukuran file melebihi batas 10 MB');
+    err.stages = stages;
+    err.stage = 'extract';
+    throw err;
   }
 
   // Cek magic header PDF
   const header = pdfBuffer.slice(0, 5).toString('ascii');
   if (!header.startsWith('%PDF')) {
-    throw new Error('File harus berformat PDF asli');
+    addStage('extract', false, 'Bukan file PDF asli (header magic mismatch)');
+    const err = new Error('File harus berformat PDF asli');
+    err.stages = stages;
+    err.stage = 'extract';
+    throw err;
   }
 
-  const parsedPdf = await pdfParse(pdfBuffer);
+  // 1. Tahap Extract
+  const extractStart = Date.now();
+  let parsedPdf;
+  try {
+    parsedPdf = await pdfParse(pdfBuffer);
+  } catch (err) {
+    addStage('extract', false, `Ekstraksi teks gagal: ${err.message || err}`, extractStart);
+    const e = new Error(`Ekstraksi PDF gagal: ${err.message || err}`);
+    e.stages = stages;
+    e.stage = 'extract';
+    throw e;
+  }
+
   const rawText = (parsedPdf.text || '').trim();
-
-  // Validasi jika PDF scan/foto tanpa layer teks
+  const numPages = parsedPdf.numpages || 1;
   if (rawText.length < 50) {
-    throw new Error('PDF ini hasil scan gambar, tidak bisa dibaca. Gunakan e-statement asli dari aplikasi bank.');
+    addStage('extract', false, `Teks terlalu pendek (${rawText.length} karakter, ${numPages} hal) — terdeteksi scan gambar`, extractStart);
+    const err = new Error('PDF ini hasil scan gambar, tidak bisa dibaca. Gunakan e-statement asli dari aplikasi bank.');
+    err.stages = stages;
+    err.stage = 'extract';
+    throw err;
   }
+  addStage('extract', true, `${rawText.length} karakter, ${numPages} halaman`, extractStart);
 
+  // 2. Tahap Detect
+  const detectStart = Date.now();
+  const isSeaBank = rawText.toUpperCase().includes('SEABANK') || rawText.toUpperCase().includes('TABUNGAN - RINCIAN TRANSAKSI');
+  const bankName = isSeaBank ? 'SeaBank' : 'Bank Umum / Lainnya';
   const year = parsePeriodeYear(rawText);
+  addStage('detect', true, `Bank: ${bankName}, Tahun Periode: ${year}`, detectStart);
 
-  // 1. Jalur deterministik SeaBank
-  if (rawText.toUpperCase().includes('SEABANK') || rawText.toUpperCase().includes('TABUNGAN - RINCIAN TRANSAKSI')) {
+  // 3. Tahap Parse (deterministik SeaBank)
+  const parseStart = Date.now();
+  if (isSeaBank) {
     const seabankResults = parseSeabankText(rawText, year);
     if (seabankResults.length > 0) {
-      return seabankResults;
+      addStage('parse', true, `${seabankResults.length} transaksi diekstrak via parser SeaBank (validasi rantai sukses)`, parseStart);
+      return Object.assign(seabankResults, { data: seabankResults, log: stages });
+    } else {
+      addStage('parse', false, 'Parser SeaBank menghasilkan 0 baris valid atau validasi rantai gagal', parseStart);
     }
   }
 
-  // 2. Jalur Gemini AI (fallback SeaBank atau bank lain seperti BCA/Mandiri/BRI/BNI)
-  const aiResults = await parseEStatementWithGemini(rawText, year);
-  return aiResults;
+  // 4. Tahap AI Fallback (Gemini)
+  const aiStart = Date.now();
+  try {
+    const aiResults = await parseEStatementWithGemini(rawText, year);
+    if (!aiResults || aiResults.length === 0) {
+      addStage('ai_fallback', false, 'Parser AI tidak menemukan transaksi dalam teks e-statement', aiStart);
+      const err = new Error('Parser tidak menemukan transaksi pada dokumen ini');
+      err.stages = stages;
+      err.stage = 'ai_fallback';
+      throw err;
+    }
+    addStage('ai_fallback', true, `${aiResults.length} transaksi diekstrak via AI Gemini`, aiStart);
+    return Object.assign(aiResults, { data: aiResults, log: stages });
+  } catch (err) {
+    addStage('ai_fallback', false, err.message || 'AI fallback gagal', aiStart);
+    err.stages = stages;
+    err.stage = err.stage || 'ai_fallback';
+    throw err;
+  }
 }
 
 module.exports = {

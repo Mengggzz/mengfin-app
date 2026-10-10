@@ -886,6 +886,7 @@ class LocalDb {
     final d = await db;
     return d.rawQuery('''
       SELECT * FROM sync_queue 
+      WHERE status != 'permanent_failed' OR status IS NULL
       ORDER BY 
         CASE table_name 
           WHEN 'akun' THEN 1 
@@ -905,7 +906,13 @@ class LocalDb {
 
   static Future<int> getPendingCount() async {
     final d = await db;
-    final result = await d.rawQuery('SELECT COUNT(*) as c FROM sync_queue');
+    final result = await d.rawQuery("SELECT COUNT(*) as c FROM sync_queue WHERE status != 'permanent_failed' OR status IS NULL");
+    return (result.first['c'] as int? ?? 0);
+  }
+
+  static Future<int> getPermanentFailedCount() async {
+    final d = await db;
+    final result = await d.rawQuery("SELECT COUNT(*) as c FROM sync_queue WHERE status = 'permanent_failed'");
     return (result.first['c'] as int? ?? 0);
   }
 

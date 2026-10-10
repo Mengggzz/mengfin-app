@@ -113,6 +113,26 @@ class SyncService {
       AppEvents.instance.goalsBerubah();
       AppEvents.instance.akunBerubah();
 
+      // Cek kesehatan sync (Task 4d): verifikasi integritas dokumen lokal vs server
+      try {
+        final serverTxCount = txList.length;
+        final d = await LocalDb.db;
+        final localTxRows = await d.rawQuery('SELECT COUNT(*) as c FROM transaksi');
+        final localTxCount = (localTxRows.first['c'] as int?) ?? 0;
+
+        final serverAkunList = await ApiService.getAkunList();
+        final localAkunList = await LocalDb.getAkunList();
+
+        if (localTxCount != serverTxCount || localAkunList.length != serverAkunList.length) {
+          await LocalDb.reconcileAkunSaldo();
+          addLog(
+            'Cek Kesehatan Sync',
+            'Selisih terdeteksi (Tx: lokal $localTxCount vs server $serverTxCount, Akun: lokal ${localAkunList.length} vs server ${serverAkunList.length}) → Reconcile otomatis dijalankan.',
+            type: 'pull',
+          );
+        }
+      } catch (_) {}
+
       addLog('Data Cloud Selaras', 'Transaksi (${txList.length}), Dompet, dan Anggaran up-to-date.', type: 'pull');
     } catch (e) {
       addLog('Gagal Menarik Data', 'Koneksi terputus / server offline: $e', isError: true, type: 'pull');
@@ -333,14 +353,15 @@ class SyncService {
           final rawMsg = e.toString().replaceFirst('Exception: ', '');
           _lastError = rawMsg;
           final newRetry = retryCount + 1;
-          final isPermanent = rawMsg.contains('400') || rawMsg.contains('404') || rawMsg.contains('validation');
+          final isPermanent = rawMsg.contains('400') || rawMsg.contains('404') || rawMsg.contains('validation') || rawMsg.contains('validasi');
+          final isPermanentFailed = isPermanent || newRetry >= 5;
           
           await LocalDb.updateQueueItem(
             id,
             retryCount: newRetry,
             lastError: rawMsg,
             lastAttempt: DateTime.now().toIso8601String(),
-            status: (isPermanent && newRetry >= 5) ? 'permanent_failed' : 'failed',
+            status: isPermanentFailed ? 'permanent_failed' : 'failed',
           );
 
           addLog(

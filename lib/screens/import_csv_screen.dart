@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,12 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
   bool _loading = false;
   bool _saving = false;
   String? _error;
+  String? _failedStage;
+  List<Map<String, dynamic>> _processStages = [];
+  bool _logExpanded = false;
+  bool _cancelled = false;
+  int _elapsedSeconds = 0;
+  Timer? _timer;
   List<Akun> _akuns = [];
   String? _targetAkunId;
 
@@ -29,6 +36,12 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
   void initState() {
     super.initState();
     _loadAkuns();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadAkuns() async {
@@ -40,10 +53,32 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
     });
   }
 
+  void _cancelImport() {
+    _cancelled = true;
+    _timer?.cancel();
+    setState(() {
+      _loading = false;
+      _error = 'Proses import dibatalkan.';
+    });
+  }
+
   Future<void> _pickFile() async {
+    _timer?.cancel();
+    _elapsedSeconds = 0;
+    _cancelled = false;
     setState(() {
       _error = null;
+      _failedStage = null;
+      _processStages = [];
       _loading = true;
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted || !_loading) {
+        t.cancel();
+        return;
+      }
+      setState(() => _elapsedSeconds++);
     });
 
     try {
@@ -53,7 +88,10 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
         withData: true,
       );
 
+      if (_cancelled) return;
+
       if (result == null || result.files.isEmpty) {
+        _timer?.cancel();
         setState(() => _loading = false);
         return;
       }
@@ -61,6 +99,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
       final file = result.files.first;
       final bytes = file.bytes;
       if (bytes == null) {
+        _timer?.cancel();
         setState(() {
           _loading = false;
           _error = 'Gagal membaca berkas.';
@@ -70,10 +109,35 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
 
       final isPdf = file.name.toLowerCase().endsWith('.pdf');
       List<Map<String, dynamic>> rows = [];
+      List<Map<String, dynamic>> stages = [];
 
       if (isPdf) {
         final base64 = base64Encode(bytes);
-        rows = await ApiService.importEStatement(base64);
+        final detailRes = await ApiService.importEStatementDetail(base64);
+        if (_cancelled) return;
+        _timer?.cancel();
+
+        if (detailRes.containsKey('error') && detailRes['error'] != null) {
+          setState(() {
+            _loading = false;
+            _error = detailRes['error'].toString();
+            _failedStage = detailRes['failed_stage']?.toString();
+            _processStages = (detailRes['log'] as List?)
+                    ?.map((e) => Map<String, dynamic>.from(e as Map))
+                    .toList() ??
+                [];
+          });
+          return;
+        }
+
+        rows = (detailRes['data'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList() ??
+            [];
+        stages = (detailRes['log'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList() ??
+            [];
       } else {
         String rawCsv;
         try {
@@ -82,11 +146,15 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
           rawCsv = latin1.decode(bytes);
         }
         rows = CsvImportService.parseCsvContent(rawCsv);
+        _timer?.cancel();
       }
+
+      if (_cancelled) return;
 
       setState(() {
         _fileName = file.name;
         _parsedRows = rows;
+        _processStages = stages;
         _selectedIndices.clear();
         for (int i = 0; i < rows.length; i++) {
           _selectedIndices.add(i);
@@ -97,7 +165,8 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
         }
       });
     } catch (e) {
-      if (!mounted) return;
+      _timer?.cancel();
+      if (!mounted || _cancelled) return;
       String errMsg = e.toString();
       final m = RegExp(r'"error"\s*:\s*"([^"]+)"').firstMatch(errMsg);
       if (m != null) errMsg = m.group(1)!;
@@ -176,8 +245,17 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildUploadCard(),
-          const SizedBox(height: 14),
+          if (_loading) ...[
+            _buildLoadingCard(),
+            const SizedBox(height: 14),
+          ] else ...[
+            _buildUploadCard(),
+            const SizedBox(height: 14),
+          ],
+          if (_processStages.isNotEmpty) ...[
+            _buildProcessLogSection(),
+            const SizedBox(height: 14),
+          ],
           if (_error != null) ...[
             Container(
               padding: const EdgeInsets.all(12),
@@ -191,9 +269,25 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                   Icon(Icons.error_outline, color: AppColors.expense, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      _error!,
-                      style: TextStyle(color: AppColors.expense, fontSize: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_failedStage != null) ...[
+                          Text(
+                            'Gagal pada tahap: [${_failedStage!.toUpperCase()}]',
+                            style: TextStyle(
+                              color: AppColors.expense,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                        ],
+                        Text(
+                          _error!,
+                          style: TextStyle(color: AppColors.expense, fontSize: 12),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -309,6 +403,153 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                       'Impor (${_selectedIndices.length}) Transaksi',
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                     ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          const SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(strokeWidth: 3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Sedang Memproses Berkas...',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Elapsed: $_elapsedSeconds detik',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _cancelImport,
+            icon: Icon(Icons.close, size: 16, color: AppColors.expense),
+            label: Text(
+              'Batal',
+              style: TextStyle(color: AppColors.expense, fontWeight: FontWeight.w600),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: AppColors.expense.withValues(alpha: 0.5)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProcessLogSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _logExpanded = !_logExpanded),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.terminal_rounded, size: 18, color: AppColors.accent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Log Proses (${_processStages.length} Tahap)',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _logExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: AppColors.textMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_logExpanded) ...[
+            const Divider(height: 1),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(12),
+              itemCount: _processStages.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, idx) {
+                final s = _processStages[idx];
+                final ok = s['ok'] == true;
+                final stage = (s['stage'] ?? '').toString().toUpperCase();
+                final detail = s['detail']?.toString() ?? '';
+                final ms = s['ms']?.toString() ?? '0';
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      ok ? Icons.check_circle_outline : Icons.cancel_outlined,
+                      size: 16,
+                      color: ok ? AppColors.income : AppColors.expense,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                stage,
+                                style: TextStyle(
+                                  color: ok ? AppColors.textPrimary : AppColors.expense,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${ms}ms',
+                                style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            detail,
+                            style: TextStyle(color: AppColors.textSecond, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ],

@@ -546,22 +546,71 @@ class MoreScreen extends StatelessWidget {
             ),
             onPressed: () async {
               Navigator.pop(ctx);
-              await LocalDb.clearAll();
-              AppEvents.instance.transaksiBerubah();
-              AppEvents.instance.akunBerubah();
-              AppEvents.instance.anggaranBerubah();
-              AppEvents.instance.goalsBerubah();
-              AppEvents.instance.notifDraftBerubah();
-              if (ConnectivityService.instance.isOnline) {
-                SyncService.instance.pullFromServer();
-              }
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Data lokal berhasil dibersihkan!'),
-                    backgroundColor: AppColors.success,
-                  ),
-                );
+
+              BuildContext? progressCtx;
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (dCtx) {
+                  progressCtx = dCtx;
+                  return AlertDialog(
+                    backgroundColor: AppColors.bgCard,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    content: Row(
+                      children: [
+                        const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            'Membersihkan data & memulihkan dari server...',
+                            style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+
+              try {
+                await LocalDb.clearAll();
+                if (ConnectivityService.instance.isOnline) {
+                  await SyncService.instance.pullFromServer();
+                }
+                AppEvents.instance.transaksiBerubah();
+                AppEvents.instance.akunBerubah();
+                AppEvents.instance.anggaranBerubah();
+                AppEvents.instance.goalsBerubah();
+                AppEvents.instance.notifDraftBerubah();
+
+                if (progressCtx != null && progressCtx!.mounted) {
+                  Navigator.pop(progressCtx!);
+                }
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Data berhasil direset dan diselaraskan dari cloud!'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (progressCtx != null && progressCtx!.mounted) {
+                  Navigator.pop(progressCtx!);
+                }
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Pembersihan lokal selesai, namun sync gagal: $e'),
+                      backgroundColor: AppColors.warning,
+                    ),
+                  );
+                }
               }
             },
             child: const Text('Bersihkan & Reset'),
@@ -749,6 +798,7 @@ class _SyncLogSheetState extends State<_SyncLogSheet> {
   bool _syncing = false;
   int _queueCount = 0;
   int _queueFailed = 0;
+  int _queuePermFailed = 0;
   String? _queueError;
 
   @override
@@ -760,11 +810,12 @@ class _SyncLogSheetState extends State<_SyncLogSheet> {
   Future<void> _loadQueue() async {
     final d = await LocalDb.db;
     final count = await LocalDb.getQueueCount();
+    final permFailed = await LocalDb.getPermanentFailedCount();
     int failed = 0;
     String? lastErr;
     try {
       final rows = await d.rawQuery(
-          "SELECT COUNT(*) as c FROM sync_queue WHERE retry_count > 0");
+          "SELECT COUNT(*) as c FROM sync_queue WHERE retry_count > 0 AND (status != 'permanent_failed' OR status IS NULL)");
       failed = (rows.first['c'] as int?) ?? 0;
       final errRows = await d.rawQuery(
           "SELECT last_error FROM sync_queue WHERE last_error IS NOT NULL AND last_error != '' ORDER BY id DESC LIMIT 1");
@@ -774,6 +825,7 @@ class _SyncLogSheetState extends State<_SyncLogSheet> {
       setState(() {
         _queueCount = count;
         _queueFailed = failed;
+        _queuePermFailed = permFailed;
         _queueError = lastErr;
       });
     }
@@ -893,6 +945,15 @@ class _SyncLogSheetState extends State<_SyncLogSheet> {
                     fontSize: 11, fontWeight: FontWeight.w700)),
                 ]),
               ]),
+              if (_queuePermFailed > 0) ...[
+                const Divider(height: 16, thickness: 0.5),
+                Row(children: [
+                  Icon(Icons.report_problem_rounded, size: 14, color: AppColors.expense),
+                  const SizedBox(width: 6),
+                  Text('$_queuePermFailed item gagal permanen (tidak akan dicoba lagi)',
+                      style: TextStyle(color: AppColors.expense, fontSize: 10, fontWeight: FontWeight.w700)),
+                ]),
+              ],
               if (_queueFailed > 0) ...[
                 const Divider(height: 16, thickness: 0.5),
                 Row(children: [

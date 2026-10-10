@@ -134,6 +134,38 @@ assert.strictEqual(octTxs[4].nominal, 155000);
 assert.strictEqual(octTxs[4].jenis, 'pemasukan');
 console.log('Pass: parseSeabankText token menempel (glued) & arah transaksi benar');
 
+// 4b. Test SeaBank Layout Asli dengan TABUNGAN glued & Footer nomor telepon di belakang blob
+const sampleSeabankRealGluedFooter = `
+PT BANK SEABANK INDONESIA
+REKENING KORAN / STATEMENT OF ACCOUNT
+PERIODE / PERIOD : 01/09/2026 - 30/09/2026
+RINGKASAN REKENING
+TABUNGAN127.1724.418.4605.617.9573.341.346
+TOTAL: 3.341.346
+
+TABUNGAN - RINCIAN TRANSAKSI
+01 SEP Bunga Tabungan 9 127.181 +6221 5086 7070 NO. REKENING SEABANK: 9012345678
+02 SEP ShopeePay Transfer 45.255 172.436 +6221 5086 7070
+03 SEP ELLYA NOER AFIFA Transfer 3.475.000 3.647.436 +6221 5086 7070
+04 SEP Bnet Fiber Internet 306.090 3.341.346 +6221 5086 7070
+`;
+
+const realTxs = parseSeabankText(sampleSeabankRealGluedFooter, '2026');
+assert.strictEqual(realTxs.length, 4);
+assert.strictEqual(realTxs[0].nominal, 9);
+assert.strictEqual(realTxs[0].jenis, 'pemasukan');
+assert.strictEqual(realTxs[0].deskripsi, 'Bunga Tabungan');
+assert.strictEqual(realTxs[1].nominal, 45255);
+assert.strictEqual(realTxs[1].jenis, 'pemasukan');
+assert.strictEqual(realTxs[1].deskripsi, 'ShopeePay Transfer');
+assert.strictEqual(realTxs[2].nominal, 3475000);
+assert.strictEqual(realTxs[2].jenis, 'pemasukan');
+assert.strictEqual(realTxs[2].deskripsi, 'ELLYA NOER AFIFA Transfer');
+assert.strictEqual(realTxs[3].nominal, 306090);
+assert.strictEqual(realTxs[3].jenis, 'pengeluaran');
+assert.strictEqual(realTxs[3].deskripsi, 'Bnet Fiber Internet');
+console.log('Pass: parseSeabankText layout SeaBank asli TABUNGAN & footer nomor telepon teratasi sempurna');
+
 // 5. Test Bukan PDF
 (async () => {
   try {

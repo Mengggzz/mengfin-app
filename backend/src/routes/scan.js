@@ -94,20 +94,31 @@ router.post('/estatement', async (req, res) => {
       return res.status(400).json({ error: 'Ukuran file melebihi batas 10 MB' });
     }
 
-    const results = await parseEStatementPdf(buffer);
+    const result = await parseEStatementPdf(buffer);
+    const results = Array.isArray(result) ? result : (result.data || []);
+    const stages = result.log || [];
 
     if (!results || results.length === 0) {
       return res.status(422).json({
         error: 'Tidak ditemukan transaksi pada e-statement PDF ini.',
         data: [],
+        log: stages,
       });
     }
 
-    res.json({ data: results, message: `${results.length} transaksi e-statement terdeteksi` });
+    res.json({
+      data: results,
+      log: stages,
+      message: `${results.length} transaksi e-statement terdeteksi`,
+    });
   } catch (err) {
     console.error('Import estatement error:', err.message || err);
     const msg = err.message || 'Terjadi kesalahan saat memproses e-statement PDF';
-    res.status(422).json({ error: msg });
+    res.status(422).json({
+      error: msg,
+      failed_stage: err.stage,
+      log: err.stages || [],
+    });
   }
 });
 

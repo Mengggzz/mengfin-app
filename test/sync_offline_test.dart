@@ -272,4 +272,45 @@ void main() {
       expect(pending.isEmpty, true);
     });
   });
+
+  group('Task 4c: antrean gagal permanen (permanent_failed)', () {
+    test('item permanent_failed diabaikan dari getQueue() dan getPendingCount()',
+        () async {
+      final d = await LocalDb.db;
+      // Masukkan 1 antrean normal
+      await LocalDb.enqueue(
+        method: 'POST',
+        path: '/transaksi',
+        body: '{"nominal":10000}',
+        localId: 'tx_normal_1',
+        tableName: 'transaksi',
+      );
+
+      // Masukkan 1 antrean gagal permanen (misal 404/validasi setelah retry >= 5)
+      final queueId = await d.insert('sync_queue', {
+        'method': 'POST',
+        'path': '/transaksi',
+        'body': '{"nominal":20000}',
+        'local_id': 'tx_perm_failed',
+        'table_name': 'transaksi',
+        'created_at': DateTime.now().toIso8601String(),
+        'retry_count': 5,
+        'status': 'permanent_failed',
+        'last_error': '404 Not Found',
+      });
+
+      final activeQueue = await LocalDb.getQueue();
+      expect(activeQueue.length, 1,
+          reason: 'Antrean aktif hanya boleh berisi item normal, bukan permanent_failed');
+      expect(activeQueue.first['local_id'], 'tx_normal_1');
+
+      final pendingCount = await LocalDb.getPendingCount();
+      expect(pendingCount, 1,
+          reason: 'Pending count tidak boleh mengikutsertakan item permanent_failed');
+
+      final permFailedCount = await LocalDb.getPermanentFailedCount();
+      expect(permFailedCount, 1,
+          reason: 'Permanent failed count harus mendeteksi item yang gagal permanen');
+    });
+  });
 }
