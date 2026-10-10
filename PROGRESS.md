@@ -71,11 +71,10 @@ Semua perbaikan Fase A (Task 1, 1b, 1c, 1d, 1e, 1f) dari Task List Round 5 SELES
 
 - Repo: `C:\Users\NAN\Desktop\cashflow`, branch `main`, remote
   https://github.com/Mengggzz/mengfin-app.git
-- Kondisi terakhir: HEAD `3f1bf02`, `flutter analyze` 0 error,
-  `flutter test` 125 lulus, `flutter build web --release` OK,
-  0 `localhost:3000` di `build/web/main.dart.js`. CI sukses tiap commit.
-- `flutter build apk` GAGAL lokal (JDK/Gradle 8.14.1 tidak cocok) —
-  serahkan ke CI "Build & Release APK" saja.
+- Kondisi terakhir: HEAD `6b3b382`, `flutter analyze` 0 error,
+  `flutter test` 175 lulus, `flutter build web --release` OK,
+  0 `localhost:3000` di `build/web/main.dart.js`. CI sukses rilis `v20261010-0745`.
+  Backend Railway live di `https://web-production-c21a6.up.railway.app/api`.
 
 ### TERBUKA — belum dikerjakan
 1. **Uji plugin notifikasi di HP** (tidak bisa di mesin ini):
