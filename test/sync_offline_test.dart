@@ -312,5 +312,32 @@ void main() {
       expect(permFailedCount, 1,
           reason: 'Permanent failed count harus mendeteksi item yang gagal permanen');
     });
+
+    test('Task 1b: getPendingDeleteTransaksiIds mengumpulkan ID dari sync_queue DELETE', () async {
+      final d = await LocalDb.db;
+      await d.delete('sync_queue');
+
+      // Enqueue DELETE untuk server ID 'srv_123'
+      await LocalDb.enqueue(
+        method: 'DELETE',
+        path: '/transaksi/srv_123',
+        body: '{}',
+        localId: 'del_tx_srv_123',
+        tableName: 'transaksi',
+      );
+
+      // Enqueue DELETE untuk local ID 'tx_local_456'
+      await LocalDb.enqueue(
+        method: 'DELETE',
+        path: '/transaksi/tx_local_456',
+        body: '{}',
+        localId: 'del_tx_tx_local_456',
+        tableName: 'transaksi',
+      );
+
+      final pendingDeleteIds = await LocalDb.getPendingDeleteTransaksiIds();
+      expect(pendingDeleteIds.contains('srv_123'), isTrue);
+      expect(pendingDeleteIds.contains('tx_local_456'), isTrue);
+    });
   });
 }

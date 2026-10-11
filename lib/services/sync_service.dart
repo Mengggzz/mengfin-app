@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import '../models/models.dart';
 import 'api_service.dart';
 import 'app_events.dart';
 import 'local_db.dart';
@@ -86,9 +88,28 @@ class SyncService {
     try {
       addLog('Menarik Data Cloud', 'Memperbarui transaksi, anggaran, dan dompet lokal...', type: 'pull');
       
-      // Pull transaksi
-      final txList = await ApiService.getTransaksiFromServer(limit: 200);
-      await LocalDb.upsertTransaksiBatch(txList, synced: true);
+      // Pull transaksi dengan paginasi loop (Task 1f)
+      final txList = <Transaksi>[];
+      int skip = 0;
+      const batchLimit = 200;
+      while (true) {
+        final batch = await ApiService.getTransaksiFromServer(limit: batchLimit, skip: skip);
+        txList.addAll(batch);
+        if (batch.length < batchLimit) break;
+        skip += batchLimit;
+      }
+
+      final pendingDeleteIds = kIsWeb ? <String>{} : await LocalDb.getPendingDeleteTransaksiIds();
+      final filteredTxList = pendingDeleteIds.isEmpty
+          ? txList
+          : txList.where((t) {
+              final idStr = t.id?.toString();
+              final localIdStr = t.localId?.toString();
+              if (idStr != null && pendingDeleteIds.contains(idStr)) return false;
+              if (localIdStr != null && pendingDeleteIds.contains(localIdStr)) return false;
+              return true;
+            }).toList();
+      await LocalDb.upsertTransaksiBatch(filteredTxList, synced: true);
 
       // Pull goals
       final goalList = await ApiService.getGoalsFromServer();

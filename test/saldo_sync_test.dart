@@ -358,5 +358,55 @@ void main() {
       list = await LocalDb.getAkunList();
       expect(list.isEmpty, isTrue, reason: 'Tidak boleh membuat dompet siluman tanpa izin');
     });
+
+    test('Task 1h: Hapus transaksi yatim TIDAK mengubah saldo dompet lain (tanpa uang phantom)', () async {
+      final d = await LocalDb.db;
+      await d.delete('akun');
+      await d.delete('transaksi');
+
+      // 1. Buat Dompet A (saldo 100.000) dan Dompet B (saldo 50.000)
+      await LocalDb.insertAkunLocal({
+        'nama': 'Dompet A',
+        'jenis': 'cashflow',
+        'saldo': 100000,
+        'warna': '#2563EB',
+        'ikon': 'cashflow',
+      }, 'akun_a');
+
+      await LocalDb.insertAkunLocal({
+        'nama': 'Dompet B',
+        'jenis': 'cashflow',
+        'saldo': 50000,
+        'warna': '#10B981',
+        'ikon': 'cashflow',
+      }, 'akun_b');
+
+      // 2. Catat transaksi pengeluaran di Dompet B
+      await LocalDb.insertTransaksiLocal({
+        'tanggal': '2026-10-10',
+        'jenis': 'pengeluaran',
+        'nominal': 20000,
+        'kategori': 'Makan & Minum',
+        'deskripsi': 'kopi',
+        'akun_id': 'akun_b',
+      }, 'tx_b_1');
+
+      // 3. Hapus Dompet B -> transaksi menjadi yatim (akun_id = NULL)
+      await LocalDb.deleteAkun('akun_b');
+
+      // Cek saldo Dompet A tetap 100.000
+      var akuns = await LocalDb.getAkunList();
+      expect(akuns.length, 1);
+      expect(akuns.first.id, 'akun_a');
+      expect(akuns.first.saldo, 100000);
+
+      // 4. Hapus transaksi yatim tersebut
+      await LocalDb.deleteTransaksi('tx_b_1');
+
+      // 5. Saldo Dompet A TIDAK BOLEH berubah bertambah jadi 120.000 (tidak ada uang phantom)
+      akuns = await LocalDb.getAkunList();
+      expect(akuns.first.saldo, 100000,
+          reason: 'Reversal transaksi yatim tidak boleh dialihkan ke Dompet A');
+    });
   });
 }

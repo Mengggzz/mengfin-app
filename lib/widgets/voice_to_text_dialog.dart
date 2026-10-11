@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../constants/app_colors.dart';
 import '../constants/utils.dart';
 import '../services/api_service.dart';
+import '../services/app_prefs.dart';
+import '../services/local_db.dart';
 
 /// Voice → transaksi otomatis.
 /// Alur: rekam suara → transkripsi → kirim ke AI (/ai/chat) →
@@ -93,7 +96,9 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
     final text = raw.trim();
     if (text.isEmpty ||
         _stage == _VoiceStage.parsing ||
-        _stage == _VoiceStage.saving) {
+        _stage == _VoiceStage.saving ||
+        _stage == _VoiceStage.done ||
+        _savedTx != null) {
       _processing = false;
       return;
     }
@@ -116,6 +121,18 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
         if (!mounted) return;
         setState(() => _stage = _VoiceStage.saving);
         final data = Map<String, dynamic>.from(res['data'] as Map);
+        if (data['nama_akun'] == null && !kIsWeb) {
+          try {
+            final akuns = await LocalDb.getAkunList();
+            final aid = data['akun_id']?.toString() ?? AppPrefs.instance.dompetUtama;
+            final match = akuns.where((a) => a.id.toString() == aid);
+            if (match.isNotEmpty) {
+              data['nama_akun'] = match.first.nama;
+            } else if (akuns.isNotEmpty) {
+              data['nama_akun'] = akuns.first.nama;
+            }
+          } catch (_) {}
+        }
         await ApiService.konfirmasiTransaksi(data);
         if (!mounted) return;
         setState(() { _savedTx = data; _stage = _VoiceStage.done; });
@@ -222,8 +239,16 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
   Widget _statusBody() {
     switch (_stage) {
       case _VoiceStage.listening:
-        return Text(_isListening ? 'Mendengarkan…' : 'Menunggu…',
-          style:  TextStyle(color: AppColors.textMuted, fontSize: 12));
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_isListening ? 'Mendengarkan…' : 'Menunggu…',
+              style:  TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            const SizedBox(height: 4),
+            Text('cth: "beli kopi 20 ribu pakai seabank"',
+              style: TextStyle(color: AppColors.textMuted.withValues(alpha: 0.7), fontSize: 11, fontStyle: FontStyle.italic)),
+          ],
+        );
       case _VoiceStage.parsing:
         return  Text('AI mendeteksi objek & nominal…',
           style: TextStyle(color: AppColors.textMuted, fontSize: 12));
@@ -243,6 +268,7 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
     final info = getKategoriInfo((t['kategori'] ?? 'Lainnya').toString());
     final isIncome = (t['jenis'] ?? 'pengeluaran') == 'pemasukan';
     final nominal = (t['nominal'] as num? ?? 0).toDouble();
+    final namaAkun = (t['nama_akun'] ?? t['akun_nama'])?.toString();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -258,7 +284,17 @@ class _VoiceToTextDialogState extends State<VoiceToTextDialog> {
         ]),
         const SizedBox(height: 6),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(info.label, style:  TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          Expanded(
+            child: Text(
+              namaAkun != null && namaAkun.isNotEmpty
+                  ? '${info.label} · dari $namaAkun'
+                  : info.label,
+              style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
           Text('${isIncome ? '+' : '-'}Rp ${formatAmount(nominal)}',
             style: TextStyle(
               color: isIncome ? AppColors.income : AppColors.expense,

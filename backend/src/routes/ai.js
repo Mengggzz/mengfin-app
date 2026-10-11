@@ -15,14 +15,30 @@ function isValidObjectId(id) {
 }
 
 // ── Fast Local Regex Parser (<1ms latency) ───────────────────────────────────
-function fastParseTransaksi(teks) {
+function fastParseTransaksi(teks, userAkuns = []) {
   if (!teks || typeof teks !== 'string') return null;
   const t = teks.trim();
   const lower = t.toLowerCase();
 
+  // 0. Cocokkan nama dompet dari teks terhadap koleksi Akun (longest-match dulu)
+  let matchedAkun = null;
+  if (Array.isArray(userAkuns) && userAkuns.length > 0) {
+    const sortedAkuns = [...userAkuns].sort((a, b) => (b.nama || '').length - (a.nama || '').length);
+    for (const a of sortedAkuns) {
+      const aNama = (a.nama || '').trim();
+      if (!aNama) continue;
+      const escaped = aNama.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const reg = new RegExp(`\\b${escaped}\\b`, 'i');
+      if (reg.test(lower) || lower.includes(aNama.toLowerCase())) {
+        matchedAkun = a;
+        break;
+      }
+    }
+  }
+
   // 1. Ekstrak metode pembayaran
   let metode = 'tunai';
-  if (/\b(transfer|trf|tf|bca|mandiri|bri|bni|jago)\b/i.test(lower)) metode = 'transfer';
+  if (/\b(transfer|trf|tf|bca|mandiri|bri|bni|jago|seabank)\b/i.test(lower)) metode = 'transfer';
   else if (/\b(qris|qr)\b/i.test(lower)) metode = 'qris';
   else if (/\b(debit|kartu debit)\b/i.test(lower)) metode = 'debit';
   else if (/\b(kredit|cc|kartu kredit)\b/i.test(lower)) metode = 'kredit';
@@ -58,7 +74,16 @@ function fastParseTransaksi(teks) {
   // 5. Ekstrak deskripsi ringkas
   let deskripsi = t
     .replace(/^(tolong|bantu|catat|masukkan|input|tambahkan)\s+/i, '')
-    .replace(/\b(pakai|pake|via|lewat)\s+(tunai|cash|transfer|tf|qris|debit|kredit|gopay|ovo|dana)\b/gi, '')
+    .replace(/\b(pakai|pake|via|lewat|dari|di|ke)\s+(tunai|cash|transfer|tf|qris|debit|kredit|gopay|ovo|dana)\b/gi, '');
+
+  if (matchedAkun && matchedAkun.nama) {
+    const escapedAkun = matchedAkun.nama.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    deskripsi = deskripsi
+      .replace(new RegExp(`\\b(pakai|pake|via|lewat|dari|di|ke)\\s+${escapedAkun}\\b`, 'gi'), '')
+      .replace(new RegExp(`\\b${escapedAkun}\\b`, 'gi'), '');
+  }
+
+  deskripsi = deskripsi
     .replace(/(\d+(?:[.,]\d+)?)\s*(ribu|juta|jt|rb|k)\b/gi, '')
     .replace(/(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})+|\d{4,9})\b/gi, '')
     .trim();
@@ -72,7 +97,7 @@ function fastParseTransaksi(teks) {
     deskripsi = deskripsi.charAt(0).toUpperCase() + deskripsi.slice(1);
   }
 
-  return {
+  const result = {
     jenis,
     nominal,
     kategori,
@@ -81,6 +106,11 @@ function fastParseTransaksi(teks) {
     metode_pembayaran: metode,
     tanggal: new Date().toISOString().split('T')[0]
   };
+  if (matchedAkun) {
+    result.akun_id = matchedAkun._id;
+    result.nama_akun = matchedAkun.nama;
+  }
+  return result;
 }
 
 // Chat dengan AI Advisor
@@ -94,12 +124,14 @@ router.post('/chat', async (req, res) => {
 
     // 1. Fast Pattern Matching untuk transaksi (respons instan 0ms)
     if (cekApakahTransaksi(pesan)) {
-      const fastParsed = fastParseTransaksi(pesan);
+      const userAkuns = await Akun.find({ user_id: uid });
+      const fastParsed = fastParseTransaksi(pesan, userAkuns);
       if (fastParsed && fastParsed.nominal > 0) {
+        const akunLine = fastParsed.nama_akun ? `\n🏦 ${fastParsed.nama_akun}` : '';
         return res.json({
           tipe: 'transaksi_preview',
           data: fastParsed,
-          pesan: `Saya mendeteksi transaksi:\n*${fastParsed.deskripsi}*\n💰 Rp ${Number(fastParsed.nominal).toLocaleString('id-ID')}\n📁 ${fastParsed.kategori}\n💳 ${fastParsed.metode_pembayaran}\n\nKonfirmasi untuk menyimpan?`
+          pesan: `Saya mendeteksi transaksi:\n*${fastParsed.deskripsi}*\n💰 Rp ${Number(fastParsed.nominal).toLocaleString('id-ID')}\n📁 ${fastParsed.kategori}\n💳 ${fastParsed.metode_pembayaran}${akunLine}\n\nKonfirmasi untuk menyimpan?`
         });
       }
 
@@ -107,10 +139,25 @@ router.post('/chat', async (req, res) => {
       try {
         const parsed = await parseTransaksiDariTeks(pesan);
         if (parsed && parsed.nominal && Number(parsed.nominal) > 0 && parsed.deskripsi && parsed.deskripsi.trim().length > 0) {
+          if (!parsed.akun_id && userAkuns.length > 0) {
+            const sortedAkuns = [...userAkuns].sort((a, b) => (b.nama || '').length - (a.nama || '').length);
+            const lowerPesan = pesan.toLowerCase();
+            for (const a of sortedAkuns) {
+              const aNama = (a.nama || '').trim().toLowerCase();
+              if (!aNama) continue;
+              const escaped = aNama.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              if (new RegExp(`\\b${escaped}\\b`, 'i').test(lowerPesan) || lowerPesan.includes(aNama)) {
+                parsed.akun_id = a._id;
+                parsed.nama_akun = a.nama;
+                break;
+              }
+            }
+          }
+          const akunLine = parsed.nama_akun ? `\n🏦 ${parsed.nama_akun}` : '';
           return res.json({
             tipe: 'transaksi_preview',
             data: parsed,
-            pesan: `Saya mendeteksi transaksi:\n*${parsed.deskripsi}*\n💰 Rp ${Number(parsed.nominal).toLocaleString('id-ID')}\n📁 ${parsed.kategori}\n💳 ${parsed.metode_pembayaran}\n\nKonfirmasi untuk menyimpan?`
+            pesan: `Saya mendeteksi transaksi:\n*${parsed.deskripsi}*\n💰 Rp ${Number(parsed.nominal).toLocaleString('id-ID')}\n📁 ${parsed.kategori}\n💳 ${parsed.metode_pembayaran}${akunLine}\n\nKonfirmasi untuk menyimpan?`
           });
         }
       } catch (_) {}
@@ -205,6 +252,21 @@ router.post('/konfirmasi-transaksi', async (req, res) => {
       } else {
         const akunByLocal = await Akun.findOne({ user_id: req.user.id, local_id: aidStr });
         if (akunByLocal) validAkunId = akunByLocal._id;
+      }
+    }
+
+    if (!validAkunId) {
+      const userAkuns = await Akun.find({ user_id: req.user.id });
+      const targetText = `${deskripsi || ''} ${req.body.pesan || ''} ${req.body.teks || ''}`.toLowerCase();
+      const sortedAkuns = [...userAkuns].sort((a, b) => (b.nama || '').length - (a.nama || '').length);
+      for (const a of sortedAkuns) {
+        const aNama = (a.nama || '').trim().toLowerCase();
+        if (!aNama) continue;
+        const escaped = aNama.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (new RegExp(`\\b${escaped}\\b`, 'i').test(targetText) || targetText.includes(aNama)) {
+          validAkunId = a._id;
+          break;
+        }
       }
     }
 

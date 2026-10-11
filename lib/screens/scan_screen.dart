@@ -7,7 +7,10 @@ import 'package:image_picker/image_picker.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/utils.dart';
+import '../models/models.dart';
 import '../services/api_service.dart';
+import '../services/app_prefs.dart';
+import '../services/local_db.dart';
 import '../services/ocr_service.dart';
 
 enum ScanMode { struk, mutasi }
@@ -33,6 +36,10 @@ class _ScanScreenState extends State<ScanScreen> {
   String? _info;
   String _sumberOcr = 'lokal'; // 'lokal' atau 'ai'
 
+  // Daftar akun/dompet pengguna (Task 1i)
+  List<Akun> _akunList = [];
+  String? _selectedAkunId;
+
   // Hasil scan struk tunggal (editable)
   Map<String, dynamic>? _hasil;
   final _nominalCtrl = TextEditingController();
@@ -46,6 +53,34 @@ class _ScanScreenState extends State<ScanScreen> {
   // Hasil scan bukti transfer / mutasi multi-transaksi
   List<Map<String, dynamic>> _mutasiList = [];
   final Set<int> _selectedMutasiIndices = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAkuns();
+  }
+
+  Future<void> _loadAkuns() async {
+    try {
+      List<Akun> list = [];
+      if (!kIsWeb) {
+        list = await LocalDb.getAkunList();
+      } else {
+        list = await ApiService.getAkunList();
+      }
+      if (mounted) {
+        setState(() {
+          _akunList = list;
+          final def = AppPrefs.instance.dompetUtama;
+          if (def != null && list.any((a) => a.id.toString() == def)) {
+            _selectedAkunId = def;
+          } else if (list.isNotEmpty) {
+            _selectedAkunId = list.first.id.toString();
+          }
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -245,6 +280,7 @@ class _ScanScreenState extends State<ScanScreen> {
             ? 'Struk' : _deskripsiCtrl.text.trim(),
         'metode_pembayaran': _metode,
         'tanggal': _tanggal.toIso8601String().split('T').first,
+        if (_selectedAkunId != null && _selectedAkunId!.isNotEmpty) 'akun_id': _selectedAkunId,
       });
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -279,6 +315,7 @@ class _ScanScreenState extends State<ScanScreen> {
           'deskripsi': tx['deskripsi'] ?? 'Mutasi Transfer',
           'metode_pembayaran': tx['metode_pembayaran'] ?? 'transfer',
           'tanggal': tx['tanggal'] ?? _tanggal.toIso8601String().split('T').first,
+          if (_selectedAkunId != null && _selectedAkunId!.isNotEmpty) 'akun_id': _selectedAkunId,
         });
       }
       if (!mounted) return;
@@ -702,6 +739,32 @@ class _ScanScreenState extends State<ScanScreen> {
             onTap: () => setState(() => _metode = m))).toList()),
       ),
 
+      if (_akunList.isNotEmpty) ...[
+        const SizedBox(height: 10),
+        _fieldCard(
+          icon: Icons.account_balance_wallet_rounded,
+          label: 'Dompet / Rekening',
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedAkunId,
+              isExpanded: true,
+              dropdownColor: AppColors.bgCard,
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+              icon: Icon(Icons.arrow_drop_down, color: AppColors.textSecond),
+              items: _akunList.map((a) {
+                return DropdownMenuItem<String>(
+                  value: a.id.toString(),
+                  child: Text('${a.nama} (Rp ${formatAmount(a.saldo)})'),
+                );
+              }).toList(),
+              onChanged: (val) {
+                if (val != null) setState(() => _selectedAkunId = val);
+              },
+            ),
+          ),
+        ),
+      ],
+
       if (_sumberOcr == 'lokal') ...[
         const SizedBox(height: 10),
         OutlinedButton.icon(
@@ -903,6 +966,32 @@ class _ScanScreenState extends State<ScanScreen> {
             ),
           );
         }),
+
+        if (_akunList.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _fieldCard(
+            icon: Icons.account_balance_wallet_rounded,
+            label: 'Tujuan Dompet / Rekening',
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedAkunId,
+                isExpanded: true,
+                dropdownColor: AppColors.bgCard,
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+                icon: Icon(Icons.arrow_drop_down, color: AppColors.textSecond),
+                items: _akunList.map((a) {
+                  return DropdownMenuItem<String>(
+                    value: a.id.toString(),
+                    child: Text('${a.nama} (Rp ${formatAmount(a.saldo)})'),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedAkunId = val);
+                },
+              ),
+            ),
+          ),
+        ],
 
         const SizedBox(height: 16),
         Row(

@@ -267,8 +267,23 @@ class LocalDb {
   static Future<void> upsertTransaksiBatch(List<Transaksi> list, {bool synced = true}) async {
     if (list.isEmpty) return;
     final d = await db;
+    // Task 1f: kumpulkan ID transaksi lokal yang belum tersinkronisasi (synced = 0)
+    final unsyncedRows = await d.query('transaksi', columns: ['id', 'local_id'], where: 'synced = 0');
+    final unsyncedKeys = <String>{};
+    for (final r in unsyncedRows) {
+      if (r['id'] != null) unsyncedKeys.add(r['id'].toString());
+      if (r['local_id'] != null) unsyncedKeys.add(r['local_id'].toString());
+    }
+
     final batch = d.batch();
     for (final tx in list) {
+      final tid = tx.id?.toString();
+      final tlid = tx.localId?.toString();
+      // Jangan timpa transaksi offline yang belum terkirim
+      if ((tid != null && unsyncedKeys.contains(tid)) ||
+          (tlid != null && unsyncedKeys.contains(tlid))) {
+        continue;
+      }
       batch.insert('transaksi', {
         'id': tx.id,
         'local_id': tx.localId,
@@ -380,27 +395,11 @@ class LocalDb {
       final nominal = (row['nominal'] as num? ?? 0).toDouble();
       final jenis = row['jenis'] as String?;
       final delta = jenis == 'pemasukan' ? -nominal : nominal;
-      int updated = 0;
       if (akunId != null && akunId.isNotEmpty && akunId != 'null') {
-        updated = await d.rawUpdate(
+        await d.rawUpdate(
           'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
           [delta, akunId, akunId],
         );
-      }
-      if (updated == 0) {
-        final defaultId = AppPrefs.instance.dompetUtama;
-        if (defaultId != null && defaultId.isNotEmpty && defaultId != 'null') {
-          updated = await d.rawUpdate(
-            'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
-            [delta, defaultId, defaultId],
-          );
-        }
-        if (updated == 0) {
-          await d.rawUpdate(
-            'UPDATE akun SET saldo = saldo + ? WHERE id = (SELECT id FROM akun LIMIT 1)',
-            [delta],
-          );
-        }
       }
     }
     await d.delete('transaksi', where: 'id = ? OR local_id = ?', whereArgs: [id, id]);
@@ -421,58 +420,26 @@ class LocalDb {
       final oldNominal = (old['nominal'] as num? ?? 0).toDouble();
       final oldJenis = old['jenis'] as String?;
 
-      // Revert saldo transaksi lama
-      final revertDelta = oldJenis == 'pemasukan' ? -oldNominal : oldNominal;
-      int oldUpdated = 0;
+      // Revert saldo transaksi lama HANYA jika akun lama ada
       if (oldAkunId != null && oldAkunId.isNotEmpty && oldAkunId != 'null') {
-        oldUpdated = await d.rawUpdate(
+        final revertDelta = oldJenis == 'pemasukan' ? -oldNominal : oldNominal;
+        await d.rawUpdate(
           'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
           [revertDelta, oldAkunId, oldAkunId],
         );
       }
-      if (oldUpdated == 0) {
-        final defaultId = AppPrefs.instance.dompetUtama;
-        if (defaultId != null && defaultId.isNotEmpty && defaultId != 'null') {
-          oldUpdated = await d.rawUpdate(
-            'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
-            [revertDelta, defaultId, defaultId],
-          );
-        }
-        if (oldUpdated == 0) {
-          await d.rawUpdate(
-            'UPDATE akun SET saldo = saldo + ? WHERE id = (SELECT id FROM akun LIMIT 1)',
-            [revertDelta],
-          );
-        }
-      }
 
-      // Terapkan saldo transaksi baru
+      // Terapkan saldo transaksi baru HANYA jika akun baru ada
       final newAkunId = data.containsKey('akun_id') ? data['akun_id']?.toString() : oldAkunId;
       final newNominal = data['nominal'] != null ? (data['nominal'] as num).toDouble() : oldNominal;
       final newJenis = (data['jenis'] as String?) ?? oldJenis;
-      final applyDelta = newJenis == 'pemasukan' ? newNominal : -newNominal;
-      int newUpdated = 0;
 
       if (newAkunId != null && newAkunId.isNotEmpty && newAkunId != 'null') {
-        newUpdated = await d.rawUpdate(
+        final applyDelta = newJenis == 'pemasukan' ? newNominal : -newNominal;
+        await d.rawUpdate(
           'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
           [applyDelta, newAkunId, newAkunId],
         );
-      }
-      if (newUpdated == 0) {
-        final defaultId = AppPrefs.instance.dompetUtama;
-        if (defaultId != null && defaultId.isNotEmpty && defaultId != 'null') {
-          newUpdated = await d.rawUpdate(
-            'UPDATE akun SET saldo = saldo + ? WHERE id = ? OR local_id = ?',
-            [applyDelta, defaultId, defaultId],
-          );
-        }
-        if (newUpdated == 0) {
-          await d.rawUpdate(
-            'UPDATE akun SET saldo = saldo + ? WHERE id = (SELECT id FROM akun LIMIT 1)',
-            [applyDelta],
-          );
-        }
       }
     }
 
@@ -775,6 +742,48 @@ class LocalDb {
       }
     }
     return null;
+  }
+
+  /// Kumpulan ID transaksi (baik server id maupun local_id) yang sedang antre DELETE
+  static Future<Set<String>> getPendingDeleteTransaksiIds() async {
+    final d = await db;
+    final rows = await d.rawQuery('''
+      SELECT path, local_id FROM sync_queue
+      WHERE method = 'DELETE' AND table_name = 'transaksi'
+        AND (status = 'pending' OR status IS NULL)
+    ''');
+    final ids = <String>{};
+    for (final r in rows) {
+      final path = r['path']?.toString() ?? '';
+      final pathSegments = path.split('/').where((s) => s.isNotEmpty).toList();
+      if (pathSegments.length >= 2 && pathSegments[0] == 'transaksi') {
+        final rawId = pathSegments[1].split('?').first;
+        if (rawId.isNotEmpty) {
+          ids.add(rawId);
+          if (rawId.startsWith('tx_')) {
+            final serverId = await getServerIdForTransaksi(rawId);
+            if (serverId != null && serverId.isNotEmpty) {
+              ids.add(serverId);
+            }
+          }
+        }
+      }
+
+      final localId = r['local_id']?.toString() ?? '';
+      if (localId.startsWith('del_tx_')) {
+        final targetId = localId.substring('del_tx_'.length);
+        if (targetId.isNotEmpty) {
+          ids.add(targetId);
+          if (targetId.startsWith('tx_')) {
+            final serverId = await getServerIdForTransaksi(targetId);
+            if (serverId != null && serverId.isNotEmpty) {
+              ids.add(serverId);
+            }
+          }
+        }
+      }
+    }
+    return ids;
   }
 
   /// Perbarui status, retry count, dan pesan error item antrean.

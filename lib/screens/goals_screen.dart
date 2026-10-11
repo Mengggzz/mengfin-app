@@ -129,10 +129,10 @@ class _GoalsScreenState extends State<GoalsScreen> {
            Text('Buat Goal Baru', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 16),
           _field('Nama Goal', 'Liburan ke Bali...', (v) => nama = v),
-          _field('Target (Rp)', '5.000.000', (v) => target = v, number: true),
-          _field('Nabung/Bulan (Rp, opsional)', '500.000', (v) => nabung = v, number: true),
+          _field('Target (Rp)', '0', (v) => target = v, number: true),
+          _field('Nabung/Bulan (Rp, opsional)', '0', (v) => nabung = v, number: true),
           _field('Deadline (YYYY-MM-DD, opsional)', '2026-12-31', (v) => deadline = v),
-           Text('PRIORITAS', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
+          Text('PRIORITAS', style: TextStyle(color: AppColors.textSecond, fontSize: 11, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Row(children: _prioColors.keys.map((p) => Expanded(child: Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -153,7 +153,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
           _field('Catatan (opsional)', 'Impian liburan...', (v) => catatan = v, multiline: true),
           SizedBox(width: double.infinity, child: ElevatedButton(
             onPressed: () async {
-              if (nama.isEmpty || target.isEmpty) return;
+              if (nama.trim().isEmpty || target.trim().isEmpty) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: const Text('Nama dan target wajib diisi'),
+                  backgroundColor: AppColors.danger,
+                ));
+                return;
+              }
               final hasil = await Penyimpanan.simpan(
                 () async => ApiService.createGoal({
                   'nama': nama,

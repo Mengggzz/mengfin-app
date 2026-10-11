@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/app_colors.dart';
 import '../models/models.dart';
@@ -126,6 +128,7 @@ class NotifService {
 
     final draftId = 'draft_${DateTime.now().millisecondsSinceEpoch}_${hasil.hashCode.abs()}';
     final appName = _namaAplikasi(paket);
+    final resolvedAkunId = await cariAkunId(paket);
 
     // Simpan draft notifikasi
     final draft = NotifDraft(
@@ -139,14 +142,14 @@ class NotifService {
       kategori: hasil.kategori,
       waktu: DateTime.now().toIso8601String(),
       status: AppPrefs.instance.notifReviewDraft ? 'draft' : 'approved',
-      akunId: AppPrefs.instance.dompetUtama,
+      akunId: resolvedAkunId,
     );
     await LocalDb.insertNotifDraft(draft);
     AppEvents.instance.notifDraftBerubah();
 
     // Jika mode review draft tidak aktif, langsung masukkan ke transaksi resmi
     if (!AppPrefs.instance.notifReviewDraft) {
-      await simpan(hasil);
+      await simpan(hasil, akunId: resolvedAkunId);
     } else {
       terakhir.value = hasil;
       jumlahTercatat.value = jumlahTercatat.value + 1;
@@ -156,6 +159,9 @@ class NotifService {
   /// Konversi draft menjadi transaksi resmi
   Future<bool> setujuiDraft(NotifDraft draft) async {
     try {
+      final targetAkunId = (draft.akunId != null && draft.akunId!.isNotEmpty)
+          ? draft.akunId
+          : await cariAkunId(draft.packageName);
       await ApiService.createTransaksi({
         'tanggal': _tanggalHariIni(),
         'jenis': draft.jenis,
@@ -163,7 +169,7 @@ class NotifService {
         'kategori': draft.kategori,
         'deskripsi': draft.body.isNotEmpty ? draft.body : draft.title,
         'metode_pembayaran': 'auto-notifikasi (${draft.appName})',
-        if (draft.akunId != null && draft.akunId!.isNotEmpty) 'akun_id': draft.akunId,
+        if (targetAkunId != null && targetAkunId.isNotEmpty) 'akun_id': targetAkunId,
       });
       await LocalDb.updateNotifDraftStatus(draft.id, 'approved');
       AppEvents.instance.notifDraftBerubah();
@@ -207,21 +213,87 @@ class NotifService {
     return packageName.split('.').last;
   }
 
+  /// Cocokkan nama aplikasi bank / paket dengan daftar akun pengguna
+  static Future<String?> cariAkunId(String paket) async {
+    try {
+      final akuns = await LocalDb.getAkunList();
+      if (akuns.isEmpty) return AppPrefs.instance.dompetUtama;
+      final namaApp = _namaAplikasi(paket).toLowerCase();
+      final paketLower = paket.toLowerCase();
+
+      final sorted = List<Akun>.from(akuns)
+        ..sort((a, b) => b.nama.length.compareTo(a.nama.length));
+
+      for (final a in sorted) {
+        final aNama = a.nama.trim().toLowerCase();
+        if (aNama.isEmpty) continue;
+        if (namaApp.contains(aNama) || aNama.contains(namaApp) || paketLower.contains(aNama)) {
+          return a.id.toString();
+        }
+      }
+
+      final bankTokens = [
+        'seabank', 'bca', 'brimo', 'bri', 'livin', 'mandiri', 'bni', 'jago', 'jenius',
+        'dana', 'gopay', 'gojek', 'ovo', 'shopeepay'
+      ];
+      for (final token in bankTokens) {
+        if (namaApp.contains(token) || paketLower.contains(token)) {
+          for (final a in sorted) {
+            final aNama = a.nama.trim().toLowerCase();
+            if (aNama.contains(token)) {
+              return a.id.toString();
+            }
+          }
+        }
+      }
+
+      return AppPrefs.instance.dompetUtama;
+    } catch (_) {
+      return AppPrefs.instance.dompetUtama;
+    }
+  }
+
   /// Simpan hasil bacaan sebagai transaksi. Terpisah dari [_tangani] supaya
   /// bisa diuji tanpa plugin dan supaya tombol "Catat sekarang" di layar
   /// pengaturan memakai jalur yang persis sama.
-  Future<bool> simpan(NotifTransaksi t) async {
-    // Notifikasi yang sama bisa dikirim ulang; lewati kalau persis sama
-    // dalam waktu dekat.
+  Future<bool> simpan(NotifTransaksi t, {String? akunId}) async {
+    // Task 1g: Dedup 10 menit (600 detik) persisten via SharedPreferences
     final kunci = '${t.sumber}|${t.nominal}|${t.teks}';
-    final sekarang = DateTime.now();
-    if (_terakhirKunci == kunci &&
-        _terakhirWaktu != null &&
-        sekarang.difference(_terakhirWaktu!).inSeconds < 60) {
-      return false;
+    final sekarangMs = DateTime.now().millisecondsSinceEpoch;
+    const durasiDedupMs = 10 * 60 * 1000;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawCache = prefs.getString('notif_dedup_cache');
+      Map<String, dynamic> dedupMap = {};
+      if (rawCache != null && rawCache.isNotEmpty) {
+        try {
+          dedupMap = Map<String, dynamic>.from(jsonDecode(rawCache) as Map);
+        } catch (_) {}
+      }
+
+      dedupMap.removeWhere((k, v) => (v is num) && (sekarangMs - v > durasiDedupMs));
+
+      final waktuLalu = dedupMap[kunci] as num?;
+      if (waktuLalu != null && (sekarangMs - waktuLalu < durasiDedupMs)) {
+        return false;
+      }
+
+      dedupMap[kunci] = sekarangMs;
+      await prefs.setString('notif_dedup_cache', jsonEncode(dedupMap));
+    } catch (_) {
+      final sekarang = DateTime.now();
+      if (_terakhirKunci == kunci &&
+          _terakhirWaktu != null &&
+          sekarang.difference(_terakhirWaktu!).inSeconds < 600) {
+        return false;
+      }
+      _terakhirKunci = kunci;
+      _terakhirWaktu = sekarang;
     }
 
     try {
+      final targetAkunId = akunId ?? await cariAkunId(t.sumber);
       await ApiService.createTransaksi({
         'tanggal': _tanggalHariIni(),
         'jenis': t.jenis,
@@ -229,9 +301,8 @@ class NotifService {
         'kategori': t.kategori,
         'deskripsi': t.deskripsi,
         'metode_pembayaran': 'auto-notifikasi',
+        if (targetAkunId != null && targetAkunId.isNotEmpty) 'akun_id': targetAkunId,
       });
-      _terakhirKunci = kunci;
-      _terakhirWaktu = sekarang;
       terakhir.value = t;
       jumlahTercatat.value = jumlahTercatat.value + 1;
       AppEvents.instance.transaksiBerubah();

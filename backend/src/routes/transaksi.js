@@ -13,10 +13,10 @@ function isValidObjectId(id) {
   return mongoose.Types.ObjectId.isValid(s) && String(new mongoose.Types.ObjectId(s)) === s;
 }
 
-// GET semua transaksi (dengan filter)
+// GET semua transaksi (dengan filter dan paginasi)
 router.get('/', async (req, res) => {
   try {
-    const { bulan, tanggal, jenis, kategori, limit = 50 } = req.query;
+    const { bulan, tanggal, jenis, kategori, limit = 50, skip = 0, offset = 0 } = req.query;
     const filter = { user_id: req.user.id };
 
     if (bulan)    filter.tanggal = { $regex: `^${bulan}` };
@@ -24,9 +24,13 @@ router.get('/', async (req, res) => {
     if (jenis)    filter.jenis = jenis;
     if (kategori) filter.kategori = kategori;
 
+    const skipVal = parseInt(skip) || parseInt(offset) || 0;
+    const limitVal = parseInt(limit) || 50;
+
     const rows = await Transaksi.find(filter)
       .sort({ tanggal: -1, created_at: -1 })
-      .limit(parseInt(limit))
+      .skip(skipVal)
+      .limit(limitVal)
       .populate('akun_id', 'nama');
 
     const result = rows.map(t => ({
@@ -148,12 +152,8 @@ router.put('/:id', async (req, res) => {
     const old = await Transaksi.findOne(query);
     if (!old) return res.status(404).json({ error: 'Transaksi tidak ditemukan' });
 
-    let oldAkunId = old.akun_id;
-    if (!oldAkunId) {
-      const def = await Akun.findOne({ user_id: req.user.id }).sort({ jenis: 1, _id: 1 });
-      if (def) oldAkunId = def._id;
-    }
-
+    // Task 1h: oldAkunId null -> skip reversal lama (jangan alihkan ke def)
+    const oldAkunId = old.akun_id;
     if (oldAkunId) {
       const delta = old.jenis === 'pemasukan' ? -old.nominal : old.nominal;
       await Akun.findByIdAndUpdate(oldAkunId, { $inc: { saldo: delta } });
@@ -180,13 +180,27 @@ router.put('/:id', async (req, res) => {
 
     const updated = await Transaksi.findByIdAndUpdate(old._id, updateData, { new: true });
 
-    const newAkunId = updated.akun_id || oldAkunId;
+    // Task 1h: newAkunId null -> skip penerapan baru (jangan alihkan ke akun lain)
+    const newAkunId = updated.akun_id;
     if (newAkunId) {
       const delta = updated.jenis === 'pemasukan' ? Number(updated.nominal) : -Number(updated.nominal);
       await Akun.findByIdAndUpdate(newAkunId, { $inc: { saldo: delta } });
     }
 
     res.json({ message: 'Transaksi berhasil diupdate', data: { id: updated._id, ...updated.toObject() } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE SEMUA transaksi milik user (auth) - Task 1e
+router.delete('/all', async (req, res) => {
+  try {
+    const result = await Transaksi.deleteMany({ user_id: req.user.id });
+    res.json({
+      message: 'Semua transaksi berhasil dihapus',
+      deletedCount: result.deletedCount || 0
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -205,12 +219,8 @@ router.delete('/:id', async (req, res) => {
     const tx = await Transaksi.findOne(query);
     if (!tx) return res.status(404).json({ error: 'Transaksi tidak ditemukan' });
 
-    let targetAkunId = tx.akun_id;
-    if (!targetAkunId) {
-      const def = await Akun.findOne({ user_id: req.user.id }).sort({ jenis: 1, _id: 1 });
-      if (def) targetAkunId = def._id;
-    }
-
+    // Task 1h: bila akun_id null (yatim), lewati penyesuaian saldo (jangan fallback ke def)
+    const targetAkunId = tx.akun_id;
     if (targetAkunId) {
       const delta = tx.jenis === 'pemasukan' ? -tx.nominal : tx.nominal;
       await Akun.findByIdAndUpdate(targetAkunId, { $inc: { saldo: delta } });

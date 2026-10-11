@@ -1,13 +1,39 @@
-# Lanjutan pekerjaan cashflow — status per 10 Okt 2026 (Bugfix Round 5)
+# Lanjutan pekerjaan cashflow — status per 11 Okt 2026 (Bugfix Round 6)
 
 Berkas ini catatan proses supaya bisa dilanjutkan. Hapus kalau sudah selesai.
 
 ## STATUS SAAT INI (baca dulu)
-Semua perbaikan Fase A (Task 1, 1b, 1c, 1d, 1e, 1f) dari Task List Round 5 SELESAI dan teruji:
-- `flutter test`: 175/175 test lulus (termasuk hint bulan, TouchEffect, FeedbackSheet, dll).
+Semua perbaikan Fase A (Task 1, 1b, 1c, 1d, 1e, 1f, 1g, 1h, 1i, 1j) dari Task List Round 6 SELESAI dan teruji:
+- `flutter test`: 177/177 test lulus (termasuk Task 1b pending delete queue, Task 1h orphan tx reversal, dll).
 - `flutter analyze`: 0 error.
-- `flutter build web --release`: Sukses (116.8s), 0 `localhost:3000` di JS bundle.
-- Backend `POST /api/feedback`: Validasi, format HTML Telegram Bot API, dan fallback ke database `feedbacks` teruji lulus.
+- `flutter build web --release`: Sukses (144.5s), 0 `localhost:3000` di JS bundle.
+- Backend Express (`ai.js`, `transaksi.js`): Syntax check OK (`DELETE /transaksi/all`, `skip`/`offset` pagination, safe orphan tx reversal, wallet matching).
+- Fase C (uji fisik) di-skip sesuai permintaan pengguna.
+
+### Rincian Perbaikan Round 6 (Fase A):
+1. **Task 1 — Guard duplikat voice input (`lib/widgets/voice_to_text_dialog.dart`)**:
+   - Guard early-return ditambahkan `_stage == _VoiceStage.done || _savedTx != null`. Mencegah event ganda speech engine menyimpan transaksi berulang.
+2. **Task 1b — Pull tidak menghidupkan kembali transaksi terhapus (`lib/services/local_db.dart`, `lib/services/sync_service.dart`)**:
+   - `LocalDb.getPendingDeleteTransaksiIds()` mengumpulkan ID transaksi yang sedang antre `DELETE`.
+   - `SyncService.pullFromServer()` memfilter transaksi server dengan pending delete IDs sebelum upsert.
+3. **Task 1c — Voice/AI kenali nama dompet (`lib/services/api_service.dart`, `backend/src/routes/ai.js`, `lib/widgets/voice_to_text_dialog.dart`)**:
+   - `_fastParseTransaksiLocal` dan backend `ai.js` mencocokkan nama dompet (longest-match), isi `akun_id` & `nama_akun`, strip nama dompet dari deskripsi, serta utamakan akun jika ada tabrakan dengan kata metode.
+   - Dialog voice menampilkan contoh `cth: "beli kopi 20 ribu pakai seabank"` di stage listening dan nama dompet di preview simpan.
+4. **Task 1d — Notifikasi auto-catat cocokkan dompet bank (`lib/services/notif_service.dart`)**:
+   - `cariAkunId()` mencocokkan nama aplikasi/package bank ke daftar akun pengguna; mengisi `akun_id` di draft dan saat disimpan.
+5. **Task 1e — Bersihkan & Reset tuntas >500 transaksi (`backend/src/routes/transaksi.js`, `lib/services/api_service.dart`)**:
+   - Endpoint `DELETE /transaksi/all` untuk menghapus seluruh transaksi user tanpa limit. Frontend memakai endpoint ini dengan fallback loop paginasi.
+6. **Task 1f — Paginasi pull riwayat server (`backend/src/routes/transaksi.js`, `lib/services/sync_service.dart`, `lib/services/local_db.dart`, `lib/services/api_service.dart`)**:
+   - Backend `GET /transaksi` dukung `skip` dan `offset`. Frontend loop paginasi per 200 item.
+   - `LocalDb.upsertTransaksiBatch` memproteksi baris lokal berstatus offline (`synced = 0`) agar tidak tertimpa.
+7. **Task 1g — Dedup notifikasi 10 menit & persisten (`lib/services/notif_service.dart`)**:
+   - Jendela deduplikasi diperpanjang jadi 10 menit; cache disimpan di `SharedPreferences` sehingga tahan restart.
+8. **Task 1h — Reversal saldo ke dompet salah untuk transaksi yatim (`backend/src/routes/transaksi.js`, `lib/services/local_db.dart`)**:
+   - Lewati penyesuaian saldo jika `akun_id` transaksi bernilai null (dompet asal sudah dihapus); menghapus fallback ke `dompetUtama` atau akun pertama sehingga uang phantom tidak muncul di dompet lain.
+9. **Task 1i — Dropdown pemilih dompet di scan struk & mutasi (`lib/screens/scan_screen.dart`)**:
+   - Dropdown pilihan dompet ditambahkan ke form scan struk dan scan mutasi; `akun_id` terpilih diteruskan ke `createTransaksi`.
+10. **Task 1j — Samakan hint Buat Goal Baru jadi '0' + validasi (`lib/screens/goals_screen.dart`)**:
+    - Placeholder Target & Nabung/Bulan diseragamkan ke `'0'`; validasi input kosong menampilkan SnackBar peringatan.
 
 ### Rincian Perbaikan Round 5 (Fase A):
 1. **Task 1 — Hint bulan kosong kartu "Saldo vs Pengeluaran" (`lib/screens/dashboard_screen.dart`, `lib/services/local_db.dart`)**:

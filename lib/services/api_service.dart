@@ -170,9 +170,10 @@ class ApiService {
   static String _txKey(Transaksi t) => '${t.id}|${t.localId ?? ''}';
 
   static Future<List<Transaksi>> getTransaksiFromServer({
-    String? bulan, String? jenis, int limit = 200,
+    String? bulan, String? jenis, int limit = 200, int skip = 0,
   }) async {
     var path = '/transaksi?limit=$limit';
+    if (skip > 0) path += '&skip=$skip';
     if (bulan != null) path += '&bulan=$bulan';
     if (jenis != null) path += '&jenis=$jenis';
     final data = await _get(path);
@@ -309,11 +310,19 @@ class ApiService {
   static Future<void> deleteAllTransaksi() async {
     if (kIsWeb) {
       try {
-        final txs = await getTransaksi(limit: 500);
-        for (final t in txs) {
-          if (t.id != null) await deleteTransaksiRaw(t.id);
-        }
-      } catch (_) {}
+        await _delete('/transaksi/all');
+      } catch (_) {
+        try {
+          while (true) {
+            final txs = await getTransaksiFromServer(limit: 500);
+            if (txs.isEmpty) break;
+            for (final t in txs) {
+              if (t.id != null) await deleteTransaksiRaw(t.id);
+            }
+            if (txs.length < 500) break;
+          }
+        } catch (_) {}
+      }
       await pullAkun();
       AppEvents.instance.transaksiBerubah();
       AppEvents.instance.akunBerubah();
@@ -326,12 +335,20 @@ class ApiService {
 
     if (_online) {
       try {
-        final txs = await getTransaksiFromServer(limit: 500);
-        for (final t in txs) {
-          if (t.id != null) await deleteTransaksiRaw(t.id);
-        }
-        await pullAkun();
-      } catch (_) {}
+        await _delete('/transaksi/all');
+      } catch (_) {
+        try {
+          while (true) {
+            final txs = await getTransaksiFromServer(limit: 500);
+            if (txs.isEmpty) break;
+            for (final t in txs) {
+              if (t.id != null) await deleteTransaksiRaw(t.id);
+            }
+            if (txs.length < 500) break;
+          }
+        } catch (_) {}
+      }
+      await pullAkun();
     }
   }
 
@@ -793,14 +810,16 @@ class ApiService {
     // 2. Fast Transaction Record Command (<1ms response)
     // Hanya berlaku jika MURNI perintah catat transaksi (bukan pertanyaan/konsultasi)
     if (_isTransactionText(lower)) {
-      final parsed = _fastParseTransaksiLocal(t);
+      final parsed = await _fastParseTransaksiLocal(t);
       if (parsed != null && ((parsed['nominal'] as num?)?.toDouble() ?? 0) > 0) {
         final nominalNum = (parsed['nominal'] as num).toDouble();
         final nominalFmt = _formatRp(nominalNum);
+        final namaAkun = parsed['nama_akun'];
+        final akunLine = namaAkun != null ? '\n🏦 $namaAkun' : '';
         return {
           'tipe': 'transaksi_preview',
           'data': parsed,
-          'pesan': 'Saya mendeteksi transaksi:\n*${parsed['deskripsi']}*\n💰 Rp $nominalFmt\n📁 ${parsed['kategori']}\n💳 ${parsed['metode_pembayaran']}\n\nKonfirmasi untuk menyimpan?'
+          'pesan': 'Saya mendeteksi transaksi:\n*${parsed['deskripsi']}*\n💰 Rp $nominalFmt$akunLine\n📁 ${parsed['kategori']}\n💳 ${parsed['metode_pembayaran']}\n\nKonfirmasi untuk menyimpan?'
         };
       }
     }
@@ -1199,12 +1218,34 @@ class ApiService {
     return hasKeyword && hasNumber;
   }
 
-  static Map<String, dynamic>? _fastParseTransaksiLocal(String teks) {
+  static Future<Map<String, dynamic>?> _fastParseTransaksiLocal(String teks) async {
     final lower = teks.toLowerCase();
+
+    // 0. Cocokkan Dompet/Akun dari ucapan (case-insensitive, longest-match dulu)
+    String? matchedAkunId;
+    String? matchedAkunNama;
+    if (!kIsWeb) {
+      try {
+        final akuns = await LocalDb.getAkunList();
+        final sorted = List<Akun>.from(akuns)
+          ..sort((a, b) => b.nama.length.compareTo(a.nama.length));
+        for (final a in sorted) {
+          final aNamaLower = a.nama.trim().toLowerCase();
+          if (aNamaLower.isEmpty) continue;
+          final escaped = RegExp.escape(aNamaLower);
+          final boundaryRegex = RegExp(r'\b' + escaped + r'\b');
+          if (boundaryRegex.hasMatch(lower) || lower.contains(aNamaLower)) {
+            matchedAkunId = a.id.toString();
+            matchedAkunNama = a.nama;
+            break;
+          }
+        }
+      } catch (_) {}
+    }
 
     // 1. Metode
     String metode = 'tunai';
-    if (RegExp(r'\b(transfer|trf|tf|bca|mandiri|bri|bni|jago)\b').hasMatch(lower)) {
+    if (RegExp(r'\b(transfer|trf|tf|bca|mandiri|bri|bni|jago|seabank)\b').hasMatch(lower)) {
       metode = 'transfer';
     } else if (RegExp(r'\b(qris|qr)\b').hasMatch(lower)) {
       metode = 'qris';
@@ -1262,7 +1303,16 @@ class ApiService {
     // 5. Deskripsi
     String deskripsi = teks
         .replaceAll(RegExp(r'^(tolong|bantu|catat|masukkan|input|tambahkan)\s+', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\b(pakai|pake|via|lewat)\s+(tunai|cash|transfer|tf|qris|debit|kredit|gopay|ovo|dana)\b', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\b(pakai|pake|via|lewat|dari|di|ke)\s+(tunai|cash|transfer|tf|qris|debit|kredit|gopay|ovo|dana)\b', caseSensitive: false), '');
+
+    if (matchedAkunNama != null) {
+      final escapedAkun = RegExp.escape(matchedAkunNama);
+      deskripsi = deskripsi
+          .replaceAll(RegExp(r'\b(pakai|pake|via|lewat|dari|di|ke)\s+' + escapedAkun + r'\b', caseSensitive: false), '')
+          .replaceAll(RegExp(r'\b' + escapedAkun + r'\b', caseSensitive: false), '');
+    }
+
+    deskripsi = deskripsi
         .replaceAll(RegExp(r'(\d+(?:[.,]\d+)?)\s*(ribu|juta|jt|rb|k)\b', caseSensitive: false), '')
         .replaceAll(RegExp(r'(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})+|\d{4,9})\b', caseSensitive: false), '')
         .trim();
@@ -1277,7 +1327,7 @@ class ApiService {
     final now = DateTime.now();
     final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-    return {
+    final result = <String, dynamic>{
       'jenis': jenis,
       'nominal': nominal,
       'kategori': kategori,
@@ -1285,6 +1335,11 @@ class ApiService {
       'metode_pembayaran': metode,
       'tanggal': today,
     };
+    if (matchedAkunId != null) {
+      result['akun_id'] = matchedAkunId;
+      result['nama_akun'] = matchedAkunNama;
+    }
+    return result;
   }
 
   static Future<void> konfirmasiTransaksi(Map<String, dynamic> body) async {
