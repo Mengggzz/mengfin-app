@@ -454,6 +454,7 @@ class LocalDb {
     }
     if (data.containsKey('akun_id')) updated['akun_id'] = data['akun_id'];
     if (updated.isEmpty) return;
+    updated['synced'] = 0;
     await d.update('transaksi', updated, where: 'id = ? OR local_id = ?', whereArgs: [id, id]);
   }
 
@@ -470,9 +471,10 @@ class LocalDb {
     );
   }
 
-  static Future<void> markTransaksiSynced(String localId) async {
+  static Future<void> markTransaksiSynced(dynamic id) async {
     final d = await db;
-    await d.rawUpdate('UPDATE transaksi SET synced = 1 WHERE local_id = ?', [localId]);
+    final idStr = id.toString();
+    await d.rawUpdate('UPDATE transaksi SET synced = 1 WHERE id = ? OR local_id = ?', [idStr, idStr]);
   }
 
   // ── Anggaran ───────────────────────────────────────────────────────────────
@@ -783,6 +785,83 @@ class LocalDb {
         }
       }
     }
+    return ids;
+  }
+
+  /// Kumpulan ID transaksi (baik server id maupun local_id) yang sedang antre POST/PUT atau berstatus synced = 0
+  static Future<Set<String>> getPendingUpsertTransaksiIds() async {
+    final d = await db;
+    final ids = <String>{};
+
+    // 1. Antrean sync_queue method POST atau PUT
+    final rows = await d.rawQuery('''
+      SELECT path, local_id FROM sync_queue
+      WHERE method IN ('POST', 'PUT') AND table_name = 'transaksi'
+        AND (status = 'pending' OR status IS NULL)
+    ''');
+    for (final r in rows) {
+      final path = r['path']?.toString() ?? '';
+      final pathSegments = path.split('/').where((s) => s.isNotEmpty).toList();
+      if (pathSegments.length >= 2 && pathSegments[0] == 'transaksi') {
+        final rawId = pathSegments[1].split('?').first;
+        if (rawId.isNotEmpty) {
+          ids.add(rawId);
+          if (rawId.startsWith('tx_') || rawId.startsWith('upd_tx_')) {
+            final clean = rawId.replaceFirst('upd_tx_', '');
+            final serverId = await getServerIdForTransaksi(clean);
+            if (serverId != null && serverId.isNotEmpty) {
+              ids.add(serverId);
+            }
+          }
+        }
+      }
+
+      final localId = r['local_id']?.toString() ?? '';
+      if (localId.isNotEmpty) {
+        ids.add(localId);
+        if (localId.startsWith('upd_tx_')) {
+          final targetId = localId.substring('upd_tx_'.length);
+          if (targetId.isNotEmpty) {
+            ids.add(targetId);
+            if (targetId.startsWith('tx_')) {
+              final serverId = await getServerIdForTransaksi(targetId);
+              if (serverId != null && serverId.isNotEmpty) {
+                ids.add(serverId);
+              }
+            }
+          }
+        } else if (localId.startsWith('tx_')) {
+          final serverId = await getServerIdForTransaksi(localId);
+          if (serverId != null && serverId.isNotEmpty) {
+            ids.add(serverId);
+          }
+        }
+      }
+    }
+
+    // 2. Baris transaksi lokal yang synced = 0
+    final unsynced = await d.query(
+      'transaksi',
+      columns: ['id', 'local_id'],
+      where: 'synced = 0',
+    );
+    for (final r in unsynced) {
+      final id = r['id']?.toString();
+      final localId = r['local_id']?.toString();
+      if (id != null && id.isNotEmpty) {
+        ids.add(id);
+      }
+      if (localId != null && localId.isNotEmpty) {
+        ids.add(localId);
+        if (localId.startsWith('tx_')) {
+          final serverId = await getServerIdForTransaksi(localId);
+          if (serverId != null && serverId.isNotEmpty) {
+            ids.add(serverId);
+          }
+        }
+      }
+    }
+
     return ids;
   }
 

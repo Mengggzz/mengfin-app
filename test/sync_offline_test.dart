@@ -340,4 +340,149 @@ void main() {
       expect(pendingDeleteIds.contains('tx_local_456'), isTrue);
     });
   });
+
+  group('Task 1 Round 7: pull tidak menimpa edit offline yang pending upsert', () {
+    test('getPendingUpsertTransaksiIds mengumpulkan ID dari antrean POST & PUT serta baris synced = 0', () async {
+      final d = await LocalDb.db;
+      await d.delete('sync_queue');
+      await d.delete('transaksi');
+
+      // 1. Antrean POST transaksi lokal
+      await LocalDb.enqueue(
+        method: 'POST',
+        path: '/transaksi',
+        body: '{"nominal": 50000}',
+        localId: 'tx_local_post',
+        tableName: 'transaksi',
+      );
+
+      // 2. Antrean PUT transaksi server
+      await LocalDb.enqueue(
+        method: 'PUT',
+        path: '/transaksi/srv_tx_put',
+        body: '{"nominal": 75000}',
+        localId: 'upd_tx_srv_tx_put',
+        tableName: 'transaksi',
+      );
+
+      // 3. Baris transaksi di DB lokal yang synced = 0
+      await d.insert('transaksi', {
+        'id': 'tx_unsynced_db',
+        'local_id': 'tx_unsynced_db',
+        'tanggal': '2026-10-12',
+        'jenis': 'pengeluaran',
+        'nominal': 25000,
+        'kategori': 'Makan',
+        'deskripsi': 'belum sync',
+        'metode_pembayaran': 'tunai',
+        'synced': 0,
+      });
+
+      // 4. Baris transaksi di DB lokal yang synced = 1 (tidak boleh masuk)
+      await d.insert('transaksi', {
+        'id': 'tx_synced_db',
+        'local_id': 'tx_synced_db',
+        'tanggal': '2026-10-12',
+        'jenis': 'pengeluaran',
+        'nominal': 30000,
+        'kategori': 'Makan',
+        'deskripsi': 'sudah sync',
+        'metode_pembayaran': 'tunai',
+        'synced': 1,
+      });
+
+      final pendingUpsertIds = await LocalDb.getPendingUpsertTransaksiIds();
+      expect(pendingUpsertIds.contains('tx_local_post'), isTrue);
+      expect(pendingUpsertIds.contains('srv_tx_put'), isTrue);
+      expect(pendingUpsertIds.contains('tx_unsynced_db'), isTrue);
+      expect(pendingUpsertIds.contains('tx_synced_db'), isFalse);
+    });
+
+    test('edit offline pada transaksi server tidak tertimpa saat pull server mengirim versi lama', () async {
+      final d = await LocalDb.db;
+      await d.delete('sync_queue');
+      await d.delete('transaksi');
+
+      // Kondisi awal: transaksi sudah tersinkronisasi dari server di DB lokal (nominal 50.000)
+      await d.insert('transaksi', {
+        'id': 'tx_edit_offline_1',
+        'local_id': 'tx_edit_offline_1',
+        'tanggal': '2026-10-12',
+        'jenis': 'pengeluaran',
+        'nominal': 50000,
+        'kategori': 'Makan',
+        'deskripsi': 'makan siang server',
+        'metode_pembayaran': 'tunai',
+        'synced': 1,
+      });
+
+      // User melakukan edit offline: nominal diubah jadi 80.000
+      await LocalDb.updateTransaksiLocal('tx_edit_offline_1', {
+        'nominal': 80000,
+        'deskripsi': 'makan siang diedit offline',
+      });
+      await LocalDb.enqueue(
+        method: 'PUT',
+        path: '/transaksi/tx_edit_offline_1',
+        body: '{"nominal": 80000, "deskripsi": "makan siang diedit offline"}',
+        localId: 'upd_tx_tx_edit_offline_1',
+        tableName: 'transaksi',
+      );
+
+      // Cek bahwa transaksi sekarang synced = 0
+      final txAfterEdit = await d.query('transaksi', where: 'id = ?', whereArgs: ['tx_edit_offline_1']);
+      expect(txAfterEdit.first['synced'], 0);
+      expect(txAfterEdit.first['nominal'], 80000);
+
+      // Simulasi pullFromServer: server masih punya data lama (nominal 50.000)
+      final incomingFromServer = [
+        Transaksi(
+          id: 'tx_edit_offline_1',
+          localId: 'tx_edit_offline_1',
+          tanggal: '2026-10-12',
+          jenis: 'pengeluaran',
+          nominal: 50000,
+          kategori: 'Makan',
+          deskripsi: 'makan siang server',
+          metodePembayaran: 'tunai',
+          synced: true,
+        ),
+        Transaksi(
+          id: 'tx_server_lain',
+          localId: 'tx_server_lain',
+          tanggal: '2026-10-12',
+          jenis: 'pengeluaran',
+          nominal: 20000,
+          kategori: 'Transportasi',
+          deskripsi: 'ojol',
+          metodePembayaran: 'tunai',
+          synced: true,
+        ),
+      ];
+
+      final pendingUpsertIds = await LocalDb.getPendingUpsertTransaksiIds();
+      final filteredList = pendingUpsertIds.isEmpty
+          ? incomingFromServer
+          : incomingFromServer.where((t) {
+              final idStr = t.id?.toString();
+              final localIdStr = t.localId?.toString();
+              if (idStr != null && pendingUpsertIds.contains(idStr)) return false;
+              if (localIdStr != null && pendingUpsertIds.contains(localIdStr)) return false;
+              return true;
+            }).toList();
+
+      await LocalDb.upsertTransaksiBatch(filteredList, synced: true);
+
+      // Verifikasi: data lokal tetap versi editan offline (80.000, synced = 0)
+      final txFinal = await d.query('transaksi', where: 'id = ?', whereArgs: ['tx_edit_offline_1']);
+      expect(txFinal.first['nominal'], 80000);
+      expect(txFinal.first['deskripsi'], 'makan siang diedit offline');
+      expect(txFinal.first['synced'], 0);
+
+      // Transaksi server lain berhasil masuk
+      final txOther = await d.query('transaksi', where: 'id = ?', whereArgs: ['tx_server_lain']);
+      expect(txOther.length, 1);
+      expect(txOther.first['nominal'], 20000);
+    });
+  });
 }

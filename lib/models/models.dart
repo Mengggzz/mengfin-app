@@ -85,11 +85,15 @@ class Transaksi {
              this.akunId, this.akunNama, this.synced = true});
 
   factory Transaksi.fromJson(Map<String, dynamic> j) => Transaksi(
-    id: j['id'] ?? j['_id'], tanggal: j['tanggal'], jenis: j['jenis'],
-    nominal: (j['nominal'] as num).toDouble(),
-    kategori: j['kategori'], deskripsi: j['deskripsi'] ?? '',
-    metodePembayaran: j['metode_pembayaran'] ?? 'tunai',
-    akunId: j['akun_id'], akunNama: j['akun_nama'],
+    id: j['id'] ?? j['_id'],
+    tanggal: j['tanggal']?.toString() ?? '',
+    jenis: j['jenis']?.toString() ?? 'pengeluaran',
+    nominal: (j['nominal'] as num?)?.toDouble() ?? 0.0,
+    kategori: j['kategori']?.toString() ?? 'Lain-lain',
+    deskripsi: j['deskripsi']?.toString() ?? '',
+    metodePembayaran: j['metode_pembayaran']?.toString() ?? 'tunai',
+    akunId: j['akun_id'],
+    akunNama: j['akun_nama']?.toString(),
     synced: true,
   );
 
@@ -116,9 +120,10 @@ class Anggaran {
             required this.persentase, this.synced = true});
 
   factory Anggaran.fromJson(Map<String, dynamic> j) => Anggaran(
-    id: j['id'] ?? j['_id'], kategori: j['kategori'],
-    batas: (j['batas'] as num).toDouble(),
-    periode: j['periode'],
+    id: j['id'] ?? j['_id'],
+    kategori: j['kategori']?.toString() ?? '',
+    batas: (j['batas'] as num?)?.toDouble() ?? 0.0,
+    periode: j['periode']?.toString() ?? '',
     terpakai: (j['terpakai'] as num? ?? 0).toDouble(),
     persentase: (j['persentase'] as num? ?? 0).toDouble(),
     synced: true,
@@ -142,13 +147,14 @@ class Goal {
         required this.nabungPerBulan, required this.catatan, this.synced = true});
 
   factory Goal.fromJson(Map<String, dynamic> j) => Goal(
-    id: j['id'] ?? j['_id'], nama: j['nama'],
-    target: (j['target'] as num).toDouble(),
+    id: j['id'] ?? j['_id'],
+    nama: j['nama']?.toString() ?? '',
+    target: (j['target'] as num?)?.toDouble() ?? 0.0,
     terkumpul: (j['terkumpul'] as num? ?? 0).toDouble(),
-    deadline: j['deadline'],
-    prioritas: j['prioritas'] ?? 'sedang',
+    deadline: j['deadline']?.toString(),
+    prioritas: j['prioritas']?.toString() ?? 'sedang',
     nabungPerBulan: (j['nabung_per_bulan'] as num? ?? 0).toDouble(),
-    catatan: j['catatan'] ?? '',
+    catatan: j['catatan']?.toString() ?? '',
     synced: true,
   );
 
@@ -166,8 +172,10 @@ class HealthScore {
                required this.warna, required this.pesan});
 
   factory HealthScore.fromJson(Map<String, dynamic> j) => HealthScore(
-    score: (j['score'] as num).toInt(), status: j['status'],
-    warna: j['warna'], pesan: j['pesan'],
+    score: (j['score'] as num?)?.toInt() ?? 0,
+    status: j['status']?.toString() ?? 'Cukup',
+    warna: j['warna']?.toString() ?? '#F59E0B',
+    pesan: j['pesan']?.toString() ?? '',
   );
 }
 

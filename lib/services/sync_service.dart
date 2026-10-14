@@ -100,13 +100,16 @@ class SyncService {
       }
 
       final pendingDeleteIds = kIsWeb ? <String>{} : await LocalDb.getPendingDeleteTransaksiIds();
-      final filteredTxList = pendingDeleteIds.isEmpty
+      final pendingUpsertIds = kIsWeb ? <String>{} : await LocalDb.getPendingUpsertTransaksiIds();
+      final filteredTxList = (pendingDeleteIds.isEmpty && pendingUpsertIds.isEmpty)
           ? txList
           : txList.where((t) {
               final idStr = t.id?.toString();
               final localIdStr = t.localId?.toString();
               if (idStr != null && pendingDeleteIds.contains(idStr)) return false;
               if (localIdStr != null && pendingDeleteIds.contains(localIdStr)) return false;
+              if (idStr != null && pendingUpsertIds.contains(idStr)) return false;
+              if (localIdStr != null && pendingUpsertIds.contains(localIdStr)) return false;
               return true;
             }).toList();
       await LocalDb.upsertTransaksiBatch(filteredTxList, synced: true);
@@ -284,7 +287,13 @@ class SyncService {
                 continue;
               }
             }
-            if (hasPathId) await ApiService.updateTransaksiRaw(actualId, body);
+            if (hasPathId) {
+              await ApiService.updateTransaksiRaw(actualId, body);
+              await LocalDb.markTransaksiSynced(actualId);
+              if (actualId != pathId) {
+                await LocalDb.markTransaksiSynced(pathId);
+              }
+            }
           } else if (method == 'DELETE' && tableName == 'transaksi') {
             String actualId = pathId;
             if (pathId.startsWith('tx_') || pathId.startsWith('del_tx_')) {

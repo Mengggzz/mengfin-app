@@ -1,14 +1,24 @@
-# Lanjutan pekerjaan cashflow — status per 11 Okt 2026 (Bugfix Round 6)
+# Lanjutan pekerjaan cashflow — status per 14 Okt 2026 (Bugfix Round 7)
 
 Berkas ini catatan proses supaya bisa dilanjutkan. Hapus kalau sudah selesai.
 
 ## STATUS SAAT INI (baca dulu)
-Semua perbaikan Fase A (Task 1, 1b, 1c, 1d, 1e, 1f, 1g, 1h, 1i, 1j) dari Task List Round 6 SELESAI dan teruji:
-- `flutter test`: 177/177 test lulus (termasuk Task 1b pending delete queue, Task 1h orphan tx reversal, dll).
-- `flutter analyze`: 0 error.
-- `flutter build web --release`: Sukses (144.5s), 0 `localhost:3000` di JS bundle.
-- Backend Express (`ai.js`, `transaksi.js`): Syntax check OK (`DELETE /transaksi/all`, `skip`/`offset` pagination, safe orphan tx reversal, wallet matching).
-- Fase C (uji fisik) di-skip sesuai permintaan pengguna.
+Semua perbaikan Fase A (Task 1 & Task 2) dari Task List Round 7 SELESAI dan teruji:
+- `flutter test`: 187/187 test lulus (termasuk Task 1 proteksi edit offline saat pull & Task 2 null-safe models + list tolerant parser).
+- `flutter analyze`: 0 error (hanya 4 info bawaan lama).
+- `flutter build web --release`: Sukses (235.9s), 0 `localhost:3000` di JS bundle.
+- Backend Express: Tidak berubah (tidak perlu redeploy Railway).
+- Fase B (Build APK) & Fase C (Uji HP Fisik): Menunggu instruksi pengguna sesuai profil kerja.
+
+### Rincian Perbaikan Round 7 (Fase A):
+1. **Task 1 — Pull menimpa edit offline yang PUT-nya belum terkirim (`lib/services/local_db.dart`, `lib/services/sync_service.dart`)**:
+   - `LocalDb.getPendingUpsertTransaksiIds()`: Mengumpulkan seluruh ID transaksi dari `sync_queue` bertipe `POST` & `PUT` yang masih pending, plus baris transaksi lokal berstatus `synced = 0`.
+   - `updateTransaksiLocal`: Memastikan perubahan data lokal menandai `synced = 0` sehingga terlindungi dari penimpaan pull.
+   - `markTransaksiSynced`: Menandai baris `synced = 1` berbasis server ID / local ID saat replay PUT berhasil.
+   - `SyncService.pullFromServer`: Mengesampingkan transaksi dengan ID pending upsert dari `upsertTransaksiBatch` sehingga edit offline tidak hilang sementara saat PUT pending/gagal.
+2. **Task 2 — Satu dokumen rusak mematikan seluruh pull (`lib/models/models.dart`, `lib/services/api_service.dart`)**:
+   - `models.dart`: Menyamakan null-safe parsing `(j['...'] as num?)?.toDouble() ?? 0.0` pada `Transaksi` (nominal), `Anggaran` (batas), `Goal` (target), dan `HealthScore` (score). String field juga diamankan dengan fallback null-safe.
+   - `api_service.dart`: Menambahkan helper parsing toleran per-item `parseTransaksiList`, `parseAnggaranList`, `parseGoalList`, dan `parseAkunList` dengan try/catch per item. Dokumen corrupt/null dilewati dan dicatat ke log (`debugPrint`), tidak menggagalkan seluruh batch pull. Dipasang di `getTransaksiFromServer`, `getAnggaranFromServer`, `getGoalsFromServer`, `getAkunList`, dan `pullAkun`.
 
 ### Rincian Perbaikan Round 6 (Fase A):
 1. **Task 1 — Guard duplikat voice input (`lib/widgets/voice_to_text_dialog.dart`)**:

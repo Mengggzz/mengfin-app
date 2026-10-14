@@ -1,6 +1,6 @@
 import 'dart:async' show unawaited;
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:http/http.dart' as http;
 import '../constants/config.dart';
 import '../models/models.dart';
@@ -169,6 +169,25 @@ class ApiService {
 
   static String _txKey(Transaksi t) => '${t.id}|${t.localId ?? ''}';
 
+  static List<Transaksi> parseTransaksiList(dynamic rawData) {
+    if (rawData is! List) return [];
+    final list = <Transaksi>[];
+    for (final j in rawData) {
+      try {
+        if (j is Map<String, dynamic>) {
+          list.add(Transaksi.fromJson(j));
+        } else if (j is Map) {
+          list.add(Transaksi.fromJson(Map<String, dynamic>.from(j)));
+        } else {
+          debugPrint('[ApiService] Dokumen transaksi bukan Map, dilewati: $j');
+        }
+      } catch (e) {
+        debugPrint('[ApiService] Gagal parse transaksi server: $e\nData: $j');
+      }
+    }
+    return list;
+  }
+
   static Future<List<Transaksi>> getTransaksiFromServer({
     String? bulan, String? jenis, int limit = 200, int skip = 0,
   }) async {
@@ -177,7 +196,7 @@ class ApiService {
     if (bulan != null) path += '&bulan=$bulan';
     if (jenis != null) path += '&jenis=$jenis';
     final data = await _get(path);
-    return (data['data'] as List).map((j) => Transaksi.fromJson(j)).toList();
+    return parseTransaksiList(data['data']);
   }
 
   static Future<Transaksi> createTransaksi(Map<String, dynamic> body) async {
@@ -542,6 +561,25 @@ class ApiService {
 
   static Future<void> deleteAkunRaw(dynamic id) => _delete('/akun/$id');
 
+  static List<Akun> parseAkunList(dynamic rawData) {
+    if (rawData is! List) return [];
+    final list = <Akun>[];
+    for (final j in rawData) {
+      try {
+        if (j is Map<String, dynamic>) {
+          list.add(Akun.fromJson(j));
+        } else if (j is Map) {
+          list.add(Akun.fromJson(Map<String, dynamic>.from(j)));
+        } else {
+          debugPrint('[ApiService] Dokumen akun bukan Map, dilewati: $j');
+        }
+      } catch (e) {
+        debugPrint('[ApiService] Gagal parse akun server: $e\nData: $j');
+      }
+    }
+    return list;
+  }
+
   /// Tarik ulang daftar akun (dompet) dari server dan simpan ke cache.
   /// Dipakai setelah operasi transaksi, karena backend mengubah saldo
   /// akun di sisi server — app harus tahu saldo barunya.
@@ -551,7 +589,7 @@ class ApiService {
     if (!ConnectivityService.instance.isOnline) return;
     try {
       final data = await _get('/akun');
-      final newList = (data['data'] as List).map((j) => Akun.fromJson(j)).toList();
+      final newList = parseAkunList(data['data']);
       
       // Ambil daftar akun lama sebelum upsert
       final oldList = await LocalDb.getAkunList();
@@ -577,7 +615,7 @@ class ApiService {
       // Web tidak punya cache lokal — ambil langsung dari server.
       if (!_online) return [];
       final data = await _get('/akun');
-      return (data['data'] as List).map((j) => Akun.fromJson(j)).toList();
+      return parseAkunList(data['data']);
     }
 
     // Mobile/desktop: simpan hasil server ke cache, lalu gabung dengan
@@ -586,9 +624,7 @@ class ApiService {
     if (_online) {
       try {
         final data = await _get('/akun');
-        final newList = (data['data'] as List)
-            .map((j) => Akun.fromJson(j))
-            .toList();
+        final newList = parseAkunList(data['data']);
         
         // Ambil daftar akun lama sebelum upsert
         final oldList = await LocalDb.getAkunList();
@@ -624,9 +660,28 @@ class ApiService {
     return LocalDb.getAnggaran(periode);
   }
 
+  static List<Anggaran> parseAnggaranList(dynamic rawData) {
+    if (rawData is! List) return [];
+    final list = <Anggaran>[];
+    for (final j in rawData) {
+      try {
+        if (j is Map<String, dynamic>) {
+          list.add(Anggaran.fromJson(j));
+        } else if (j is Map) {
+          list.add(Anggaran.fromJson(Map<String, dynamic>.from(j)));
+        } else {
+          debugPrint('[ApiService] Dokumen anggaran bukan Map, dilewati: $j');
+        }
+      } catch (e) {
+        debugPrint('[ApiService] Gagal parse anggaran server: $e\nData: $j');
+      }
+    }
+    return list;
+  }
+
   static Future<List<Anggaran>> getAnggaranFromServer(String periode) async {
     final data = await _get('/anggaran?periode=$periode');
-    return (data['data'] as List).map((j) => Anggaran.fromJson(j)).toList();
+    return parseAnggaranList(data['data']);
   }
 
   static Future<void> createAnggaran(String kategori, double batas, String periode) async {
@@ -713,9 +768,28 @@ class ApiService {
     return LocalDb.getGoals();
   }
 
+  static List<Goal> parseGoalList(dynamic rawData) {
+    if (rawData is! List) return [];
+    final list = <Goal>[];
+    for (final j in rawData) {
+      try {
+        if (j is Map<String, dynamic>) {
+          list.add(Goal.fromJson(j));
+        } else if (j is Map) {
+          list.add(Goal.fromJson(Map<String, dynamic>.from(j)));
+        } else {
+          debugPrint('[ApiService] Dokumen goal bukan Map, dilewati: $j');
+        }
+      } catch (e) {
+        debugPrint('[ApiService] Gagal parse goal server: $e\nData: $j');
+      }
+    }
+    return list;
+  }
+
   static Future<List<Goal>> getGoalsFromServer() async {
     final data = await _get('/goals');
-    return (data['data'] as List).map((j) => Goal.fromJson(j)).toList();
+    return parseGoalList(data['data']);
   }
 
   static Future<void> createGoal(Map<String, dynamic> body) async {
