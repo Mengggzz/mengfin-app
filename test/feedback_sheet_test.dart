@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:mengfin/constants/config.dart';
 import 'package:mengfin/screens/more_screen.dart';
 import 'package:mengfin/services/theme_service.dart';
 import 'package:mengfin/widgets/feedback_sheet.dart';
@@ -55,6 +56,7 @@ void main() {
   });
 
   testWidgets('MoreScreen tile Laporkan Bug / Saran membuka FeedbackSheet', (tester) async {
+    if (kLocalMode) return; // Disembunyikan di mode lokal sesuai Task 7
     SharedPreferences.setMockInitialValues({});
     await ThemeService.instance.init();
     tester.view.physicalSize = const Size(1080, 2400);

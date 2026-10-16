@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'constants/app_colors.dart';
 import 'constants/app_theme.dart';
+import 'constants/config.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/transaksi_screen.dart';
@@ -70,7 +71,7 @@ void main() async {
   }
 
   // Di web langsung online, tidak perlu sync queue
-  if (!kIsWeb && ConnectivityService.instance.isOnline) {
+  if (!kIsWeb && !kLocalMode && ConnectivityService.instance.isOnline) {
     SyncService.instance.pullFromServer();
   }
 
@@ -98,7 +99,7 @@ class MengFinApp extends StatelessWidget {
       themeMode: themeService.mode,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      initialRoute: AuthService.instance.isLoggedIn ? '/home' : '/login',
+      initialRoute: (kLocalMode || AuthService.instance.isLoggedIn) ? '/home' : '/login',
       routes: {
         '/login': (_) => const LoginScreen(),
         // Bukan `const`: builder ini dievaluasi ulang tiap MaterialApp
@@ -157,7 +158,7 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
 
     ConnectivityService.instance.onStatusChange.listen((online) async {
       setState(() => _isOnline = online);
-      if (online && !kIsWeb) {
+      if (online && !kIsWeb && !kLocalMode) {
         // Auto sync saat online (mobile/desktop only)
         setState(() => _showSyncBanner = true);
         await SyncService.instance.syncToServer();

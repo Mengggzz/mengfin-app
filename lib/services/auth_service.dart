@@ -35,8 +35,10 @@ class AuthService {
   String? lastAuthError;
 
   String? get token => _token;
-  Map<String, dynamic>? get user => _user;
-  bool get isLoggedIn => _token != null;
+  Map<String, dynamic>? get user => kLocalMode
+      ? (_user ?? const {'nama': 'Pengguna Lokal', 'email': 'lokal@mengfin.app'})
+      : _user;
+  bool get isLoggedIn => kLocalMode ? true : _token != null;
 
   /// Init: load JWT dari secure storage + proses callback OAuth (jika ada)
   Future<bool> init() async {
@@ -89,6 +91,7 @@ class AuthService {
   /// - Web: redirect ke Google (tidak ada popup, tidak bisa diblock)
   /// - Mobile: pakai google_sign_in package
   Future<bool> signInWithGoogle() async {
+    if (kLocalMode) return true;
     if (kIsWeb) {
       // Redirect ke Google OAuth → tidak ada return value langsung
       // Setelah login, page reload → init() akan proses tokennya

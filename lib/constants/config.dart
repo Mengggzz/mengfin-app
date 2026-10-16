@@ -1,14 +1,12 @@
-// ── Base URL API ───────────────────────────────────────────────────────────
-// Default = server produksi (Railway), supaya build rilis tidak pernah
-// tanpa sengaja menunjuk ke localhost.
-//
-// Untuk pengembangan lokal di HP/emulator, jalankan dengan override:
-//   flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000/api
-// (10.0.2.2 = localhost host dari dalam emulator Android)
+// ── Base URL API & Mode Operasi ───────────────────────────────────────────
+// Tanpa --dart-define=API_BASE_URL (atau bernilai 'local') -> aplikasi berjalan
+// 100% lokal offline-first (kLocalMode == true).
+// Backend diparkir dan tidak lagi default ke server Railway yang sudah mati.
 const String _kApiBaseUrlOverride = String.fromEnvironment('API_BASE_URL');
-const String kApiBaseUrl = _kApiBaseUrlOverride != ''
-    ? _kApiBaseUrlOverride
-    : 'https://web-production-c21a6.up.railway.app/api';
+const bool kLocalMode = _kApiBaseUrlOverride == '' || _kApiBaseUrlOverride == 'local';
+const String kApiBaseUrl = kLocalMode
+    ? ''
+    : _kApiBaseUrlOverride;
 
 // Google OAuth Client ID (dari Google Cloud Console)
 // Ganti dengan Client ID kamu setelah setup di console.cloud.google.com

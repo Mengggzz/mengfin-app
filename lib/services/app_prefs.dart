@@ -30,6 +30,7 @@ class AppPrefs {
   static const _kHomeShowBudget = 'home_show_budget';
   static const _kQuickActionOrder = 'quick_action_order';
   static const _kHomeTitle = 'home_title';
+  static const _kLastBackupTime = 'last_backup_time';
 
   static const List<String> kDefaultQuickActions = ['voice', 'ai', 'scan', 'budget'];
 
@@ -37,6 +38,7 @@ class AppPrefs {
   List<String> _appDipantau = const [];
   List<String> _dompetTampil = const [];
   String? _dompetUtama;
+  String? _lastBackupTime;
   bool _notifAktif = false;
   bool _notifReviewDraft = true;
   bool _hasSeenNotifOnboarding = false;
@@ -52,6 +54,7 @@ class AppPrefs {
   List<String> get appDipantau => List.unmodifiable(_appDipantau);
   List<String> get dompetTampil => List.unmodifiable(_dompetTampil);
   String? get dompetUtama => _dompetUtama;
+  String? get lastBackupTime => _lastBackupTime;
   bool get notifAktif => _notifAktif;
   bool get notifReviewDraft => _notifReviewDraft;
   bool get hasSeenNotifOnboarding => _hasSeenNotifOnboarding;
@@ -75,6 +78,7 @@ class AppPrefs {
     _hasSeenNotifOnboarding = p.getBool(_kNotifOnboardingDone) ?? false;
     _biometricAktif = p.getBool(_kBiometricAktif) ?? false;
     _dompetUtama = p.getString(_kDompetUtama);
+    _lastBackupTime = p.getString(_kLastBackupTime);
 
     final kw = p.getStringList(_kKataKunci);
     _kataKunci = kw == null || kw.isEmpty ? List.of(kKataKunciBawaan) : kw;
@@ -133,6 +137,12 @@ class AppPrefs {
     } else {
       await p.setString(_kDompetUtama, id);
     }
+  }
+
+  Future<void> setLastBackupTime(String val) async {
+    _lastBackupTime = val;
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_kLastBackupTime, val);
   }
 
   Future<void> setDompetTampil(List<String> ids) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:mengfin/constants/app_colors.dart';
 import 'package:mengfin/main.dart';
@@ -12,9 +13,14 @@ import 'package:mengfin/services/theme_service.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  setUpAll(() {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  });
+
   testWidgets('ganti mode tampilan membangun ulang MaterialApp & layar',
       (tester) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'app_theme_animasi_bg': false});
     await ThemeService.instance.init();
     await ThemeService.instance.setMode(ThemeMode.dark);
 
@@ -36,7 +42,7 @@ void main() {
 
     // Ketuk siklus mode: gelap → ikut sistem → terang.
     await ThemeService.instance.setMode(ThemeMode.light);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 3));
 
     expect(app().themeMode, ThemeMode.light,
         reason: 'MaterialApp harus ikut mode baru setelah rebuild');

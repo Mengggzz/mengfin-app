@@ -134,20 +134,29 @@ class UpdateService {
       // lanjut ke backend
     }
 
-    // 2) Backend sebagai cadangan
-    try {
-      final hasil = await _cekBackend();
-      _hasChecked = true;
-      return hasil;
-    } catch (e) {
-      _hasChecked = false;
-      return UpdateCheckResult(
-        hasUpdate: false,
-        currentTag: _currentTag,
-        unknownCurrent: _tagKosong,
-        error: e.toString(),
-      );
+    // 2) Backend sebagai cadangan (hanya di luar mode lokal)
+    if (!kLocalMode) {
+      try {
+        final hasil = await _cekBackend();
+        _hasChecked = true;
+        return hasil;
+      } catch (e) {
+        _hasChecked = false;
+        return UpdateCheckResult(
+          hasUpdate: false,
+          currentTag: _currentTag,
+          unknownCurrent: _tagKosong,
+          error: e.toString(),
+        );
+      }
     }
+
+    _hasChecked = false;
+    return UpdateCheckResult(
+      hasUpdate: false,
+      currentTag: _currentTag,
+      unknownCurrent: _tagKosong,
+    );
   }
 
   Future<UpdateCheckResult> _cekGithub() async {

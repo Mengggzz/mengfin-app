@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../constants/config.dart';
 import '../models/models.dart';
 import 'api_service.dart';
 import 'app_events.dart';
@@ -85,6 +86,7 @@ class SyncService {
 
   /// Pull data terbaru dari server ke SQLite lokal
   Future<void> pullFromServer() async {
+    if (kLocalMode) return;
     try {
       addLog('Menarik Data Cloud', 'Memperbarui transaksi, anggaran, dan dompet lokal...', type: 'pull');
       
@@ -165,6 +167,7 @@ class SyncService {
 
   /// Pemicu sinkronisasi manual lengkap dari UI
   Future<SyncResult> triggerManualSync() async {
+    if (kLocalMode) return const SyncResult();
     addLog('Sinkronisasi Manual Dimulai', 'Memeriksa antrean perubahan offline & server...', type: 'manual');
     final res = await syncToServer(force: true);
     await pullFromServer();
@@ -195,6 +198,7 @@ class SyncService {
     Future<bool> Function(Map<String, dynamic> item)? kirim,
     bool force = false,
   }) async {
+    if (kLocalMode && kirim == null) return const SyncResult();
     if (_syncing) return const SyncResult();
     
     // Cegah sync terlalu sering (minimal 10 detik antar sync)

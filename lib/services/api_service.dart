@@ -123,6 +123,9 @@ class ApiService {
   static Future<List<Transaksi>> getTransaksi({
     String? jenis, int limit = 100,
   }) async {
+    if (kLocalMode) {
+      return LocalDb.getTransaksi(jenis: jenis, limit: limit);
+    }
     List<Transaksi> server = [];
     if (_online) {
       try {
@@ -899,7 +902,7 @@ class ApiService {
     }
 
     // 3. Online Server AI Query dengan timeout responsif (20 detik)
-    if (_online) {
+    if (_online && !kLocalMode) {
       try {
         final res = await _post(
           '/ai/chat',

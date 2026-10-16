@@ -71,22 +71,19 @@ jobs:
           tag_name: ${{ steps.version.outputs.VERSION }}
           name: "MengFin ${{ steps.version.outputs.VERSION }}"
           body: |
-            ## 📱 MengFin Android APK (${{ steps.version.outputs.VERSION }})
+            ## 📱 MengFin Android APK (${{ steps.version.outputs.VERSION }}) - Mode Lokal (Offline-First)
             
-            ### ✨ Pembaruan & Fitur Baru (Bug Fix 7 & Fitur Baru):
-            - **Import E-Statement PDF**: Impor e-statement bank asli (.pdf & .csv) untuk SeaBank, BCA, Mandiri, BRI, BNI
-            - **Perbaikan Ekstraksi Mutasi AI**: Regex extractJson backend diperbaiki (100% deteksi multi-transaksi)
-            - **Hardening OCR Struk Lokal**: Dukung pemisah koma ribuan (27,000), anti-bleedthrough OCR, dan filter nomor kontak
-            - **Kunci Biometrik**: MainActivity diperbarui ke FlutterFragmentActivity (dukung sidik jari sistem)
-            - **Ekspor Laporan PDF**: Inisialisasi locale tanggal Indonesia (id_ID)
-            - **Animasi Background & Musim**: Partikel terlihat transparan di semua tab utama
-            - **UI Perbaikan**: Padding transaksi terbawah aman dari tombol mic, pesan error cerdas sadar mode
-            - **Keamanan & Kebersihan**: Hapus permission DUMP, refactor identifier Kazz -> Saldo
+            ### ✨ Pembaruan Mode Lokal & Cadangan Database:
+            - **100% Mode Lokal**: Berjalan mandiri tanpa dependensi server backend Railway
+            - **Backup & Restore JSON**: Ekspor dan pulihkan seluruh data (6 tabel database lokal) dengan format terstruktur berversi
+            - **Bypass Login**: Langsung masuk beranda tanpa layar login Google
+            - **Keamanan Biometrik**: Proteksi sidik jari/wajah tetap aktif mengamankan sesi lokal
+            - **Degradasi Anggun**: Cek pembaruan langsung via GitHub Releases, OCR struk lokal ML Kit
             - **Performa Ringan**: APK split per-ABI (<25 MB) dengan proteksi Dart code obfuscation
             
-            ### 📥 Panduan Instalasi Sideload:
-            1. Download APK sesuai arsitektur HP kamu (umumnya **app-arm64-v8a-release.apk** untuk HP modern).
-            2. *Catatan Migrasi Package com.mengfin*: Karena package name baru, pastikan sync selesai lalu install APK baru dan login ulang.
+            ### 📥 Panduan Instalasi:
+            1. Unduh APK sesuai arsitektur HP kamu (umumnya **app-arm64-v8a-release.apk**).
+            2. Instal menimpa versi sebelumnya (keystore signing tetap sama).
           files: |
             build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk

@@ -1,12 +1,17 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
+import '../constants/config.dart';
 import '../services/app_events.dart';
 import '../services/app_prefs.dart';
 import '../services/auth_service.dart';
+import '../services/backup_service.dart';
 import '../services/biometric_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/theme_service.dart';
@@ -267,13 +272,19 @@ class MoreScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
+          // ── Backup Data ──────────────────────────────────────
+          _sectionLabel('CADANGAN & PEMULIHAN (BACKUP)'),
+          const _BackupCard(),
+
           // ── Sync & Database ──────────────────────────────────
           _sectionLabel('SINKRONISASI & DATABASE'),
           _menuTile(
             icon: Icons.sync,
             color: AppColors.primary,
             title: 'Sinkronisasi Akun & Database',
-            subtitle: 'Otomatis aktif · Log & riwayat database',
+            subtitle: kLocalMode
+                ? 'Penyimpanan lokal aktif · Tidak terhubung ke cloud'
+                : 'Otomatis aktif · Log & riwayat database',
             onTap: () => _showSyncLog(context),
           ),
           const SizedBox(height: 16),
@@ -294,18 +305,19 @@ class MoreScreen extends StatelessWidget {
             subtitle: 'Personal Finance Manager',
             onTap: () => _showTentang(context),
           ),
-          _menuTile(
-            icon: Icons.bug_report_outlined,
-            color: const Color(0xFF10B981),
-            title: 'Laporkan Bug / Saran',
-            subtitle: 'Kirim masukan langsung ke developer',
-            onTap: () => FeedbackSheet.show(context),
-          ),
+          if (!kLocalMode)
+            _menuTile(
+              icon: Icons.bug_report_outlined,
+              color: const Color(0xFF10B981),
+              title: 'Laporkan Bug / Saran',
+              subtitle: 'Kirim masukan langsung ke developer',
+              onTap: () => FeedbackSheet.show(context),
+            ),
           _menuTile(
             icon: Icons.logout,
             color: AppColors.danger,
             title: 'Keluar',
-            subtitle: 'Logout dari akun',
+            subtitle: kLocalMode ? 'Reset data sesi & database' : 'Logout dari akun',
             onTap: () => _handleLogout(context),
           ),
           const SizedBox(height: 40),
@@ -664,6 +676,57 @@ class MoreScreen extends StatelessWidget {
   }
 
   void _handleLogout(BuildContext context) async {
+    if (kLocalMode) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: AppColors.bgCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Reset Data & Sesi', style: TextStyle(color: AppColors.textPrimary)),
+          content: Text(
+            'Di mode lokal, keluar akan mereset dan membersihkan seluruh database lokal pada perangkat ini. '
+            'Pastikan kamu sudah mengekspor cadangan (backup) jika masih membutuhkan data ini.\n\nYakin ingin melanjutkan?',
+            style: TextStyle(color: AppColors.textSecond, fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Batal', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('Reset & Keluar', style: TextStyle(color: AppColors.danger)),
+            ),
+          ],
+        ),
+      );
+      if (ok == true) {
+        try {
+          await LocalDb.clearAll();
+          AppEvents.instance.transaksiBerubah();
+          AppEvents.instance.akunBerubah();
+          AppEvents.instance.anggaranBerubah();
+          AppEvents.instance.goalsBerubah();
+          AppEvents.instance.notifDraftBerubah();
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Data lokal berhasil direset.'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Gagal reset: $e')),
+            );
+          }
+        }
+      }
+      return;
+    }
+
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       backgroundColor: AppColors.bgCard,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -691,6 +754,196 @@ class MoreScreen extends StatelessWidget {
         }
       }
     }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Kartu Cadangan & Pemulihan (Backup & Restore)
+// ─────────────────────────────────────────────────────────────
+class _BackupCard extends StatefulWidget {
+  const _BackupCard();
+
+  @override
+  State<_BackupCard> createState() => _BackupCardState();
+}
+
+class _BackupCardState extends State<_BackupCard> {
+  bool _processing = false;
+
+  Future<void> _handleExport() async {
+    setState(() => _processing = true);
+    await BackupService.exportAndShare(context);
+    if (mounted) setState(() => _processing = false);
+  }
+
+  Future<void> _handleRestore() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final pickedFile = result.files.first;
+      String jsonContent;
+      if (pickedFile.bytes != null) {
+        jsonContent = utf8.decode(pickedFile.bytes!);
+      } else if (pickedFile.path != null) {
+        jsonContent = await File(pickedFile.path!).readAsString();
+      } else {
+        throw Exception('Tidak bisa membaca isi berkas.');
+      }
+
+      final summary = BackupService.validateBackupJson(jsonContent);
+
+      if (!mounted) return;
+      final setuju = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.bgCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Konfirmasi Pemulihan Cadangan', style: TextStyle(color: AppColors.textPrimary)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Data lokal saat ini akan DITIMPA sepenuhnya oleh data cadangan:\n',
+                style: TextStyle(color: AppColors.textSecond, fontSize: 13),
+              ),
+              Text('• Waktu Ekspor: ${summary['exportedAt']}'),
+              Text('• Jumlah Transaksi: ${summary['transaksiCount']}'),
+              Text('• Jumlah Dompet/Akun: ${summary['akunCount']}'),
+              Text('• Anggaran: ${summary['anggaranCount']} · Goals: ${summary['goalsCount']}'),
+              const SizedBox(height: 12),
+              Text(
+                'Tindakan ini tidak dapat dibatalkan. Lanjutkan?',
+                style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Batal', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Timpa & Pulihkan', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (setuju != true) return;
+
+      setState(() => _processing = true);
+      await BackupService.restoreFromJsonString(jsonContent);
+      if (mounted) {
+        setState(() => _processing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Data berhasil dipulihkan dari cadangan!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _processing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memulihkan cadangan: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lastBackup = AppPrefs.instance.lastBackupTime;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Cadangan Database',
+                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              FutureBuilder<Map<String, int>>(
+                future: LocalDb.getAccountDataSummary(),
+                builder: (_, snap) {
+                  final count = snap.data?['transaksi'] ?? 0;
+                  return Text(
+                    '$count Transaksi',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            lastBackup != null
+                ? 'Terakhir diekspor: $lastBackup'
+                : 'Belum pernah mengekspor cadangan',
+            style: TextStyle(color: AppColors.textSecond, fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.file_upload_outlined, size: 16),
+                  label: const Text('Ekspor'),
+                  onPressed: _processing ? null : _handleExport,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.file_download_outlined, size: 16),
+                  label: const Text('Pulihkan'),
+                  onPressed: _processing ? null : _handleRestore,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

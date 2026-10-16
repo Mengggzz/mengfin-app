@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/config.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
@@ -112,6 +113,14 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
       List<Map<String, dynamic>> stages = [];
 
       if (isPdf) {
+        if (kLocalMode) {
+          _timer?.cancel();
+          setState(() {
+            _loading = false;
+            _error = 'Impor E-Statement PDF memerlukan parser server yang sedang diparkir. Silakan gunakan format CSV atau input manual.';
+          });
+          return;
+        }
         final base64 = base64Encode(bytes);
         final detailRes = await ApiService.importEStatementDetail(base64);
         if (_cancelled) return;

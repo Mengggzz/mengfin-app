@@ -70,6 +70,10 @@ class ConnectivityService {
 
   /// Pengecekan aktif ke endpoint server
   Future<bool> checkConnection() async {
+    if (kLocalMode) {
+      _setOnline(true);
+      return true;
+    }
     try {
       final res = await http.get(Uri.parse('$kApiBaseUrl/health')).timeout(const Duration(seconds: 3));
       final ok = res.statusCode >= 200 && res.statusCode < 500;

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/config.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
@@ -155,6 +156,9 @@ class _ScanScreenState extends State<ScanScreen> {
 
       // 2. Fallback ke Gemini AI jika lokal gagal / kurang yakin / diminta user
       if (data == null) {
+        if (kLocalMode) {
+          throw Exception('Total pada struk tidak terbaca oleh OCR lokal (AI Cloud tidak aktif di mode lokal).');
+        }
         data = await ApiService.scanStruk(base64Encode(bytes), _mimeType);
         _sumberOcr = 'ai';
       }
@@ -200,6 +204,14 @@ class _ScanScreenState extends State<ScanScreen> {
   Future<void> _scanMutasi() async {
     final bytes = _imageBytes;
     if (bytes == null) return;
+
+    if (kLocalMode) {
+      setState(() {
+        _scanning = false;
+        _error = 'Fitur ekstraksi mutasi memerlukan AI Cloud yang sedang diparkir di mode lokal. Gunakan input manual atau impor CSV.';
+      });
+      return;
+    }
 
     setState(() {
       _scanning = true;
@@ -765,7 +777,7 @@ class _ScanScreenState extends State<ScanScreen> {
         ),
       ],
 
-      if (_sumberOcr == 'lokal') ...[
+      if (_sumberOcr == 'lokal' && !kLocalMode) ...[
         const SizedBox(height: 10),
         OutlinedButton.icon(
           onPressed: _scanning ? null : () => _scanStruk(forceAi: true),
