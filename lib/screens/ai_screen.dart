@@ -302,8 +302,9 @@ class _AiScreenState extends State<AiScreen> {
           ),
 
         // Input bar
+        // (tanpa viewInsets manual: Scaffold resizeToAvoidBottomInset sudah menanganinya)
         Container(
-          padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).viewInsets.bottom + 12),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
           decoration:  BoxDecoration(
             color: AppColors.bgCard,
             border: Border(top: BorderSide(color: AppColors.glassBorder)),

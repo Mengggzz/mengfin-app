@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
+import '../constants/config.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
@@ -709,7 +710,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               backgroundColor: AppColors.bgCard,
               onRefresh: _load,
               child: CustomScrollView(slivers: [
-                if (_isOfflineData) _buildOfflineBanner(),
+                if (_isOfflineData && !kLocalMode) _buildOfflineBanner(),
                 SliverToBoxAdapter(child: _buildContent()),
               ]),
             ),

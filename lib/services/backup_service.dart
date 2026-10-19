@@ -18,7 +18,6 @@ class BackupService {
     'anggaran',
     'goals',
     'notif_draft',
-    'sync_queue',
     'transaksi',
   ];
 
@@ -36,7 +35,7 @@ class BackupService {
     };
   }
 
-  /// Membaca seluruh data dari 6 tabel SQLite lokal.
+  /// Membaca seluruh data dari 5 tabel SQLite lokal.
   static Future<Map<String, dynamic>> generateFullBackup() async {
     final db = await LocalDb.db;
     final tablesData = <String, List<Map<String, dynamic>>>{};
@@ -53,6 +52,49 @@ class BackupService {
     return createBackupPayload(tablesData);
   }
 
+  /// Folder privat penyimpanan salinan cadangan (terdeteksi otomatis saat restore).
+  static Future<Directory> _backupDir() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final dir = Directory('${docs.path}/mengfin_backups');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir;
+  }
+
+  /// Simpan salinan cadangan + batasi 10 berkas terbaru.
+  static Future<void> saveLocalCopy(String jsonStr, String stamp) async {
+    try {
+      final dir = await _backupDir();
+      final file = File('${dir.path}/mengfin-backup-$stamp.json');
+      await file.writeAsString(jsonStr, encoding: utf8);
+      final files = (await dir.list().toList())
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.json'))
+          .toList()
+        ..sort((a, b) => b.path.compareTo(a.path)); // stamp sortable: terbaru dulu
+      for (final old in files.skip(10)) {
+        try {
+          await old.delete();
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  /// Daftar berkas cadangan lokal, terbaru dulu. [] bila tidak ada / gagal.
+  static Future<List<File>> listLocalBackups() async {
+    try {
+      final dir = await _backupDir();
+      if (!await dir.exists()) return [];
+      final files = (await dir.list().toList())
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.json'))
+          .toList()
+        ..sort((a, b) => b.path.compareTo(a.path));
+      return files;
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Ekspor seluruh database ke file JSON dan panggil share sheet sistem.
   static Future<void> exportAndShare(BuildContext context) async {
     try {
@@ -64,17 +106,31 @@ class BackupService {
       final filePath = '${tempDir.path}/mengfin-backup-$stamp.json';
       final file = File(filePath);
       await file.writeAsString(jsonStr, encoding: utf8);
+      await saveLocalCopy(jsonStr, stamp);
 
-      final nowFormatted = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
-      await AppPrefs.instance.setLastBackupTime(nowFormatted);
+      // Bersihkan file cadangan lama agar tidak menumpuk di temp.
+      try {
+        await for (final e in tempDir.list()) {
+          if (e is File && e.path.contains('mengfin-backup-') && e.path != filePath) {
+            final age = DateTime.now().difference(await e.lastModified());
+            if (age.inDays > 7) await e.delete();
+          }
+        }
+      } catch (_) {}
 
-      await SharePlus.instance.share(
+      final result = await SharePlus.instance.share(
         ShareParams(
           files: [XFile(filePath)],
           subject: 'mengfin-backup-$stamp.json',
           text: 'Berkas Cadangan Database MengFin ($stamp)',
         ),
       );
+
+      // Catat waktu ekspor hanya bila user benar-benar membagikan berkas.
+      if (result.status == ShareResultStatus.success) {
+        final nowFormatted = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
+        await AppPrefs.instance.setLastBackupTime(nowFormatted);
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -132,19 +188,19 @@ class BackupService {
       'anggaranCount': tables['anggaran']?.length ?? 0,
       'goalsCount': tables['goals']?.length ?? 0,
       'notifDraftCount': tables['notif_draft']?.length ?? 0,
-      'syncQueueCount': tables['sync_queue']?.length ?? 0,
+      'syncQueueCount': 0, // sync_queue tidak lagi di-backup
       'tables': tables,
     };
   }
 
-  /// Timpa seluruh isi 6 tabel secara atomic dalam satu SQLite transaction.
+  /// Timpa seluruh isi 5 tabel secara atomic dalam satu SQLite transaction.
   static Future<void> restoreFromJsonString(String rawJson) async {
     final validation = validateBackupJson(rawJson);
     final tables = validation['tables'] as Map<String, List<Map<String, dynamic>>>;
 
     final db = await LocalDb.db;
     await db.transaction((txn) async {
-      // 1. Bersihkan 6 tabel
+      // 1. Bersihkan 5 tabel
       for (final table in supportedTables) {
         try {
           await txn.delete(table);

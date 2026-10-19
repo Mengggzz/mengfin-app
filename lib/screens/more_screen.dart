@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
@@ -276,18 +277,19 @@ class MoreScreen extends StatelessWidget {
           _sectionLabel('CADANGAN & PEMULIHAN (BACKUP)'),
           const _BackupCard(),
 
-          // ── Sync & Database ──────────────────────────────────
-          _sectionLabel('SINKRONISASI & DATABASE'),
-          _menuTile(
-            icon: Icons.sync,
-            color: AppColors.primary,
-            title: 'Sinkronisasi Akun & Database',
-            subtitle: kLocalMode
-                ? 'Penyimpanan lokal aktif · Tidak terhubung ke cloud'
-                : 'Otomatis aktif · Log & riwayat database',
-            onTap: () => _showSyncLog(context),
-          ),
-          const SizedBox(height: 16),
+          // ── Sync & Database: disembunyikan di mode lokal
+          // (Railway sudah tidak dipakai; kode dipertahankan bila backend aktif lagi)
+          if (!kLocalMode) ...[
+            _sectionLabel('SINKRONISASI & DATABASE'),
+            _menuTile(
+              icon: Icons.sync,
+              color: AppColors.primary,
+              title: 'Sinkronisasi Akun & Database',
+              subtitle: 'Otomatis aktif · Log & riwayat database',
+              onTap: () => _showSyncLog(context),
+            ),
+            const SizedBox(height: 16),
+          ],
 
           // ── Account ──────────────────────────────────────────
           _sectionLabel('AKUN'),
@@ -316,7 +318,7 @@ class MoreScreen extends StatelessWidget {
           _menuTile(
             icon: Icons.logout,
             color: AppColors.danger,
-            title: 'Keluar',
+            title: kLocalMode ? 'Reset & Hapus Semua Data' : 'Keluar',
             subtitle: kLocalMode ? 'Reset data sesi & database' : 'Logout dari akun',
             onTap: () => _handleLogout(context),
           ),
@@ -776,25 +778,86 @@ class _BackupCardState extends State<_BackupCard> {
     if (mounted) setState(() => _processing = false);
   }
 
+  /// Picker manual → return isi JSON, atau null bila batal/gagal baca.
+  /// Melempar PlatformException ke pemanggil (ditangani di _handleRestore).
+  Future<String?> _pickBackupFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return null;
+    final pickedFile = result.files.first;
+    if (pickedFile.bytes != null) {
+      return utf8.decode(pickedFile.bytes!);
+    } else if (pickedFile.path != null) {
+      return await File(pickedFile.path!).readAsString();
+    } else {
+      throw Exception('Tidak bisa membaca isi berkas.');
+    }
+  }
+
   Future<void> _handleRestore() async {
+    if (_processing) return; // cegah panggilan picker ganda
+    setState(() => _processing = true);
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        withData: true,
-      );
+      String? jsonContent;
 
-      if (result == null || result.files.isEmpty) return;
-
-      final pickedFile = result.files.first;
-      String jsonContent;
-      if (pickedFile.bytes != null) {
-        jsonContent = utf8.decode(pickedFile.bytes!);
-      } else if (pickedFile.path != null) {
-        jsonContent = await File(pickedFile.path!).readAsString();
+      // 1. Tawarkan cadangan lokal yang terdeteksi otomatis (bila ada)
+      final localBackups = await BackupService.listLocalBackups();
+      if (localBackups.isNotEmpty) {
+        if (!mounted) return;
+        final chosen = await showDialog<dynamic>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppColors.bgCard,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text('Pilih Cadangan', style: TextStyle(color: AppColors.textPrimary)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: localBackups.length + 1,
+                itemBuilder: (_, i) {
+                  if (i == localBackups.length) {
+                    return ListTile(
+                      leading: Icon(Icons.folder_open_outlined, color: AppColors.primary),
+                      title: Text('Pilih file lain…', style: TextStyle(color: AppColors.textPrimary)),
+                      subtitle: Text('Cari berkas cadangan dari sumber lain',
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                      onTap: () => Navigator.pop(ctx, 'picker'),
+                    );
+                  }
+                  final f = localBackups[i];
+                  final name = f.path.split('/').last;
+                  return ListTile(
+                    leading: Icon(Icons.backup_outlined, color: AppColors.primary),
+                    title: Text(name, style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                    onTap: () => Navigator.pop(ctx, f),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Batal', style: TextStyle(color: AppColors.textMuted)),
+              ),
+            ],
+          ),
+        );
+        if (chosen == null) return; // user batal
+        if (chosen == 'picker') {
+          jsonContent = await _pickBackupFile();
+        } else if (chosen is File) {
+          jsonContent = await chosen.readAsString();
+        }
       } else {
-        throw Exception('Tidak bisa membaca isi berkas.');
+        // 2. Tidak ada cadangan lokal → langsung picker manual (perilaku lama)
+        jsonContent = await _pickBackupFile();
       }
+
+      if (jsonContent == null) return;
 
       final summary = BackupService.validateBackupJson(jsonContent);
 
@@ -854,9 +917,20 @@ class _BackupCardState extends State<_BackupCard> {
           ),
         );
       }
+    } on PlatformException catch (e) {
+      if (mounted) {
+        final msg = e.code == 'already_active'
+            ? 'Pemilih file masih terbuka — selesaikan dulu pilihan file-nya.'
+            : 'Gagal memulihkan cadangan: ${e.message ?? e.code}';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
-        setState(() => _processing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal memulihkan cadangan: $e'),
@@ -864,6 +938,8 @@ class _BackupCardState extends State<_BackupCard> {
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _processing = false);
     }
   }
 

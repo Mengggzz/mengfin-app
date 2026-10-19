@@ -407,6 +407,8 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
   }
 
   Widget _buildBanner() {
+    // Mode lokal: tak ada status sync yang perlu ditampilkan.
+    if (kLocalMode) return const SizedBox.shrink();
     if (_isOnline && !_showSyncBanner && _pendingCount == 0) {
       return const SizedBox.shrink();
     }

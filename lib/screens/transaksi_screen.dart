@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../constants/config.dart';
 import '../constants/utils.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
@@ -452,7 +453,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
                                           }
                                         },
                                       ),
-                                      if (!tx.synced && !_isSelectionMode)
+                                      if (!tx.synced && !_isSelectionMode && !kLocalMode)
                                         Positioned(
                                           top: 8,
                                           right: 8,
